@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import {
   isRouteErrorResponse,
   Links,
@@ -9,6 +10,7 @@ import {
 } from "react-router";
 
 import type { Route } from "./+types/root";
+import { initSentryClient, captureException as captureClientException } from "~/lib/sentry.client";
 import "./app.css";
 
 export const links: Route.LinksFunction = () => [
@@ -25,7 +27,10 @@ export const links: Route.LinksFunction = () => [
 ];
 
 export function loader({ context }: Route.LoaderArgs) {
-  return { cspNonce: context.cspNonce };
+  return {
+    cspNonce: context.cspNonce,
+    sentryDsn: process.env.SENTRY_DSN || "",
+  };
 }
 
 /**
@@ -64,6 +69,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  const data = useRouteLoaderData("root") as { sentryDsn?: string } | undefined;
+
+  useEffect(() => {
+    if (data?.sentryDsn) {
+      initSentryClient(data.sentryDsn);
+    }
+  }, [data?.sentryDsn]);
+
   return <Outlet />;
 }
 
@@ -71,6 +84,13 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   let message = "Oops!";
   let details = "An unexpected error occurred.";
   let stack: string | undefined;
+
+  // Report non-Response errors to Sentry on the client
+  useEffect(() => {
+    if (error && !(error instanceof Response) && !isRouteErrorResponse(error)) {
+      captureClientException(error);
+    }
+  }, [error]);
 
   if (isRouteErrorResponse(error)) {
     message = error.status === 404 ? "404" : "Error";

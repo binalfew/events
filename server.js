@@ -1,8 +1,10 @@
 import "dotenv/config";
+import "./server/sentry.js";
+import { captureException } from "./server/sentry.js";
 import compression from "compression";
 import express from "express";
 import { logger } from "./server/logger.js";
-import { correlationMiddleware } from "./server/correlation.js";
+import { correlationMiddleware, getCorrelationId } from "./server/correlation.js";
 import { requestLogger } from "./server/request-logger.js";
 
 // Fail fast if required environment variables are missing
@@ -47,6 +49,7 @@ if (DEVELOPMENT) {
       if (typeof error === "object" && error instanceof Error) {
         viteDevServer.ssrFixStacktrace(error);
       }
+      captureException(error, { correlationId: getCorrelationId() });
       next(error);
     }
   });
