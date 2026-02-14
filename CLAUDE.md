@@ -4,38 +4,49 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Repository Is
 
-This is a **design documentation repository** (no source code) for a multi-tenant accreditation platform. It contains the complete system design across 19 modular specification documents. There is no build system, test suite, or runnable code — the deliverables are Markdown documents.
+A multi-tenant accreditation platform built with React Router 7, Express 5, Prisma 7, and PostgreSQL. The project includes both implementation code and design documentation.
 
 ## Repository Structure
 
-- `SYSTEM_DESIGN.md` — Original monolithic design document (v1.0, serves as reference)
-- `modules/` — Expanded modular specifications (the authoritative source):
-  - **00** Architecture Overview (foundation — all modules depend on this)
-  - **01** Data Model Foundation (Prisma schema, 32+ models, hybrid fixed+JSONB strategy)
-  - **02** Dynamic Schema Engine (runtime field definitions → Zod → Conform pipeline)
-  - **03** Visual Form Designer (@dnd-kit drag-and-drop form builder)
-  - **04** Workflow Engine (state machine with conditional routing, @xyflow/react visual builder)
-  - **05** Security & Access Control (RBAC, tenant isolation, session + 2FA)
-  - **06** Infrastructure & DevOps (Docker, GitHub Actions CI/CD, observability)
-  - **07** API & Integration Layer (REST + SSE real-time updates + webhooks)
-  - **08** UI/UX & Frontend (React 18, Radix UI, Tailwind CSS, PWA/offline)
-  - **09–16** Domain modules (Registration, Operations, Logistics, Protocol, People, Content, Compliance, Participant Experience)
-  - **17** Settings & Configuration
-  - **18** Implementation Roadmap (7 phases, Q1 2026–Q1 2027)
+```
+app/                    # React Router application code
+  lib/                  # Server/client utilities (db, env, logger, sentry, nonce)
+  routes/               # Route modules
+  utils/                # Shared utilities (soft-delete, etc.)
+  entry.server.tsx      # SSR entry with CSP nonce propagation
+  entry.client.tsx      # Client hydration entry
+  root.tsx              # Root layout with nonce, Sentry integration
+server/                 # Express server (plain .js/.ts for Node.js entry)
+  app.ts                # Express app with security middleware + React Router handler
+  index.ts              # Server entry point
+  security.ts           # Helmet CSP, CORS, rate limiting, nonce generation
+prisma/                 # Prisma schema and seed
+tests/                  # Test suites
+  e2e/                  # Playwright end-to-end tests
+  integration/          # Integration tests
+  factories/            # Test data factories
+  mocks/                # MSW handlers
+  setup/                # Test setup files
+docs/                   # Documentation
+  modules/              # 19 modular design specifications (00–18)
+  tasks/                # Implementation task definitions by phase
+  PHASE-0-COMPLETION.md # Detailed Phase 0 completion report
+```
 
-## Technology Stack Being Designed
+## Technology Stack
 
 | Layer          | Technology                                                |
 | -------------- | --------------------------------------------------------- |
-| Runtime        | Node.js >= 20                                             |
-| Framework      | React Router 7 + Vite + Express 4                         |
-| Database       | PostgreSQL 16 + Prisma 5 (JSONB for dynamic fields)       |
+| Runtime        | Node.js 22 LTS                                            |
+| Framework      | React Router 7 + Vite + Express 5                         |
+| Database       | PostgreSQL 16 + Prisma 7 (driver adapters, JSONB)         |
 | UI             | React 18, Radix UI, Tailwind CSS                          |
 | Forms          | Conform + Zod (server-validated, progressive enhancement) |
 | Visual Editors | @dnd-kit (forms), @xyflow/react (workflows)               |
 | File Storage   | Azure Blob Storage                                        |
 | Real-Time      | Server-Sent Events (SSE)                                  |
-| Testing        | Vitest + MSW + Playwright                                 |
+| Testing        | Vitest 4 + MSW + Playwright                               |
+| Error Tracking | Sentry (graceful no-op when DSN not configured)           |
 
 ## Key Architectural Patterns
 
@@ -44,20 +55,31 @@ This is a **design documentation repository** (no source code) for a multi-tenan
 - **Dynamic Schema Pipeline**: `CustomFieldDef` metadata → Zod schema generation → Conform form integration → GIN/expression indexes for query performance
 - **Configuration over Code**: Tenant admins customize events through UI-based field definitions, form designers, and workflow builders — no migrations or deployments needed
 - **Offline-first**: Badge printing, collection, and scanning work without continuous connectivity via Service Worker/PWA
+- **CSP Nonce Pipeline**: Nonce generated in Express middleware → passed via `AppLoadContext` → `NonceProvider` React context → `renderToPipeableStream` options
+- **Prisma 7 Driver Adapters**: `@prisma/adapter-pg` + `pg` package; no `DATABASE_URL` in schema.prisma
 
-## Module Dependencies
+## Development
 
-Modules declare explicit dependency chains in their headers (`Requires`, `Required By`, `Integrates With`). The critical path is:
-
+```bash
+fnm use          # Switch to Node 22 (reads .node-version)
+npm install
+npm run dev      # Start dev server
+npm run typecheck
+npm run test     # Vitest unit tests
+npm run test:e2e # Playwright e2e tests
 ```
-00 Architecture → 01 Data Model → 02 Dynamic Schema → 03 Form Designer
-                                                     → 04 Workflow Engine
-05 Security + 06 Infrastructure are cross-cutting (required by all)
-```
 
-## Working with These Documents
+## Design Documents
 
-- Each module follows a consistent structure: Overview → Architecture → Data Model → API Specification → Business Logic → User Interface → Integration Points → Configuration → Testing Strategy → Security → Performance → Open Questions
-- When making changes, check the `Integrates With` headers to identify affected modules
-- `SYSTEM_DESIGN.md` is the original monolith; the `modules/` directory is the expanded authoritative version — keep them conceptually aligned but the modules take precedence
-- The "Open Questions & Decisions" section at the end of each module tracks unresolved design decisions
+The `docs/modules/` directory contains 19 modular specifications (the authoritative design source):
+
+- **00** Architecture Overview (foundation — all modules depend on this)
+- **01** Data Model Foundation (Prisma schema, 32+ models, hybrid fixed+JSONB strategy)
+- **02–04** Dynamic Schema Engine, Visual Form Designer, Workflow Engine
+- **05–06** Security & Access Control, Infrastructure & DevOps (cross-cutting)
+- **07–08** API & Integration Layer, UI/UX & Frontend
+- **09–16** Domain modules (Registration, Operations, Logistics, Protocol, People, Content, Compliance, Participant Experience)
+- **17** Settings & Configuration
+- **18** Implementation Roadmap (7 phases)
+
+Modules declare dependency chains in their headers (`Requires`, `Required By`, `Integrates With`).
