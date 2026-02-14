@@ -11,8 +11,10 @@
     "db:push": "npx prisma db push",
     "db:seed": "npx prisma db seed",
     "db:studio": "npx prisma studio",
+    "db:verify-indexes": "npx tsx scripts/verify-indexes.ts",
     "lint": "tsc -b --noEmit",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "prepare": "husky"
   },
   "dependencies": {
     "@conform-to/react": "^1.17.0",

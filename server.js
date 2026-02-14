@@ -1,6 +1,17 @@
+import "dotenv/config";
 import compression from "compression";
 import express from "express";
 import morgan from "morgan";
+
+// Fail fast if required environment variables are missing
+const required = ["DATABASE_URL", "SESSION_SECRET"];
+for (const name of required) {
+  if (!process.env[name]) {
+    console.error(`\nMissing required environment variable: ${name}`);
+    console.error(`   Copy .env.example to .env and fill in the values.\n`);
+    process.exit(1);
+  }
+}
 
 // Short-circuit the type-checking of the built output.
 const BUILD_PATH = "./build/server/index.js";
