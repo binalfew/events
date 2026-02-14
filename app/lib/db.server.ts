@@ -1,4 +1,5 @@
 import { PrismaClient } from "../generated/prisma/client.js";
+import { PrismaPg } from "@prisma/adapter-pg";
 
 /**
  * Models that support soft delete via a `deletedAt` timestamp column.
@@ -16,7 +17,9 @@ function addSoftDeleteFilter(args: { where?: Record<string, unknown> }, includeD
 }
 
 function createBasePrismaClient() {
+  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
   return new PrismaClient({
+    adapter,
     log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
   });
 }

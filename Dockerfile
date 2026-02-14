@@ -1,5 +1,5 @@
 # ─── Stage 1: Base ────────────────────────────────────────────
-FROM node:20-alpine AS base
+FROM node:22-alpine AS base
 
 RUN apk add --no-cache dumb-init curl && \
     apk upgrade --no-cache
@@ -14,7 +14,7 @@ COPY prisma/ ./prisma/
 
 # Install without lock file so npm resolves platform-correct optional deps
 RUN npm install --omit=dev --ignore-scripts && \
-    DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder" npx prisma generate
+    npx prisma generate
 
 # ─── Stage 3: Build ──────────────────────────────────────────
 FROM base AS build
@@ -25,7 +25,7 @@ COPY package.json ./
 RUN npm install
 
 COPY . .
-RUN DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder" npx prisma generate && \
+RUN npx prisma generate && \
     npm run build
 
 # ─── Stage 4: Production ─────────────────────────────────────
