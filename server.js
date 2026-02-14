@@ -1,14 +1,18 @@
 import "dotenv/config";
 import compression from "compression";
 import express from "express";
-import morgan from "morgan";
+import { logger } from "./server/logger.js";
+import { correlationMiddleware } from "./server/correlation.js";
+import { requestLogger } from "./server/request-logger.js";
 
 // Fail fast if required environment variables are missing
 const required = ["DATABASE_URL", "SESSION_SECRET"];
 for (const name of required) {
   if (!process.env[name]) {
-    console.error(`\nMissing required environment variable: ${name}`);
-    console.error(`   Copy .env.example to .env and fill in the values.\n`);
+    logger.fatal(
+      { variable: name },
+      `Missing required environment variable: ${name}. Copy .env.example to .env and fill in the values.`,
+    );
     process.exit(1);
   }
 }
@@ -23,8 +27,12 @@ const app = express();
 app.use(compression());
 app.disable("x-powered-by");
 
+// Correlation ID and structured request logging for all requests
+app.use(correlationMiddleware);
+app.use(requestLogger);
+
 if (DEVELOPMENT) {
-  console.log("Starting development server");
+  logger.info("Starting development server");
   const viteDevServer = await import("vite").then((vite) =>
     vite.createServer({
       server: { middlewareMode: true },
@@ -43,16 +51,15 @@ if (DEVELOPMENT) {
     }
   });
 } else {
-  console.log("Starting production server");
+  logger.info("Starting production server");
   app.use(
     "/assets",
     express.static("build/client/assets", { immutable: true, maxAge: "1y" }),
   );
-  app.use(morgan("tiny"));
   app.use(express.static("build/client", { maxAge: "1h" }));
   app.use(await import(BUILD_PATH).then((mod) => mod.app));
 }
 
 app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+  logger.info({ port: PORT }, `Server is running on http://localhost:${PORT}`);
 });

@@ -1,22 +1,57 @@
-FROM node:20-alpine AS development-dependencies-env
-COPY . /app
-WORKDIR /app
-RUN npm ci
+# ─── Stage 1: Base ────────────────────────────────────────────
+FROM node:20-alpine AS base
 
-FROM node:20-alpine AS production-dependencies-env
-COPY ./package.json package-lock.json /app/
-WORKDIR /app
-RUN npm ci --omit=dev
+RUN apk add --no-cache dumb-init curl && \
+    apk upgrade --no-cache
 
-FROM node:20-alpine AS build-env
-COPY . /app/
-COPY --from=development-dependencies-env /app/node_modules /app/node_modules
 WORKDIR /app
-RUN npm run build
 
-FROM node:20-alpine
-COPY ./package.json package-lock.json server.js /app/
-COPY --from=production-dependencies-env /app/node_modules /app/node_modules
-COPY --from=build-env /app/build /app/build
-WORKDIR /app
-CMD ["npm", "run", "start"]
+# ─── Stage 2: Dependencies (production only) ─────────────────
+FROM base AS deps
+
+COPY package.json prisma.config.ts ./
+COPY prisma/ ./prisma/
+
+# Install without lock file so npm resolves platform-correct optional deps
+RUN npm install --omit=dev --ignore-scripts && \
+    DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder" npx prisma generate
+
+# ─── Stage 3: Build ──────────────────────────────────────────
+FROM base AS build
+
+COPY package.json ./
+
+# Install without lock file to get correct platform bindings (e.g. rollup linux-arm64-musl)
+RUN npm install
+
+COPY . .
+RUN DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholder" npx prisma generate && \
+    npm run build
+
+# ─── Stage 4: Production ─────────────────────────────────────
+FROM base AS production
+
+ENV NODE_ENV=production
+ENV PORT=8080
+
+# Copy production node_modules from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+
+# Copy built application from build stage
+COPY --from=build /app/build ./build
+COPY --from=build /app/package.json ./
+COPY --from=build /app/server.js ./
+COPY --from=build /app/server/ ./server/
+COPY --from=build /app/prisma/ ./prisma/
+COPY --from=build /app/prisma.config.ts ./
+
+# Run as non-root user
+USER node
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:8080/up || exit 1
+
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "server.js"]

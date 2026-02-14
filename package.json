@@ -14,7 +14,10 @@
     "db:verify-indexes": "npx tsx scripts/verify-indexes.ts",
     "lint": "tsc -b --noEmit",
     "format": "prettier --write .",
-    "prepare": "husky"
+    "prepare": "husky",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:db:reset": "docker compose exec db psql -U postgres -c 'DROP DATABASE IF EXISTS accreditation;' -c 'CREATE DATABASE accreditation;' && npm run db:push"
   },
   "dependencies": {
     "@conform-to/react": "^1.17.0",
@@ -36,7 +39,6 @@
     "express-rate-limit": "^8.2.1",
     "helmet": "^8.1.0",
     "isbot": "^5.1.31",
-    "morgan": "^1.10.1",
     "pino": "^10.3.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
@@ -54,7 +56,6 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/express-serve-static-core": "^5.0.7",
-    "@types/morgan": "^1.9.10",
     "@types/node": "^22",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
