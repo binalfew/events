@@ -26,11 +26,18 @@ export function helmetMiddleware(req: Request, res: Response, next: NextFunction
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", `'nonce-${nonce}'`],
-        styleSrc: ["'self'", `'nonce-${nonce}'`, "https://fonts.googleapis.com"],
+        scriptSrc: [
+          "'strict-dynamic'",
+          `'nonce-${nonce}'`,
+          // 'unsafe-inline' is ignored by browsers that support nonces (CSP Level 2+)
+          // but serves as a fallback for older browsers
+          ...(DEVELOPMENT ? ["'unsafe-inline'"] : []),
+        ],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         imgSrc: ["'self'", "data:", "blob:", ...(DEVELOPMENT ? ["http://localhost:*"] : [])],
         connectSrc: ["'self'", ...(DEVELOPMENT ? ["ws://localhost:*", "http://localhost:*"] : [])],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        workerSrc: ["'self'", ...(DEVELOPMENT ? ["blob:"] : [])],
         objectSrc: ["'none'"],
         frameAncestors: ["'none'"],
         baseUri: ["'self'"],

@@ -11,6 +11,7 @@ import {
 
 import type { Route } from "./+types/root";
 import { initSentryClient, captureException as captureClientException } from "~/lib/sentry.client";
+import { useNonce } from "~/lib/nonce-provider";
 import "./app.css";
 
 export const links: Route.LinksFunction = () => [
@@ -28,24 +29,8 @@ export const links: Route.LinksFunction = () => [
 
 export function loader({ context }: Route.LoaderArgs) {
   return {
-    cspNonce: context.cspNonce,
     sentryDsn: process.env.SENTRY_DSN || "",
   };
-}
-
-/**
- * Safely retrieve the CSP nonce from the root loader data.
- * useRouteLoaderData returns undefined if the loader has not
- * yet resolved (e.g. during error boundary rendering), so we
- * wrap the call in a try/catch for extra safety.
- */
-function useNonce(): string | undefined {
-  try {
-    const data = useRouteLoaderData("root") as { cspNonce?: string } | undefined;
-    return data?.cspNonce;
-  } catch {
-    return undefined;
-  }
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
