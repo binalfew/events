@@ -2,7 +2,7 @@
 
 > **Started:** 2026-02-15
 > **Last updated:** 2026-02-15
-> **Tasks completed:** P1-00, P1-01, P1-02, P1-03, P1-04, P1-05, P1-06, P1-07, P1-08, P1-09 (of P1-00 through P1-11)
+> **Tasks completed:** P1-00, P1-01, P1-02, P1-03, P1-04, P1-05, P1-06, P1-07, P1-08, P1-09, P1-10 (of P1-00 through P1-11)
 > **Status:** In progress
 
 ---
@@ -1471,10 +1471,65 @@ Uses `Response.json()` (not react-router's `data()`) because `data()` returns a 
 
 ## 12. P1-10 — Rate Limiting Enhancement
 
-> **Status:** Not started
+> **Status:** Complete
 > **Depends on:** P1-01
 
-_To be completed._
+### What This Task Does
+
+Upgrades the Phase 0 rate limiting from basic IP-based identification to a user-aware system with route-specific limiters, structured JSON 429 responses, audit logging, and health check exemption. Phase 0 had three generic tiers (general, mutation, auth) keyed solely by IP address — corporate networks sharing a single IP would hit false positives, violations weren't logged, and 429 responses were generic HTML.
+
+### Why It's Designed This Way
+
+**User-aware key generation:** When a session cookie is present, the rate limiter keys on `user:{userId}` instead of `ip:{address}`. This prevents corporate NATs (hundreds of users behind one IP) from collectively exhausting the limit while still protecting against individual abuse. Unauthenticated requests fall back to IP-based keys gracefully.
+
+**Session extraction as early middleware:** The `extractSessionUser` middleware runs before rate limiters but after the suspicious request blocker. It wraps the Express `req.headers.cookie` into a Web `Request` to satisfy the React Router session API (`getSession` expects a Web Request). This is a thin bridge between Express and React Router's session layer — no duplication of session logic.
+
+**Fire-and-forget audit logging:** Rate limit violations are logged to the `AuditLog` table asynchronously via `.catch(() => {})`. The audit write never blocks or crashes the 429 response — if the database is down, the rate limit still functions. The `RATE_LIMIT` action type allows security teams to query violation patterns (by user, IP, tier, endpoint).
+
+**Route-specific limiters:** High-value endpoints get dedicated limits: field definitions (30/min), search (60/min), reorder (20/min), file upload (10/min). These are tighter than the general limiter and protect against targeted abuse of expensive operations.
+
+**Health check exemption:** The `/up` endpoint is excluded from all limiters via the `skip` option. Load balancers and uptime monitors need unrestricted access to health checks.
+
+### Files Created/Modified
+
+| File                                                                         | Action   | Purpose                                                                                                                                                                                     |
+| ---------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prisma/schema.prisma`                                                       | Modified | Added `RATE_LIMIT` to `AuditAction` enum                                                                                                                                                    |
+| `prisma/migrations/20260215165310_add_rate_limit_audit_action/migration.sql` | Created  | Migration for the new enum value                                                                                                                                                            |
+| `app/lib/session.server.ts`                                                  | Modified | Exported `sessionStorage` and `getSession` for Express middleware use                                                                                                                       |
+| `server/rate-limit-audit.ts`                                                 | Created  | `logRateLimitViolation` (fire-and-forget) + `extractViolationContext` helper                                                                                                                |
+| `server/security.ts`                                                         | Modified | Added `extractSessionUser`, `createKeyGenerator`, `createRateLimitHandler`, `skipHealthCheck`, 4 route-specific limiters, `If-Match` in CORS, `validate: { keyGeneratorIpFallback: false }` |
+| `server/app.ts`                                                              | Modified | Wired session extraction + route-specific limiters in correct middleware order                                                                                                              |
+| `server/__tests__/rate-limiting.test.ts`                                     | Created  | 12 tests for key generator, skip, handler, session extraction                                                                                                                               |
+| `server/__tests__/rate-limit-audit.test.ts`                                  | Created  | 6 tests for audit logging and context extraction                                                                                                                                            |
+| `vitest.config.ts`                                                           | Modified | Added `server/**/*.{test,spec}.{ts,tsx}` to test includes                                                                                                                                   |
+
+### Rate Limiter Configuration
+
+| Limiter           | Route Pattern       | Limit | Window | Tier       |
+| ----------------- | ------------------- | ----- | ------ | ---------- |
+| `generalLimiter`  | all                 | 100   | 15 min | `general`  |
+| `mutationLimiter` | `/api` (non-GET)    | 50    | 60s    | `mutation` |
+| `authLimiter`     | `/auth`             | 10    | 60s    | `auth`     |
+| `fieldsLimiter`   | `/admin/:id/fields` | 30    | 60s    | `fields`   |
+| `searchLimiter`   | `/api/:id/search`   | 60    | 60s    | `search`   |
+| `reorderLimiter`  | `/api/:id/reorder`  | 20    | 60s    | `reorder`  |
+| `uploadLimiter`   | `/api/:id/files`    | 10    | 60s    | `upload`   |
+
+### Updated Middleware Order
+
+1. nonce → 2. helmet → 3. permissionsPolicy → 4. cors → 5. suspiciousRequestBlocker → 6. **extractSessionUser** → 7. generalLimiter → 8. route-specific limiters → 9. mutationLimiter → 10. authLimiter → 11. React Router handler
+
+### Test Coverage
+
+| Test File                                   | Tests | What's Covered                                                                                                                                                                |
+| ------------------------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `server/__tests__/rate-limiting.test.ts`    | 12    | Key generator (user vs IP, fallback, different users same IP), skipHealthCheck, structured 429 handler, audit log call, extractSessionUser (success, failure, missing userId) |
+| `server/__tests__/rate-limit-audit.test.ts` | 6     | Audit log creation with correct fields, null userId, IP fallback, fire-and-forget error swallowing                                                                            |
+
+### Gotcha: Express 5 Route Patterns
+
+Express 5 uses `path-to-regexp` v8 which no longer supports bare `*` wildcards. The plan specified `/admin/*/fields` but this throws `TypeError: Missing parameter name at index 8`. Fixed by using named parameters: `/admin/:id/fields`, `/api/:id/search`, etc.
 
 ---
 
@@ -1506,7 +1561,8 @@ fa66845 refactor: rename dynamic-fields/custom-fields to fields across codebase
 93464b5 feat: implement P1-06 JSONB query layer & expression indexes
 7b54595 feat: implement P1-07 workflow versioning with snapshot-based navigation
 b669c8e feat: implement P1-08 SLA enforcement with background job and breach actions
-(P1-09 — pending commit)
+e435a3c feat: implement P1-09 optimistic locking and update Phase 1 completion report
+b362d51 feat: implement P1-10 rate limiting enhancement with user-aware keys and route-specific limiters
 ```
 
 ---
@@ -1586,21 +1642,29 @@ b669c8e feat: implement P1-08 SLA enforcement with background job and breach act
 | `app/utils/api-error.server.ts`                                                          | P1-09 | Unified error→Response formatting                                                        |
 | `app/services/__tests__/optimistic-lock.server.test.ts`                                  | P1-09 | 14 optimistic lock tests                                                                 |
 | `app/utils/__tests__/api-error.server.test.ts`                                           | P1-09 | 7 error formatting tests                                                                 |
+| `prisma/migrations/20260215165310_add_rate_limit_audit_action/migration.sql`             | P1-10 | Add RATE_LIMIT to AuditAction enum                                                       |
+| `server/rate-limit-audit.ts`                                                             | P1-10 | Fire-and-forget audit logging for rate limit violations                                  |
+| `server/__tests__/rate-limiting.test.ts`                                                 | P1-10 | 12 tests for rate limiting helpers and session extraction                                |
+| `server/__tests__/rate-limit-audit.test.ts`                                              | P1-10 | 6 tests for audit logging and context extraction                                         |
 
 ### Files Modified
 
-| File                               | Task(s)             | Changes                                                                                  |
-| ---------------------------------- | ------------------- | ---------------------------------------------------------------------------------------- |
-| `prisma/schema.prisma`             | P1-00, P1-07, P1-08 | +8 enums, +10 models, +workflowVersionId to Participant, +SLA_BREACH to AuditAction      |
-| `app/lib/db.server.ts`             | P1-00               | +2 soft-delete middleware blocks (participant, workflow)                                 |
-| `prisma/seed.ts`                   | P1-00               | Expanded from 2 entities to full RBAC + event + workflow scenario                        |
-| `tests/setup/integration-setup.ts` | P1-00               | Truncation order: 5 tables → 17 tables                                                   |
-| `tests/factories/index.ts`         | P1-00, P1-02        | +5 factory functions, expanded seedFullScenario, +`buildFieldDefinition`                 |
-| `scripts/verify-indexes.ts`        | P1-00               | Expected indexes: 4 models → 16 models (33 total index checks)                           |
-| `app/routes.ts`                    | Infra               | Migrated to `autoRoutes()` from `react-router-auto-routes` (file-system routing)         |
-| `app/lib/require-auth.server.ts`   | P1-02               | Added `requirePermission(request, resource, action)` helper                              |
-| `app/services/fields.server.ts`    | P1-06, P1-09        | Auto index management on CRUD; +`expectedVersion` param to `updateField`, P2025 handling |
-| `server.js`                        | P1-08               | SLA job import/start/stop integration                                                    |
+| File                               | Task(s)                    | Changes                                                                                                                                  |
+| ---------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `prisma/schema.prisma`             | P1-00, P1-07, P1-08, P1-10 | +8 enums, +10 models, +workflowVersionId to Participant, +SLA_BREACH/RATE_LIMIT to AuditAction                                           |
+| `app/lib/db.server.ts`             | P1-00                      | +2 soft-delete middleware blocks (participant, workflow)                                                                                 |
+| `prisma/seed.ts`                   | P1-00                      | Expanded from 2 entities to full RBAC + event + workflow scenario                                                                        |
+| `tests/setup/integration-setup.ts` | P1-00                      | Truncation order: 5 tables → 17 tables                                                                                                   |
+| `tests/factories/index.ts`         | P1-00, P1-02               | +5 factory functions, expanded seedFullScenario, +`buildFieldDefinition`                                                                 |
+| `scripts/verify-indexes.ts`        | P1-00                      | Expected indexes: 4 models → 16 models (33 total index checks)                                                                           |
+| `app/routes.ts`                    | Infra                      | Migrated to `autoRoutes()` from `react-router-auto-routes` (file-system routing)                                                         |
+| `app/lib/require-auth.server.ts`   | P1-02                      | Added `requirePermission(request, resource, action)` helper                                                                              |
+| `app/services/fields.server.ts`    | P1-06, P1-09               | Auto index management on CRUD; +`expectedVersion` param to `updateField`, P2025 handling                                                 |
+| `server.js`                        | P1-08                      | SLA job import/start/stop integration                                                                                                    |
+| `app/lib/session.server.ts`        | P1-10                      | Exported `sessionStorage` and `getSession` for Express middleware                                                                        |
+| `server/security.ts`               | P1-10                      | User-aware key generator, structured 429 handler, 4 route-specific limiters, session extraction, health check skip, CORS If-Match header |
+| `server/app.ts`                    | P1-10                      | Wired `extractSessionUser` + route-specific limiters in middleware chain                                                                 |
+| `vitest.config.ts`                 | P1-10                      | Added `server/**/*.{test,spec}.{ts,tsx}` to test includes                                                                                |
 
 ---
 
@@ -1673,7 +1737,17 @@ This matches the existing `BUILD_PATH` pattern already used in `server.js`.
 
 **Fix:** Switched `api-error.server.ts` to use `Response.json()` instead of `data()` from react-router. `Response.json()` creates a standard `Response` object that works with test assertions.
 
-### 8. Navigation test failure with isFinalStep step
+### 8. Express 5 `path-to-regexp` v8 rejects bare `*` wildcards
+
+**Problem:** `app.use("/admin/*/fields", fieldsLimiter)` threw `TypeError: Missing parameter name at index 8: /admin/*/fields` on startup.
+
+**Cause:** Express 5 uses `path-to-regexp` v8 which no longer supports bare `*` as a wildcard segment. In Express 4, `*` matched any single path segment. In Express 5, wildcards must be named parameters (`:id`) or catch-all patterns (`{*path}`).
+
+**Fix:** Changed to named parameters: `/admin/:id/fields`, `/api/:id/search`, `/api/:id/reorder`, `/api/:id/files`. These match the same URL structures but use valid v8 syntax.
+
+**Prevention:** When using Express 5, always use `:param` for single-segment wildcards and `{*param}` for multi-segment catch-alls. Never use bare `*`.
+
+### 9. Navigation test failure with isFinalStep step
 
 **Problem:** Testing "throws when no target configured for action" failed because the test used BYPASS on step-2 which had `isFinalStep: true`. Instead of throwing, the action completed with `isComplete: true`.
 
@@ -1787,15 +1861,15 @@ This matches the existing `BUILD_PATH` pattern already used in `server.js`.
 
 Progress toward the Phase 1 → Phase 2 quality gate:
 
-| Criterion                                                     | Status      | Notes                                                      |
-| ------------------------------------------------------------- | ----------- | ---------------------------------------------------------- |
-| Admin can create, edit, reorder, and delete field definitions | Complete    | P1-02 API + P1-05 UI — full CRUD with type-specific config |
-| Fields render on registration forms                           | Complete    | P1-04 — 25 tests, test route available                     |
-| JSONB queries support filtering with expression indexes       | Complete    | P1-06 — 12 operators, auto index lifecycle, 41+ tests      |
-| Workflow versioning snapshots active version on entry         | Complete    | P1-07 — hash-based dedup, 31 tests                         |
-| SLA overdue detection runs as background job (5 min)          | Complete    | P1-08 — 5 actions, dashboard queries, 26 tests             |
-| Optimistic locking prevents concurrent approve/reject         | Complete    | P1-09 — If-Match header + \_version form field, 24 tests   |
-| Rate limiting active on all authenticated API routes          | Not started | P1-10                                                      |
-| File uploads scanned for malware before acceptance            | Not started | P1-11                                                      |
-| Zod schemas validate field data on submission                 | Complete    | P1-03 — 53 tests                                           |
-| Unit test coverage ≥ 85% for new code                         | In progress | 291/291 tests pass across 23 test files                    |
+| Criterion                                                     | Status      | Notes                                                         |
+| ------------------------------------------------------------- | ----------- | ------------------------------------------------------------- |
+| Admin can create, edit, reorder, and delete field definitions | Complete    | P1-02 API + P1-05 UI — full CRUD with type-specific config    |
+| Fields render on registration forms                           | Complete    | P1-04 — 25 tests, test route available                        |
+| JSONB queries support filtering with expression indexes       | Complete    | P1-06 — 12 operators, auto index lifecycle, 41+ tests         |
+| Workflow versioning snapshots active version on entry         | Complete    | P1-07 — hash-based dedup, 31 tests                            |
+| SLA overdue detection runs as background job (5 min)          | Complete    | P1-08 — 5 actions, dashboard queries, 26 tests                |
+| Optimistic locking prevents concurrent approve/reject         | Complete    | P1-09 — If-Match header + \_version form field, 24 tests      |
+| Rate limiting active on all authenticated API routes          | Complete    | P1-10 — user-aware keys, 7 limiters, structured 429, 18 tests |
+| File uploads scanned for malware before acceptance            | Not started | P1-11                                                         |
+| Zod schemas validate field data on submission                 | Complete    | P1-03 — 53 tests                                              |
+| Unit test coverage ≥ 85% for new code                         | In progress | 309/309 tests pass across 25 test files                       |
