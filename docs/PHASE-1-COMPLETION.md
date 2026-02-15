@@ -1,8 +1,8 @@
 # Phase 1: Dynamic Schema + Core Reliability — Completion Report
 
 > **Started:** 2026-02-15
-> **Last updated:** 2026-02-15
-> **Tasks completed:** P1-00, P1-01, P1-02, P1-03, P1-04, P1-05, P1-06, P1-07, P1-08, P1-09, P1-10, P1-11 (all 12 tasks)
+> **Last updated:** 2026-02-16
+> **Tasks completed:** P1-00, P1-01, P1-02, P1-03, P1-04, P1-05, P1-06, P1-07, P1-08, P1-09, P1-10, P1-11 (all 12 tasks) + App Shell & Color Themes
 > **Status:** Complete
 
 ---
@@ -22,11 +22,13 @@
 11. [P1-09 — Optimistic Locking](#11-p1-09--optimistic-locking)
 12. [P1-10 — Rate Limiting Enhancement](#12-p1-10--rate-limiting-enhancement)
 13. [P1-11 — File Upload Scanning](#13-p1-11--file-upload-scanning)
-14. [Commit History](#14-commit-history)
-15. [Complete File Inventory](#15-complete-file-inventory)
-16. [Bugs & Gotchas Encountered](#16-bugs--gotchas-encountered)
-17. [Architecture Decisions](#17-architecture-decisions)
-18. [Quality Gate Progress](#18-quality-gate-progress)
+14. [App Shell Redesign](#14-app-shell-redesign)
+15. [Color Theme Selector](#15-color-theme-selector)
+16. [Commit History](#16-commit-history)
+17. [Complete File Inventory](#17-complete-file-inventory)
+18. [Bugs & Gotchas Encountered](#18-bugs--gotchas-encountered)
+19. [Architecture Decisions](#19-architecture-decisions)
+20. [Quality Gate Progress](#20-quality-gate-progress)
 
 ---
 
@@ -1580,7 +1582,104 @@ A complete file upload pipeline with ClamAV malware scanning, magic bytes valida
 
 ---
 
-## 14. Commit History
+## 14. App Shell Redesign
+
+### What This Delivers
+
+A production-grade application shell with a collapsible sidebar, top navbar with breadcrumbs, and responsive layout. The sidebar supports icon-only collapse mode with persistent state via cookies.
+
+### Key Components
+
+| Component        | Purpose                                                                                                       |
+| ---------------- | ------------------------------------------------------------------------------------------------------------- |
+| `AppSidebar`     | Collapsible sidebar with tenant switcher header, role-filtered nav groups, and user footer                    |
+| `TopNavbar`      | Compact `h-12` navbar with breadcrumbs, search placeholder, theme/color toggles, notifications, user dropdown |
+| `NavMain`        | Sidebar navigation groups with collapsible sections — collapse state persisted in cookies                     |
+| `NavUser`        | Sidebar footer with avatar, name, email, and sign-out action                                                  |
+| `TenantSwitcher` | Sidebar header with tenant logo and dropdown (placeholder for multi-tenant switching)                         |
+
+### Architecture
+
+- **Cookie persistence**: Sidebar open/closed state and group collapse state stored in `sidebar_state` and `sidebar_groups` cookies via `app/lib/sidebar.server.ts`
+- **Role-based navigation**: `app/config/navigation.ts` defines nav groups with `requiredRoles` — only visible groups are rendered
+- **Breadcrumbs**: Route modules export `handle.breadcrumb` strings, collected by `useMatches()` in the navbar
+- **Responsive**: Sidebar renders as a sheet overlay on mobile, collapsible rail on desktop
+
+### Files Created
+
+| File                                        | Purpose                                       |
+| ------------------------------------------- | --------------------------------------------- |
+| `app/components/layout/app-sidebar.tsx`     | Main sidebar component                        |
+| `app/components/layout/top-navbar.tsx`      | Top navigation bar                            |
+| `app/components/layout/nav-main.tsx`        | Navigation group renderer                     |
+| `app/components/layout/nav-user.tsx`        | User menu in sidebar footer                   |
+| `app/components/layout/tenant-switcher.tsx` | Tenant switcher in sidebar header             |
+| `app/config/navigation.ts`                  | Navigation configuration with role visibility |
+| `app/lib/sidebar.server.ts`                 | Cookie read/write for sidebar state           |
+| `app/lib/theme.server.ts`                   | Light/dark theme cookie                       |
+| `app/routes/resources/theme-switch.tsx`     | Theme toggle resource route                   |
+| `app/components/ui/sidebar.tsx`             | shadcn sidebar primitive                      |
+
+---
+
+## 15. Color Theme Selector
+
+### What This Delivers
+
+An accent color selector that lets users pick from 7 color themes (default, blue, green, rose, orange, violet, yellow) independently of light/dark mode. The selection persists across page refreshes via the `color_theme` cookie.
+
+### How It Works
+
+```
+User clicks palette icon in top navbar
+  → fetcher.Form POSTs to /resources/color-theme
+  → action validates with Zod + sets color_theme cookie
+  → useOptimisticColorTheme reads pending fetcher for instant UI
+  → root Layout applies data-theme="blue" on <html>
+  → CSS [data-theme="blue"] overrides --primary, --ring, --sidebar-primary, --chart-*
+```
+
+- `data-theme` attribute controls accent color, `.dark` class controls light/dark — fully independent
+- "default" theme = no `data-theme` attribute → base neutral CSS variables apply
+- Compound selectors `.dark[data-theme="blue"]` handle dark+color combinations
+- Green theme uses custom `#3F734B` (forest green) instead of Tailwind's default green
+
+### Themes
+
+| Theme   | Light Primary                          | Dark Primary                 |
+| ------- | -------------------------------------- | ---------------------------- |
+| Default | Neutral grayscale                      | Neutral grayscale            |
+| Blue    | `oklch(0.546 0.245 262.881)`           | `oklch(0.623 0.214 259.815)` |
+| Green   | `oklch(0.508 0.085 149.959)` (#3F734B) | `oklch(0.629 0.109 149.344)` |
+| Rose    | `oklch(0.577 0.245 27.325)`            | `oklch(0.637 0.237 25.331)`  |
+| Orange  | `oklch(0.705 0.213 47.604)`            | `oklch(0.705 0.213 47.604)`  |
+| Violet  | `oklch(0.541 0.281 293.009)`           | `oklch(0.627 0.265 303.9)`   |
+| Yellow  | `oklch(0.769 0.188 70.08)`             | `oklch(0.828 0.189 84.429)`  |
+
+### Files Created
+
+| File                                   | Purpose                                                                          |
+| -------------------------------------- | -------------------------------------------------------------------------------- |
+| `app/lib/color-theme.ts`               | Shared constants (`COLOR_THEMES`) and types (client-safe)                        |
+| `app/lib/color-theme.server.ts`        | Cookie read/write for `color_theme` (server-only)                                |
+| `app/routes/resources/color-theme.tsx` | Resource route with action, optimistic hooks, and `ColorThemeSelector` component |
+
+### Files Modified
+
+| File                                   | Changes                                                                            |
+| -------------------------------------- | ---------------------------------------------------------------------------------- |
+| `app/app.css`                          | +14 CSS blocks (7 themes x light/dark) with `[data-theme]` selectors               |
+| `app/root.tsx`                         | Added `colorTheme` to loader, `useColorThemeData()` hook, `data-theme` on `<html>` |
+| `app/routes/admin/_layout.tsx`         | Added `colorTheme` to loader, passed to `TopNavbar`                                |
+| `app/components/layout/top-navbar.tsx` | Added `ColorThemeSelector` between theme switch and notifications                  |
+
+### Key Design Decision: Client-Safe Module Split
+
+The `COLOR_THEMES` constant is needed on both server (cookie validation) and client (Zod schema in optimistic hook). Since `.server.ts` files are stripped from client bundles by Vite, shared constants live in `app/lib/color-theme.ts` (no `.server` suffix) while cookie operations live in `app/lib/color-theme.server.ts`.
+
+---
+
+## 16. Commit History
 
 ```
 (Phase 0 final commits for reference)
@@ -1603,11 +1702,15 @@ e435a3c feat: implement P1-09 optimistic locking and update Phase 1 completion r
 b362d51 feat: implement P1-10 rate limiting enhancement with user-aware keys and route-specific limiters
 d4ae496 docs: update Phase 1 completion report with P1-10 rate limiting enhancement
 b42e37c feat: implement P1-11 file upload scanning with ClamAV integration
+8670308 docs: update Phase 1 completion report — all 12 tasks done
+ab6c657 feat: implement app shell redesign with collapsible sidebar and top navbar
+7fb8706 feat: add accent color theme selector with cookie persistence
+cbcc085 feat: update green theme to #3F734B, compact navbar and sidebar header
 ```
 
 ---
 
-## 15. Complete File Inventory
+## 17. Complete File Inventory
 
 ### Files Created
 
@@ -1693,6 +1796,18 @@ b42e37c feat: implement P1-11 file upload scanning with ClamAV integration
 | `app/routes/api/v1/files/$fileId.tsx`                                                    | P1-11 | GET /api/v1/files/:fileId — file serve route with tenant isolation                       |
 | `app/services/__tests__/file-scanning.server.test.ts`                                    | P1-11 | 10 scanning tests (magic bytes, INSTREAM, availability)                                  |
 | `app/services/__tests__/file-upload.server.test.ts`                                      | P1-11 | 13 upload pipeline tests (MIME, size, ClamAV, storage, audit)                            |
+| `app/components/layout/app-sidebar.tsx`                                                  | Shell | Collapsible sidebar with tenant switcher, nav groups, user menu                          |
+| `app/components/layout/top-navbar.tsx`                                                   | Shell | Top navbar with breadcrumbs, search, theme/color toggles, notifications, user dropdown   |
+| `app/components/layout/nav-main.tsx`                                                     | Shell | Sidebar navigation groups with collapsible sections and persistent state                 |
+| `app/components/layout/nav-user.tsx`                                                     | Shell | Sidebar footer user menu with avatar and sign-out                                        |
+| `app/components/layout/tenant-switcher.tsx`                                              | Shell | Sidebar header tenant switcher dropdown                                                  |
+| `app/config/navigation.ts`                                                               | Shell | Navigation group definitions with role-based visibility                                  |
+| `app/lib/sidebar.server.ts`                                                              | Shell | Cookie persistence for sidebar open/closed and group collapse state                      |
+| `app/routes/resources/theme-switch.tsx`                                                  | Shell | Light/dark/system theme toggle resource route with optimistic UI                         |
+| `app/lib/theme.server.ts`                                                                | Shell | Theme cookie read/write                                                                  |
+| `app/lib/color-theme.ts`                                                                 | Color | Shared color theme constants and types (client-safe)                                     |
+| `app/lib/color-theme.server.ts`                                                          | Color | Color theme cookie read/write (server-only)                                              |
+| `app/routes/resources/color-theme.tsx`                                                   | Color | Color theme resource route with selector component and optimistic UI                     |
 
 ### Files Modified
 
@@ -1716,10 +1831,14 @@ b42e37c feat: implement P1-11 file upload scanning with ClamAV integration
 | `app/lib/env.server.ts`            | P1-11                             | Added CLAMAV_HOST/PORT/ENABLED/REQUIRED + FILE_UPLOAD_MAX_SIZE_MB/DIR env vars                                                           |
 | `.env.example`                     | P1-11                             | Added File Upload & Scanning section with ClamAV defaults                                                                                |
 | `.gitignore`                       | P1-11                             | Added /data/uploads/ to ignore local file storage                                                                                        |
+| `app/root.tsx`                     | Shell, Color                      | Added theme class, color theme data-attribute on `<html>`, nonce provider refactor                                                       |
+| `app/routes/admin/_layout.tsx`     | Shell, Color                      | Redesigned with SidebarProvider + AppSidebar + TopNavbar + color theme loader                                                            |
+| `app/app.css`                      | Color                             | Added 14 CSS blocks (7 themes x light/dark) with `[data-theme]` selector overrides for accent colors                                     |
+| `app/components/ui/sidebar.tsx`    | Shell                             | shadcn sidebar component with collapsible icon mode, keyboard shortcut, mobile sheet                                                     |
 
 ---
 
-## 16. Bugs & Gotchas Encountered
+## 18. Bugs & Gotchas Encountered
 
 ### 1. Partial indexes dropped by Prisma migration
 
@@ -1806,9 +1925,19 @@ This matches the existing `BUILD_PATH` pattern already used in `server.js`.
 
 **Fix:** Changed the test to use ESCALATE on step-1 with `escalationTargetId` set to `null` in a custom snapshot. Step-1 is not a final step, so the "no target configured" error is correctly thrown.
 
+### 10. `.server.ts` imports cause 404 in client bundle
+
+**Problem:** `GET http://localhost:3000/app/routes/resources/color-theme.tsx net::ERR_ABORTED 404` — the browser tried to fetch the raw source file instead of the compiled module.
+
+**Cause:** The route file imported `COLOR_THEMES` (a runtime value) from `~/lib/color-theme.server`. The `.server.ts` suffix tells Vite to strip the module from client bundles. Since `COLOR_THEMES` was needed at runtime on the client (for the Zod schema in `useOptimisticColorTheme`), the browser received a module with an unresolved import.
+
+**Fix:** Split into two files: `app/lib/color-theme.ts` (client-safe constants and types) and `app/lib/color-theme.server.ts` (cookie operations only). The route file imports constants from the non-server module and only imports `setColorTheme` from the `.server` module (which is only used in the server-side `action`).
+
+**Prevention:** Never import runtime values from `.server.ts` files into code that runs on the client. Use `type` imports for types, and move shared constants to a non-server module. The existing `theme-switch.tsx` avoids this by inlining enum values in the Zod schema.
+
 ---
 
-## 17. Architecture Decisions
+## 19. Architecture Decisions
 
 ### AD-01: Soft references for Step routing
 
@@ -1906,9 +2035,22 @@ This matches the existing `BUILD_PATH` pattern already used in `server.js`.
 
 **Trade-off:** Theoretically, two updates within the same millisecond could collide. In practice, PostgreSQL's timestamp resolution and the time between network roundtrips make this negligible.
 
+### AD-09: Independent color theme via data-theme attribute
+
+**Decision:** Accent color theming uses a `data-theme` attribute on `<html>` with CSS variable overrides, completely independent of the `.dark` class used for light/dark mode.
+
+**Rationale:**
+
+1. Two orthogonal axes (light/dark and accent color) compose naturally with attribute + class selectors: `[data-theme="blue"]` for light, `.dark[data-theme="blue"]` for dark
+2. No JavaScript theme calculation needed — CSS handles all combinations declaratively
+3. "default" = no attribute → base neutral variables apply, no extra CSS specificity
+4. Cookie-per-concern pattern (`theme` cookie for light/dark, `color_theme` cookie for accent) keeps persistence simple and independent
+
+**Trade-off:** 14 CSS blocks (7 themes x 2 modes) adds ~170 lines to `app.css`. This is acceptable for a fixed set of themes and avoids runtime CSS-in-JS overhead.
+
 ---
 
-## 18. Quality Gate Progress
+## 20. Quality Gate Progress
 
 Progress toward the Phase 1 → Phase 2 quality gate:
 
@@ -1923,4 +2065,6 @@ Progress toward the Phase 1 → Phase 2 quality gate:
 | Rate limiting active on all authenticated API routes          | Complete | P1-10 — user-aware keys, 7 limiters, structured 429, 18 tests          |
 | File uploads scanned for malware before acceptance            | Complete | P1-11 — ClamAV INSTREAM + magic bytes + graceful degradation, 23 tests |
 | Zod schemas validate field data on submission                 | Complete | P1-03 — 53 tests                                                       |
+| App shell with collapsible sidebar and responsive layout      | Complete | Sidebar, top navbar, breadcrumbs, role-based nav, cookie persistence   |
+| Accent color theme persists across refreshes                  | Complete | 7 themes, cookie-based, optimistic UI, independent of light/dark mode  |
 | Unit test coverage ≥ 85% for new code                         | Complete | 332/332 tests pass across 27 test files                                |
