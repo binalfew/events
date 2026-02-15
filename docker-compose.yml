@@ -52,10 +52,28 @@ services:
     networks:
       - app-network
 
+  clamav:
+    image: clamav/clamav:1.4_base
+    platform: linux/amd64
+    container_name: events-clamav
+    restart: unless-stopped
+    ports:
+      - "3310:3310"
+    volumes:
+      - clamav-data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "clamdcheck"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    networks:
+      - app-network
+
 volumes:
   pgdata:
   azurite-data:
   mailpit-data:
+  clamav-data:
 
 networks:
   app-network:

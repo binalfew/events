@@ -45,6 +45,14 @@ const envSchema = z.object({
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().default(100),
   TRUSTED_PROXIES: z.coerce.number().default(1),
 
+  // File uploads & scanning
+  CLAMAV_HOST: z.string().default("localhost"),
+  CLAMAV_PORT: z.coerce.number().default(3310),
+  CLAMAV_ENABLED: booleanString.default(true),
+  CLAMAV_REQUIRED: booleanString.default(false),
+  FILE_UPLOAD_MAX_SIZE_MB: z.coerce.number().default(100),
+  FILE_UPLOAD_DIR: z.string().default("data/uploads"),
+
   // Feature flags
   ENABLE_2FA: booleanString.default(false),
   ENABLE_OFFLINE_MODE: booleanString.default(false),

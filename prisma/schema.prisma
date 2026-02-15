@@ -110,6 +110,8 @@ enum AuditAction {
   ASSIGN
   SLA_BREACH
   RATE_LIMIT
+  FILE_UPLOAD
+  FILE_UPLOAD_BLOCKED
 }
 
 // ─── Identity & Access Domain ────────────────────────────
