@@ -13,9 +13,27 @@
 
 ---
 
+## Schema Reconciliation (Implementation vs. Task Doc)
+
+The task doc was written before the Prisma schema was finalized in P1-00. The following divergences were identified and resolved in favor of the actual schema:
+
+| Task Doc                                                       | Actual Schema                                  | Resolution                                                                                                                                                                                                 |
+| -------------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Model name `CustomFieldDef`                                    | `FieldDefinition`                              | Used `FieldDefinition` — matches the Prisma model                                                                                                                                                          |
+| Field `targetModel`                                            | `entityType`                                   | Used `entityType` — matches the Prisma column name                                                                                                                                                         |
+| Separate `uiConfig` JSON field                                 | Not in schema                                  | Omitted — UI config stored in the existing `config` JSON field if needed                                                                                                                                   |
+| `COUNTRY`, `USER` in dataType enum                             | Not in `FieldDataType` enum                    | Used only the 16 values defined in the enum (`TEXT`, `LONG_TEXT`, `NUMBER`, `BOOLEAN`, `DATE`, `DATETIME`, `ENUM`, `MULTI_ENUM`, `EMAIL`, `URL`, `PHONE`, `FILE`, `IMAGE`, `REFERENCE`, `FORMULA`, `JSON`) |
+| Soft delete implied                                            | No `deletedAt` column on `FieldDefinition`     | Used hard delete                                                                                                                                                                                           |
+| `eventId` optional in create schema                            | `eventId` is required (non-nullable) in Prisma | Made `eventId` required in the Zod create schema                                                                                                                                                           |
+| `maxLabelLength: 200`                                          | —                                              | Reduced to 128 to match common UI constraints                                                                                                                                                              |
+| Structured validation array items (`{ rule, value, message }`) | `validation Json @default("[]")`               | Used flexible `z.array(z.record(z.string(), z.unknown()))` to allow any validation rule shape                                                                                                              |
+| Update schema includes `id`                                    | —                                              | Omitted `id` from update schema; ID comes from the URL param                                                                                                                                               |
+
+---
+
 ## Context
 
-The CustomFieldDef model (created in P1-00) stores metadata about each dynamic field. This task builds the server-side API routes for managing those definitions: listing, creating, updating, deleting, and reordering. These routes are consumed by the admin UI (P1-05) and are the foundation for the entire dynamic schema pipeline.
+The FieldDefinition model (created in P1-00) stores metadata about each dynamic field. This task builds the server-side API routes for managing those definitions: listing, creating, updating, deleting, and reordering. These routes are consumed by the admin UI (P1-05) and are the foundation for the entire dynamic schema pipeline.
 
 ---
 

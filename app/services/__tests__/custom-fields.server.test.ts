@@ -1,0 +1,344 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+const mockFindMany = vi.fn();
+const mockFindFirst = vi.fn();
+const mockCount = vi.fn();
+const mockCreate = vi.fn();
+const mockUpdate = vi.fn();
+const mockDelete = vi.fn();
+const mockQueryRawUnsafe = vi.fn();
+const mockTransaction = vi.fn();
+const mockAuditCreate = vi.fn();
+const mockEventFindFirst = vi.fn();
+const mockPtFindFirst = vi.fn();
+
+vi.mock("~/lib/db.server", () => ({
+  prisma: {
+    fieldDefinition: {
+      findMany: mockFindMany,
+      findFirst: mockFindFirst,
+      count: mockCount,
+      create: mockCreate,
+      update: mockUpdate,
+      delete: mockDelete,
+    },
+    event: {
+      findFirst: mockEventFindFirst,
+    },
+    participantType: {
+      findFirst: mockPtFindFirst,
+    },
+    auditLog: {
+      create: mockAuditCreate,
+    },
+    $queryRawUnsafe: mockQueryRawUnsafe,
+    $transaction: mockTransaction,
+  },
+}));
+
+vi.mock("~/lib/logger.server", () => ({
+  logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
+const ctx = {
+  userId: "user-1",
+  tenantId: "tenant-1",
+  ipAddress: "127.0.0.1",
+  userAgent: "test-agent",
+};
+
+describe("custom-fields.server", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAuditCreate.mockResolvedValue({});
+  });
+
+  describe("listCustomFields", () => {
+    it("returns fields for a tenant ordered by sortOrder", async () => {
+      const { listCustomFields } = await import("../custom-fields.server");
+      const mockFields = [
+        { id: "f1", name: "field_a", sortOrder: 0 },
+        { id: "f2", name: "field_b", sortOrder: 1 },
+      ];
+      mockFindMany.mockResolvedValue(mockFields);
+
+      const result = await listCustomFields("tenant-1");
+
+      expect(result).toEqual(mockFields);
+      expect(mockFindMany).toHaveBeenCalledWith({
+        where: { tenantId: "tenant-1" },
+        orderBy: { sortOrder: "asc" },
+      });
+    });
+
+    it("applies filters when provided", async () => {
+      const { listCustomFields } = await import("../custom-fields.server");
+      mockFindMany.mockResolvedValue([]);
+
+      await listCustomFields("tenant-1", {
+        eventId: "event-1",
+        entityType: "Participant",
+        dataType: "TEXT",
+      });
+
+      expect(mockFindMany).toHaveBeenCalledWith({
+        where: {
+          tenantId: "tenant-1",
+          eventId: "event-1",
+          entityType: "Participant",
+          dataType: "TEXT",
+        },
+        orderBy: { sortOrder: "asc" },
+      });
+    });
+
+    it("applies search filter across name and label", async () => {
+      const { listCustomFields } = await import("../custom-fields.server");
+      mockFindMany.mockResolvedValue([]);
+
+      await listCustomFields("tenant-1", { search: "country" });
+
+      expect(mockFindMany).toHaveBeenCalledWith({
+        where: {
+          tenantId: "tenant-1",
+          OR: [
+            { name: { contains: "country", mode: "insensitive" } },
+            { label: { contains: "country", mode: "insensitive" } },
+          ],
+        },
+        orderBy: { sortOrder: "asc" },
+      });
+    });
+  });
+
+  describe("createCustomField", () => {
+    const validInput = {
+      eventId: "event-1",
+      entityType: "Participant" as const,
+      name: "country_code",
+      label: "Country Code",
+      dataType: "TEXT" as const,
+      isRequired: false,
+      isUnique: false,
+      isSearchable: false,
+      isFilterable: false,
+      config: {},
+      validation: [],
+    };
+
+    it("creates a field and returns it", async () => {
+      const { createCustomField } = await import("../custom-fields.server");
+      mockEventFindFirst.mockResolvedValue({ id: "event-1", tenantId: "tenant-1" });
+      mockCount.mockResolvedValue(0);
+      mockFindFirst.mockResolvedValue(null);
+      const createdField = { id: "f1", ...validInput, tenantId: "tenant-1", sortOrder: 0 };
+      mockCreate.mockResolvedValue(createdField);
+
+      const result = await createCustomField(validInput, ctx);
+
+      expect(result).toEqual(createdField);
+      expect(mockCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          tenantId: "tenant-1",
+          name: "country_code",
+          label: "Country Code",
+          dataType: "TEXT",
+          sortOrder: 0,
+        }),
+      });
+    });
+
+    it("throws 404 when event not found", async () => {
+      const { createCustomField, CustomFieldError } = await import("../custom-fields.server");
+      mockEventFindFirst.mockResolvedValue(null);
+
+      await expect(createCustomField(validInput, ctx)).rejects.toThrow(CustomFieldError);
+      await expect(createCustomField(validInput, ctx)).rejects.toMatchObject({ status: 404 });
+    });
+
+    it("throws 404 when participantType not found", async () => {
+      const { createCustomField, CustomFieldError } = await import("../custom-fields.server");
+      mockEventFindFirst.mockResolvedValue({ id: "event-1", tenantId: "tenant-1" });
+      mockPtFindFirst.mockResolvedValue(null);
+
+      const inputWithPt = { ...validInput, participantTypeId: "pt-1" };
+      await expect(createCustomField(inputWithPt, ctx)).rejects.toThrow(CustomFieldError);
+      await expect(createCustomField(inputWithPt, ctx)).rejects.toMatchObject({ status: 404 });
+    });
+
+    it("enforces tenant-wide limit", async () => {
+      const { createCustomField } = await import("../custom-fields.server");
+      mockEventFindFirst.mockResolvedValue({ id: "event-1", tenantId: "tenant-1" });
+      mockCount.mockResolvedValue(500);
+
+      await expect(createCustomField(validInput, ctx)).rejects.toMatchObject({ status: 422 });
+    });
+
+    it("enforces per-event limit", async () => {
+      const { createCustomField } = await import("../custom-fields.server");
+      mockEventFindFirst.mockResolvedValue({ id: "event-1", tenantId: "tenant-1" });
+      mockCount.mockResolvedValueOnce(10).mockResolvedValueOnce(100);
+
+      await expect(createCustomField(validInput, ctx)).rejects.toMatchObject({ status: 422 });
+    });
+
+    it("throws 409 on unique constraint violation", async () => {
+      const { createCustomField } = await import("../custom-fields.server");
+      mockEventFindFirst.mockResolvedValue({ id: "event-1", tenantId: "tenant-1" });
+      mockCount.mockResolvedValue(0);
+      mockFindFirst.mockResolvedValue(null);
+      mockCreate.mockRejectedValue({ code: "P2002" });
+
+      await expect(createCustomField(validInput, ctx)).rejects.toMatchObject({ status: 409 });
+    });
+
+    it("auto-sets sortOrder based on existing max", async () => {
+      const { createCustomField } = await import("../custom-fields.server");
+      mockEventFindFirst.mockResolvedValue({ id: "event-1", tenantId: "tenant-1" });
+      mockCount.mockResolvedValue(0);
+      mockFindFirst.mockResolvedValue({ sortOrder: 5 });
+      mockCreate.mockResolvedValue({ id: "f1", sortOrder: 6 });
+
+      await createCustomField(validInput, ctx);
+
+      expect(mockCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({ sortOrder: 6 }),
+      });
+    });
+  });
+
+  describe("updateCustomField", () => {
+    it("updates an existing field", async () => {
+      const { updateCustomField } = await import("../custom-fields.server");
+      const existing = {
+        id: "f1",
+        tenantId: "tenant-1",
+        name: "old_name",
+        label: "Old",
+        dataType: "TEXT",
+      };
+      mockFindFirst.mockResolvedValue(existing);
+      const updated = { ...existing, label: "New Label" };
+      mockUpdate.mockResolvedValue(updated);
+
+      const result = await updateCustomField("f1", { label: "New Label" }, ctx);
+
+      expect(result).toEqual(updated);
+    });
+
+    it("throws 404 when field not found", async () => {
+      const { updateCustomField } = await import("../custom-fields.server");
+      mockFindFirst.mockResolvedValue(null);
+
+      await expect(updateCustomField("f1", { label: "New" }, ctx)).rejects.toMatchObject({
+        status: 404,
+      });
+    });
+
+    it("throws 409 on unique constraint violation", async () => {
+      const { updateCustomField } = await import("../custom-fields.server");
+      mockFindFirst.mockResolvedValue({
+        id: "f1",
+        tenantId: "tenant-1",
+        name: "old",
+        label: "Old",
+        dataType: "TEXT",
+      });
+      mockUpdate.mockRejectedValue({ code: "P2002" });
+
+      await expect(updateCustomField("f1", { name: "duplicate_name" }, ctx)).rejects.toMatchObject({
+        status: 409,
+      });
+    });
+  });
+
+  describe("deleteCustomField", () => {
+    it("deletes a field when no data exists", async () => {
+      const { deleteCustomField } = await import("../custom-fields.server");
+      mockFindFirst.mockResolvedValue({
+        id: "f1",
+        tenantId: "tenant-1",
+        name: "field_a",
+        label: "Field A",
+        entityType: "Participant",
+        dataType: "TEXT",
+      });
+      mockQueryRawUnsafe.mockResolvedValue([{ count: BigInt(0) }]);
+      mockDelete.mockResolvedValue({});
+
+      const result = await deleteCustomField("f1", ctx);
+
+      expect(result).toEqual({ success: true });
+      expect(mockDelete).toHaveBeenCalledWith({ where: { id: "f1" } });
+    });
+
+    it("throws 404 when field not found", async () => {
+      const { deleteCustomField } = await import("../custom-fields.server");
+      mockFindFirst.mockResolvedValue(null);
+
+      await expect(deleteCustomField("f1", ctx)).rejects.toMatchObject({ status: 404 });
+    });
+
+    it("throws 422 when data exists and force is not set", async () => {
+      const { deleteCustomField } = await import("../custom-fields.server");
+      mockFindFirst.mockResolvedValue({
+        id: "f1",
+        tenantId: "tenant-1",
+        name: "field_a",
+        label: "Field A",
+        entityType: "Participant",
+        dataType: "TEXT",
+      });
+      mockQueryRawUnsafe.mockResolvedValue([{ count: BigInt(5) }]);
+
+      await expect(deleteCustomField("f1", ctx)).rejects.toMatchObject({ status: 422 });
+    });
+
+    it("deletes even with data when force is true", async () => {
+      const { deleteCustomField } = await import("../custom-fields.server");
+      mockFindFirst.mockResolvedValue({
+        id: "f1",
+        tenantId: "tenant-1",
+        name: "field_a",
+        label: "Field A",
+        entityType: "Participant",
+        dataType: "TEXT",
+      });
+      mockDelete.mockResolvedValue({});
+
+      const result = await deleteCustomField("f1", ctx, { force: true });
+
+      expect(result).toEqual({ success: true });
+      expect(mockQueryRawUnsafe).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("reorderCustomFields", () => {
+    it("reorders fields within a transaction", async () => {
+      const { reorderCustomFields } = await import("../custom-fields.server");
+      const fieldIds = ["f1", "f2", "f3"];
+      mockFindMany.mockResolvedValue(fieldIds.map((id) => ({ id })));
+      mockTransaction.mockResolvedValue([]);
+
+      const result = await reorderCustomFields({ fieldIds }, ctx);
+
+      expect(result).toEqual({ success: true });
+      expect(mockTransaction).toHaveBeenCalledWith(
+        fieldIds.map((id, index) => expect.objectContaining({})),
+      );
+    });
+
+    it("throws 404 when some fields not found", async () => {
+      const { reorderCustomFields } = await import("../custom-fields.server");
+      mockFindMany.mockResolvedValue([{ id: "f1" }]);
+
+      await expect(reorderCustomFields({ fieldIds: ["f1", "f2"] }, ctx)).rejects.toMatchObject({
+        status: 404,
+      });
+    });
+  });
+});

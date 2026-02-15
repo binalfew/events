@@ -82,6 +82,25 @@ export function buildStep(overrides?: Record<string, unknown>) {
   };
 }
 
+export function buildFieldDefinition(overrides?: Record<string, unknown>) {
+  const n = unique();
+  return {
+    entityType: "Participant",
+    name: `custom_field_${n}`,
+    label: `Custom Field ${n}`,
+    description: `Description for custom field ${n}`,
+    dataType: "TEXT" as const,
+    sortOrder: n,
+    isRequired: false,
+    isUnique: false,
+    isSearchable: false,
+    isFilterable: false,
+    config: {},
+    validation: [],
+    ...overrides,
+  };
+}
+
 export function buildParticipant(overrides?: Record<string, unknown>) {
   const n = unique();
   return {

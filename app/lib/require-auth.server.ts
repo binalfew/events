@@ -24,6 +24,15 @@ export async function requireAnyRole(request: Request, roleNames: string[]) {
   return { user, roles };
 }
 
+export async function requirePermission(request: Request, resource: string, action: string) {
+  const { user, roles } = await requireAuth(request);
+  const permitted = await hasPermission(user.id, resource, action);
+  if (!permitted) {
+    throw data({ error: "Forbidden" }, { status: 403 });
+  }
+  return { user, roles };
+}
+
 export async function hasPermission(
   userId: string,
   resource: string,

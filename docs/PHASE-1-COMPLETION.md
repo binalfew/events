@@ -2,7 +2,7 @@
 
 > **Started:** 2026-02-15
 > **Last updated:** 2026-02-15
-> **Tasks completed:** P1-00 (of P1-00 through P1-11)
+> **Tasks completed:** P1-00, P1-01, P1-02 (of P1-00 through P1-11)
 > **Status:** In progress
 
 ---
@@ -645,19 +645,137 @@ All indexes present!
 
 ## 3. P1-01 — Authentication & Session Management
 
-> **Status:** Not started
+> **Status:** Complete
 > **Depends on:** P1-00
 
-_To be completed._
+### What This Task Does
+
+Implements cookie-based session authentication with login/logout flows, RBAC permission checking, progressive lockout on failed login attempts, and a protected dashboard route.
+
+### Why It's Designed This Way
+
+The platform uses server-side session cookies (not JWTs) because the architecture is SSR-first with React Router. Cookie sessions avoid token storage complexity on the client and integrate naturally with React Router's loader/action model. The lockout system uses configurable thresholds (`MAX_LOGIN_ATTEMPTS`, `LOCKOUT_DURATION_MINUTES`) with auto-unlock to balance security and usability.
+
+Permission checking is decoupled from role checking — `hasPermission(userId, resource, action)` queries through the RBAC join tables (`UserRole → Role → RolePermission → Permission`) so that adding new permissions never requires code changes, only database seed updates.
+
+### Files Created
+
+| File                                            | Purpose                                                                                            |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `app/lib/auth.server.ts`                        | Password hashing/verification using bcryptjs                                                       |
+| `app/lib/session.server.ts`                     | Cookie session storage, `getUserId`, `requireUserId`, `requireUser`, `createUserSession`, `logout` |
+| `app/lib/require-auth.server.ts`                | `requireAuth`, `requireRole`, `requireAnyRole`, `hasPermission` helpers                            |
+| `app/routes/auth.login.tsx`                     | Login page with Conform + Zod validation, progressive lockout, audit logging                       |
+| `app/routes/auth.logout.tsx`                    | Logout action with session destruction and audit logging                                           |
+| `app/routes/_dashboard.tsx`                     | Protected layout route (requires auth)                                                             |
+| `app/routes/_dashboard._index.tsx`              | Dashboard index page                                                                               |
+| `app/lib/__tests__/auth.server.test.ts`         | 5 tests for password hashing/verification                                                          |
+| `app/lib/__tests__/session.server.test.ts`      | 3 tests for session management                                                                     |
+| `app/lib/__tests__/require-auth.server.test.ts` | 3 tests for RBAC permission checking                                                               |
+
+### Files Modified
+
+| File            | Change                                                                   |
+| --------------- | ------------------------------------------------------------------------ |
+| `app/routes.ts` | Added routes: `auth/login`, `auth/logout`, `dashboard` with nested index |
+
+### Key Behaviors
+
+- **Progressive lockout:** After `MAX_LOGIN_ATTEMPTS` failed attempts, account is locked with auto-unlock after `LOCKOUT_DURATION_MINUTES`
+- **Account status checking:** Inactive and suspended accounts cannot log in
+- **Audit trail:** Every login attempt (success or failure) creates an `AuditLog` entry with IP and user agent
+- **RBAC:** Permission checks query through `UserRole → Role → RolePermission → Permission` with fail-safe (returns false on DB errors)
+
+### Verification Results
+
+| Check               | Result           |
+| ------------------- | ---------------- |
+| `npm run typecheck` | Zero errors      |
+| `npx vitest run`    | 11/11 tests pass |
 
 ---
 
 ## 4. P1-02 — Custom Field Definition CRUD
 
-> **Status:** Not started
-> **Depends on:** P1-00
+> **Status:** Complete
+> **Depends on:** P1-00, P1-01
 
-_To be completed._
+### What This Task Does
+
+Builds server-side API routes for managing `FieldDefinition` records: listing with filters, creating with limit enforcement, updating with conflict detection, deleting with data-existence checking, and atomic reordering. These routes are the foundation for the dynamic schema pipeline (blocks P1-03).
+
+### Schema Reconciliation
+
+The task doc diverged from the actual Prisma schema in several places. All decisions align to the real schema:
+
+| Task Doc                    | Actual Schema                       | Decision                                    |
+| --------------------------- | ----------------------------------- | ------------------------------------------- |
+| `CustomFieldDef`            | `FieldDefinition`                   | Used `FieldDefinition`                      |
+| `targetModel`               | `entityType`                        | Used `entityType`                           |
+| `uiConfig` (separate field) | Not in schema                       | Omitted — stored in `config` JSON if needed |
+| `COUNTRY`, `USER` dataTypes | Not in `FieldDataType` enum         | Used only the 16 existing enum values       |
+| Soft delete                 | No `deletedAt` on `FieldDefinition` | Hard delete                                 |
+| `eventId` optional          | `eventId` non-nullable in Prisma    | Made `eventId` required in create schema    |
+
+### Why It's Designed This Way
+
+The service layer (`custom-fields.server.ts`) is separated from the route layer to keep business logic testable with mocked Prisma. Each mutation verifies tenant ownership before proceeding, enforcing multi-tenant isolation at the service layer rather than relying solely on route-level auth.
+
+Delete operations check whether any `Participant` or `Event` records contain data for the field via a raw SQL query (`extras ? $fieldName`) using PostgreSQL's JSONB `?` operator. This prevents accidental data loss while supporting a `force` flag for intentional cleanup.
+
+The `requirePermission` helper was added to combine authentication + permission checking in a single call, reducing boilerplate in route files.
+
+### Files Created
+
+| File                                                  | Purpose                                                                                                                                      |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/config/custom-fields.ts`                         | Limit constants: 500/tenant, 100/event, name/label max lengths                                                                               |
+| `app/lib/schemas/custom-field.ts`                     | Zod v4 schemas: `createCustomFieldSchema`, `updateCustomFieldSchema`, `reorderFieldsSchema` + inferred types                                 |
+| `app/services/custom-fields.server.ts`                | Business logic: `listCustomFields`, `createCustomField`, `updateCustomField`, `deleteCustomField`, `reorderCustomFields`, `CustomFieldError` |
+| `app/routes/api.v1.custom-fields.tsx`                 | GET (list with filters) + POST (create)                                                                                                      |
+| `app/routes/api.v1.custom-fields.$id.tsx`             | PUT (update) + DELETE (with force flag)                                                                                                      |
+| `app/routes/api.v1.custom-fields.reorder.tsx`         | POST (atomic reorder)                                                                                                                        |
+| `app/lib/schemas/__tests__/custom-field.test.ts`      | 28 schema validation tests                                                                                                                   |
+| `app/services/__tests__/custom-fields.server.test.ts` | 19 service layer tests (mocked Prisma)                                                                                                       |
+
+### Files Modified
+
+| File                             | Change                                                                                                                                      |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/routes.ts`                  | Added 3 API routes (`custom-fields`, `custom-fields/reorder`, `custom-fields/:id`) — reorder registered before `:id` to avoid param capture |
+| `app/lib/require-auth.server.ts` | Added `requirePermission(request, resource, action)` combining auth + permission check + 403 throw                                          |
+| `tests/factories/index.ts`       | Added `buildFieldDefinition()` factory                                                                                                      |
+
+### API Endpoints
+
+| Method | Path                            | Description                                                                                            | Auth                  |
+| ------ | ------------------------------- | ------------------------------------------------------------------------------------------------------ | --------------------- |
+| GET    | `/api/v1/custom-fields`         | List fields with optional filters (`eventId`, `participantTypeId`, `entityType`, `dataType`, `search`) | `custom-field:read`   |
+| POST   | `/api/v1/custom-fields`         | Create a field definition                                                                              | `custom-field:create` |
+| PUT    | `/api/v1/custom-fields/:id`     | Update a field definition                                                                              | `custom-field:update` |
+| DELETE | `/api/v1/custom-fields/:id`     | Delete a field (supports `?force=true`)                                                                | `custom-field:delete` |
+| POST   | `/api/v1/custom-fields/reorder` | Reorder fields atomically                                                                              | `custom-field:update` |
+
+### Key Behaviors
+
+- **Tenant isolation:** All queries scoped by `tenantId`; event/field ownership verified before mutations
+- **Limit enforcement:** 500 fields per tenant, 100 per event — returns 422 when exceeded
+- **Unique constraint handling:** Catches Prisma P2002 errors → 409 Conflict with descriptive message
+- **Delete safety:** Checks `extras` JSONB for existing data via raw SQL; blocks unless `force=true`
+- **Auto sort order:** New fields get `max(sortOrder) + 1` within the event scope
+- **Atomic reorder:** Uses `$transaction` to update all `sortOrder` values in one batch
+- **Audit logging:** Every mutation creates an `AuditLog` entry with before/after diff metadata
+
+### Zod v4 Note
+
+Zod v4 changed the `z.record()` API to require explicit key and value types: `z.record(z.string(), z.unknown())` instead of `z.record(z.unknown())`. The `.omit()` and `.partial()` methods retain the v3-style object mask API.
+
+### Verification Results
+
+| Check               | Result                                                  |
+| ------------------- | ------------------------------------------------------- |
+| `npm run typecheck` | Zero errors                                             |
+| `npx vitest run`    | 64/64 tests pass (28 schema + 19 service + 17 existing) |
 
 ---
 
@@ -752,6 +870,9 @@ _To be completed._
 4428e61 fix: propagate CSP nonce to React SSR pipeline
 37c665f chore: upgrade to Prisma 7 with driver adapters and Node 22 LTS
 
+d80455e feat: implement P1-01 authentication & session management
+28de3ab feat: implement P1-00 core data model migration
+
 (Phase 1 commits — to be updated as tasks are completed)
 ```
 
@@ -761,22 +882,42 @@ _To be completed._
 
 ### Files Created
 
-| File                                                                                     | Purpose                                                                                |
-| ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `prisma/migrations/20260215054649_phase1_core_models/migration.sql`                      | Phase 1 database migration (enums, tables, indexes, FKs, partial indexes)              |
-| `prisma/migrations/20260215060000_rename_custom_field_def_and_custom_data/migration.sql` | Rename `CustomFieldDef` → `FieldDefinition`, `customData` → `extras` (data-preserving) |
-| `docs/PHASE-1-COMPLETION.md`                                                             | This completion report                                                                 |
+| File                                                                                     | Task  | Purpose                                                                                |
+| ---------------------------------------------------------------------------------------- | ----- | -------------------------------------------------------------------------------------- |
+| `prisma/migrations/20260215054649_phase1_core_models/migration.sql`                      | P1-00 | Phase 1 database migration (enums, tables, indexes, FKs, partial indexes)              |
+| `prisma/migrations/20260215060000_rename_custom_field_def_and_custom_data/migration.sql` | P1-00 | Rename `CustomFieldDef` → `FieldDefinition`, `customData` → `extras` (data-preserving) |
+| `docs/PHASE-1-COMPLETION.md`                                                             | P1-00 | This completion report                                                                 |
+| `app/lib/auth.server.ts`                                                                 | P1-01 | Password hashing/verification using bcryptjs                                           |
+| `app/lib/session.server.ts`                                                              | P1-01 | Cookie session storage, user session management                                        |
+| `app/lib/require-auth.server.ts`                                                         | P1-01 | Auth guards: `requireAuth`, `requireRole`, `requireAnyRole`, `hasPermission`           |
+| `app/routes/auth.login.tsx`                                                              | P1-01 | Login page with Conform + Zod, progressive lockout, audit logging                      |
+| `app/routes/auth.logout.tsx`                                                             | P1-01 | Logout action with session destruction                                                 |
+| `app/routes/_dashboard.tsx`                                                              | P1-01 | Protected dashboard layout route                                                       |
+| `app/routes/_dashboard._index.tsx`                                                       | P1-01 | Dashboard index page                                                                   |
+| `app/lib/__tests__/auth.server.test.ts`                                                  | P1-01 | 5 tests for password hashing/verification                                              |
+| `app/lib/__tests__/session.server.test.ts`                                               | P1-01 | 3 tests for session management                                                         |
+| `app/lib/__tests__/require-auth.server.test.ts`                                          | P1-01 | 3 tests for RBAC permission checking                                                   |
+| `app/config/custom-fields.ts`                                                            | P1-02 | Limit constants (500/tenant, 100/event)                                                |
+| `app/lib/schemas/custom-field.ts`                                                        | P1-02 | Zod v4 schemas for create, update, reorder                                             |
+| `app/services/custom-fields.server.ts`                                                   | P1-02 | Service layer: list, create, update, delete, reorder                                   |
+| `app/routes/api.v1.custom-fields.tsx`                                                    | P1-02 | GET (list) + POST (create) route                                                       |
+| `app/routes/api.v1.custom-fields.$id.tsx`                                                | P1-02 | PUT (update) + DELETE route                                                            |
+| `app/routes/api.v1.custom-fields.reorder.tsx`                                            | P1-02 | POST (reorder) route                                                                   |
+| `app/lib/schemas/__tests__/custom-field.test.ts`                                         | P1-02 | 28 schema validation tests                                                             |
+| `app/services/__tests__/custom-fields.server.test.ts`                                    | P1-02 | 19 service layer tests                                                                 |
 
 ### Files Modified
 
-| File                               | Changes                                                                    |
-| ---------------------------------- | -------------------------------------------------------------------------- |
-| `prisma/schema.prisma`             | +8 enums, +10 models, updated Tenant/User/Event relations (~350 new lines) |
-| `app/lib/db.server.ts`             | +2 soft-delete middleware blocks (participant, workflow)                   |
-| `prisma/seed.ts`                   | Expanded from 2 entities to full RBAC + event + workflow scenario          |
-| `tests/setup/integration-setup.ts` | Truncation order: 5 tables → 17 tables                                     |
-| `tests/factories/index.ts`         | +5 factory functions, expanded seedFullScenario return type                |
-| `scripts/verify-indexes.ts`        | Expected indexes: 4 models → 16 models (33 total index checks)             |
+| File                               | Task(s)      | Changes                                                                    |
+| ---------------------------------- | ------------ | -------------------------------------------------------------------------- |
+| `prisma/schema.prisma`             | P1-00        | +8 enums, +10 models, updated Tenant/User/Event relations (~350 new lines) |
+| `app/lib/db.server.ts`             | P1-00        | +2 soft-delete middleware blocks (participant, workflow)                   |
+| `prisma/seed.ts`                   | P1-00        | Expanded from 2 entities to full RBAC + event + workflow scenario          |
+| `tests/setup/integration-setup.ts` | P1-00        | Truncation order: 5 tables → 17 tables                                     |
+| `tests/factories/index.ts`         | P1-00, P1-02 | +5 factory functions, expanded seedFullScenario, +`buildFieldDefinition`   |
+| `scripts/verify-indexes.ts`        | P1-00        | Expected indexes: 4 models → 16 models (33 total index checks)             |
+| `app/routes.ts`                    | P1-01, P1-02 | Added auth routes, dashboard route, 3 custom-field API routes              |
+| `app/lib/require-auth.server.ts`   | P1-02        | Added `requirePermission(request, resource, action)` helper                |
 
 ---
 
@@ -805,6 +946,16 @@ _To be completed._
 **Problem:** After applying the migration, `prisma migrate dev` detected schema drift (from the partial indexes added via raw SQL) and prompted interactively for a new migration name.
 
 **Fix:** Cancelled the interactive prompt, confirmed the migration was applied with `prisma migrate status`, and regenerated the client with `prisma generate`. The drift is expected and harmless — Prisma doesn't need to "own" the partial indexes.
+
+### 4. Zod v4 `z.record()` requires explicit key type
+
+**Problem:** `z.record(z.unknown())` compiles in Zod v3 but fails in Zod v4 with "Expected 2-3 arguments, but got 1".
+
+**Cause:** Zod v4 changed the `z.record()` signature to require both key and value types: `z.record(keyType, valueType)`.
+
+**Fix:** Use `z.record(z.string(), z.unknown())` instead of `z.record(z.unknown())`.
+
+**Prevention:** When using Zod v4 (`import { z } from "zod/v4"`), always provide both key and value types to `z.record()`.
 
 ---
 
@@ -873,15 +1024,15 @@ _To be completed._
 
 Progress toward the Phase 1 → Phase 2 quality gate:
 
-| Criterion                                                            | Status      | Notes                            |
-| -------------------------------------------------------------------- | ----------- | -------------------------------- |
-| Admin can create, edit, reorder, and delete custom field definitions | Not started | P1-02, P1-05                     |
-| Custom fields render dynamically on registration forms               | Not started | P1-04                            |
-| JSONB queries support filtering with expression indexes              | Not started | P1-06                            |
-| Workflow versioning snapshots active version on entry                | Not started | P1-07                            |
-| SLA overdue detection runs as background job (5 min)                 | Not started | P1-08                            |
-| Optimistic locking prevents concurrent approve/reject                | Not started | P1-09                            |
-| Rate limiting active on all authenticated API routes                 | Not started | P1-10                            |
-| File uploads scanned for malware before acceptance                   | Not started | P1-11                            |
-| Dynamic Zod schemas validate custom data on submission               | Not started | P1-03                            |
-| Unit test coverage ≥ 85% for new code                                | In progress | 6/6 tests pass (foundation only) |
+| Criterion                                                            | Status      | Notes                                |
+| -------------------------------------------------------------------- | ----------- | ------------------------------------ |
+| Admin can create, edit, reorder, and delete custom field definitions | In progress | P1-02 API complete, P1-05 UI pending |
+| Custom fields render dynamically on registration forms               | Not started | P1-04                                |
+| JSONB queries support filtering with expression indexes              | Not started | P1-06                                |
+| Workflow versioning snapshots active version on entry                | Not started | P1-07                                |
+| SLA overdue detection runs as background job (5 min)                 | Not started | P1-08                                |
+| Optimistic locking prevents concurrent approve/reject                | Not started | P1-09                                |
+| Rate limiting active on all authenticated API routes                 | Not started | P1-10                                |
+| File uploads scanned for malware before acceptance                   | Not started | P1-11                                |
+| Dynamic Zod schemas validate custom data on submission               | Not started | P1-03                                |
+| Unit test coverage ≥ 85% for new code                                | In progress | 64/64 tests pass across 7 test files |
