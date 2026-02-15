@@ -13,8 +13,11 @@ import type { Route } from "./+types/root";
 import { initSentryClient, captureException as captureClientException } from "~/lib/sentry.client";
 import { useNonce } from "~/lib/nonce-provider";
 import { getTheme } from "~/lib/theme.server";
+import { getColorTheme } from "~/lib/color-theme.server";
 import { useOptimisticThemeMode } from "~/routes/resources/theme-switch";
+import { useOptimisticColorTheme } from "~/routes/resources/color-theme";
 import type { Theme } from "~/lib/theme.server";
+import type { ColorTheme } from "~/lib/color-theme";
 import "./app.css";
 
 export const links: Route.LinksFunction = () => [
@@ -34,6 +37,7 @@ export function loader({ request }: Route.LoaderArgs) {
   return {
     sentryDsn: process.env.SENTRY_DSN || "",
     theme: getTheme(request),
+    colorTheme: getColorTheme(request),
   };
 }
 
@@ -46,12 +50,23 @@ function useThemeClass(): string {
   return data?.theme ?? "";
 }
 
+function useColorThemeData(): ColorTheme {
+  const data = useRouteLoaderData("root") as { colorTheme: ColorTheme } | undefined;
+  const optimistic = useOptimisticColorTheme();
+  return optimistic ?? data?.colorTheme ?? "default";
+}
+
 export function Layout({ children }: { children: React.ReactNode }) {
   const nonce = useNonce();
   const themeClass = useThemeClass();
+  const colorTheme = useColorThemeData();
 
   return (
-    <html lang="en" className={themeClass}>
+    <html
+      lang="en"
+      className={themeClass}
+      data-theme={colorTheme !== "default" ? colorTheme : undefined}
+    >
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />

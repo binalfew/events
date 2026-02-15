@@ -21,11 +21,14 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { ThemeSwitch } from "~/routes/resources/theme-switch";
+import { ColorThemeSelector } from "~/routes/resources/color-theme";
 import type { Theme } from "~/lib/theme.server";
+import type { ColorTheme } from "~/lib/color-theme";
 
 type TopNavbarProps = {
   user: { id: string; name: string | null; email: string };
   theme?: Theme | null;
+  colorTheme?: ColorTheme;
 };
 
 type BreadcrumbEntry = {
@@ -62,7 +65,7 @@ function getUserInitials(name: string | null, email: string): string {
   return email[0].toUpperCase();
 }
 
-export function TopNavbar({ user, theme }: TopNavbarProps) {
+export function TopNavbar({ user, theme, colorTheme }: TopNavbarProps) {
   const breadcrumbs = useBreadcrumbs();
 
   return (
@@ -103,6 +106,9 @@ export function TopNavbar({ user, theme }: TopNavbarProps) {
 
         {/* Theme switcher */}
         <ThemeSwitch userPreference={theme} />
+
+        {/* Color theme selector */}
+        <ColorThemeSelector currentTheme={colorTheme} />
 
         {/* Notifications placeholder */}
         <Button variant="ghost" size="icon" className="relative size-8">
