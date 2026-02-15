@@ -25,6 +25,91 @@ enum EventStatus {
   RESCHEDULED
 }
 
+enum FieldDataType {
+  TEXT
+  LONG_TEXT
+  NUMBER
+  BOOLEAN
+  DATE
+  DATETIME
+  ENUM
+  MULTI_ENUM
+  EMAIL
+  URL
+  PHONE
+  FILE
+  IMAGE
+  REFERENCE
+  FORMULA
+  JSON
+}
+
+enum RequestStatus {
+  PENDING
+  IN_PROGRESS
+  APPROVED
+  REJECTED
+  CANCELLED
+  PRINTED
+}
+
+enum WorkflowStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum StepType {
+  REVIEW
+  APPROVAL
+  PRINT
+  COLLECT
+  NOTIFICATION
+  CUSTOM
+  FORK
+}
+
+enum StepAction {
+  APPROVE
+  REJECT
+  BYPASS
+  RETURN
+  ESCALATE
+}
+
+enum SLAAction {
+  NOTIFY
+  ESCALATE
+  AUTO_APPROVE
+  AUTO_REJECT
+  REASSIGN
+}
+
+enum ApprovalAction {
+  APPROVE
+  REJECT
+  BYPASS
+  RETURN
+  ESCALATE
+  PRINT
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  APPROVE
+  REJECT
+  PRINT
+  COLLECT
+  EXPORT
+  IMPORT
+  CONFIGURE
+  ASSIGN
+}
+
 // ─── Identity & Access Domain ────────────────────────────
 
 model Tenant {
@@ -45,8 +130,13 @@ model Tenant {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  users  User[]
-  events Event[]
+  users            User[]
+  events           Event[]
+  roles            Role[]
+  participantTypes ParticipantType[]
+  workflows        Workflow[]
+  participants     Participant[]
+  fieldDefinitions FieldDefinition[]
 
   @@index([name, email])
 }
@@ -70,8 +160,10 @@ model User {
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  password Password?
-  sessions Session[]
+  password  Password?
+  sessions  Session[]
+  userRoles UserRole[]
+  approvals Approval[]
 
   @@index([deletedAt])
   @@index([tenantId])
@@ -106,12 +198,268 @@ model Event {
   status      EventStatus @default(DRAFT)
   startDate   DateTime
   endDate     DateTime
-  customData  Json        @default("{}")
+  extras      Json        @default("{}")
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   deletedAt   DateTime?
 
+  participantTypes ParticipantType[]
+  participants     Participant[]
+  workflows        Workflow[]
+  fieldDefinitions FieldDefinition[]
+  userRoles        UserRole[]
+
   @@unique([tenantId, name])
   @@index([tenantId, status])
   @@index([deletedAt])
+}
+
+// ─── RBAC Domain ────────────────────────────────────────
+
+model Role {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  resource    String
+  action      String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rolePermissions RolePermission[]
+
+  @@unique([resource, action])
+}
+
+model RolePermission {
+  id           String     @id @default(cuid())
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+}
+
+model UserRole {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleId    String
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  eventId   String?
+  event     Event?   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, roleId, eventId])
+  @@index([userId])
+  @@index([roleId])
+  @@index([eventId])
+}
+
+// ─── Participant & Workflow Domain ──────────────────────
+
+model ParticipantType {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name        String
+  code        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  participants     Participant[]
+  fieldDefinitions FieldDefinition[]
+
+  @@unique([tenantId, eventId, code])
+  @@index([tenantId, eventId])
+}
+
+model Workflow {
+  id          String         @id @default(cuid())
+  tenantId    String
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId     String
+  event       Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  status      WorkflowStatus @default(DRAFT)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  deletedAt   DateTime?
+
+  steps        Step[]
+  versions     WorkflowVersion[]
+  participants Participant[]
+
+  @@unique([tenantId, eventId, name])
+  @@index([tenantId])
+  @@index([eventId])
+  @@index([deletedAt])
+}
+
+model Step {
+  id                 String     @id @default(cuid())
+  workflowId         String
+  workflow           Workflow   @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  name               String
+  description        String?
+  order              Int
+  stepType           StepType   @default(REVIEW)
+  isEntryPoint       Boolean    @default(false)
+  isTerminal         Boolean    @default(false)
+  // Soft references (string IDs) for flexible routing
+  nextStepId         String?
+  rejectionTargetId  String?
+  bypassTargetId     String?
+  escalationTargetId String?
+  // SLA configuration
+  slaDurationMinutes Int?
+  slaAction          SLAAction?
+  config             Json       @default("{}")
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  approvals Approval[]
+
+  @@unique([workflowId, order])
+  @@index([workflowId])
+}
+
+model WorkflowVersion {
+  id                String   @id @default(cuid())
+  workflowId        String
+  workflow          Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  version           Int
+  snapshot          Json
+  changeDescription String?
+  createdBy         String
+  createdAt         DateTime @default(now())
+
+  @@unique([workflowId, version])
+  @@index([workflowId])
+}
+
+model Participant {
+  id                String          @id @default(cuid())
+  tenantId          String
+  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId           String
+  event             Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  participantTypeId String
+  participantType   ParticipantType @relation(fields: [participantTypeId], references: [id])
+  workflowId        String
+  workflow          Workflow        @relation(fields: [workflowId], references: [id])
+  currentStepId     String?
+  // Fixed identity fields
+  registrationCode  String
+  firstName         String
+  lastName          String
+  email             String?
+  organization      String?
+  jobTitle          String?
+  nationality       String?
+  status            RequestStatus   @default(PENDING)
+  // Dynamic fields
+  extras            Json            @default("{}")
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  deletedAt         DateTime?
+
+  approvals Approval[]
+
+  @@unique([tenantId, eventId, registrationCode])
+  @@index([tenantId, eventId])
+  @@index([eventId, status])
+  @@index([participantTypeId])
+  @@index([workflowId])
+  @@index([currentStepId])
+  @@index([deletedAt])
+}
+
+model Approval {
+  id            String         @id @default(cuid())
+  participantId String
+  participant   Participant    @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  stepId        String
+  step          Step           @relation(fields: [stepId], references: [id])
+  userId        String
+  user          User           @relation(fields: [userId], references: [id])
+  action        ApprovalAction
+  remarks       String?
+  metadata      Json?
+  createdAt     DateTime       @default(now())
+
+  @@index([participantId, stepId])
+  @@index([stepId, userId])
+  @@index([userId, createdAt])
+}
+
+model FieldDefinition {
+  id                String           @id @default(cuid())
+  tenantId          String
+  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId           String
+  event             Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  participantTypeId String?
+  participantType   ParticipantType? @relation(fields: [participantTypeId], references: [id])
+  entityType        String           @default("Participant")
+  name              String
+  label             String
+  description       String?
+  dataType          FieldDataType
+  sortOrder         Int              @default(0)
+  isRequired        Boolean          @default(false)
+  isUnique          Boolean          @default(false)
+  isSearchable      Boolean          @default(false)
+  isFilterable      Boolean          @default(false)
+  defaultValue      String?
+  config            Json             @default("{}")
+  validation        Json             @default("[]")
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@unique([tenantId, eventId, participantTypeId, entityType, name])
+  @@index([tenantId, eventId])
+  @@index([eventId, participantTypeId, sortOrder])
+}
+
+// ─── Audit Domain ───────────────────────────────────────
+
+model AuditLog {
+  id          String      @id @default(cuid())
+  tenantId    String?
+  userId      String?
+  action      AuditAction
+  entityType  String
+  entityId    String?
+  description String?
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime    @default(now())
+
+  @@index([tenantId, action])
+  @@index([tenantId, entityType, entityId])
+  @@index([createdAt])
 }

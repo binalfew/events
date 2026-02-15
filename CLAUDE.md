@@ -51,8 +51,8 @@ docs/                   # Documentation
 ## Key Architectural Patterns
 
 - **Multi-tenancy**: Every data record carries `tenantId`; composite unique constraints prevent cross-tenant collisions
-- **Hybrid schema**: Fixed Prisma columns for universal fields (identity, workflow state) + JSONB `customData` columns for event-specific fields defined at runtime
-- **Dynamic Schema Pipeline**: `CustomFieldDef` metadata → Zod schema generation → Conform form integration → GIN/expression indexes for query performance
+- **Hybrid schema**: Fixed Prisma columns for universal fields (identity, workflow state) + JSONB `extras` columns for event-specific fields defined at runtime
+- **Dynamic Schema Pipeline**: `FieldDefinition` metadata → Zod schema generation → Conform form integration → GIN/expression indexes for query performance
 - **Configuration over Code**: Tenant admins customize events through UI-based field definitions, form designers, and workflow builders — no migrations or deployments needed
 - **Offline-first**: Badge printing, collection, and scanning work without continuous connectivity via Service Worker/PWA
 - **CSP Nonce Pipeline**: Nonce generated in Express middleware → passed via `AppLoadContext` → `NonceProvider` React context → `renderToPipeableStream` options

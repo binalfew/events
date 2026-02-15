@@ -12,6 +12,32 @@ const expectedIndexes: Record<string, string[][]> = {
   User: [["deletedAt"], ["tenantId"]],
   Session: [["userId", "expirationDate"]],
   Event: [["tenantId", "status"], ["deletedAt"]],
+  Role: [["tenantId"]],
+  Permission: [["resource", "action"]],
+  RolePermission: [["roleId"], ["permissionId"]],
+  UserRole: [["userId"], ["roleId"], ["eventId"]],
+  ParticipantType: [["tenantId", "eventId"]],
+  Workflow: [["tenantId"], ["eventId"], ["deletedAt"]],
+  Step: [["workflowId"]],
+  WorkflowVersion: [["workflowId"]],
+  Participant: [
+    ["tenantId", "eventId"],
+    ["eventId", "status"],
+    ["participantTypeId"],
+    ["workflowId"],
+    ["currentStepId"],
+    ["deletedAt"],
+  ],
+  Approval: [
+    ["participantId", "stepId"],
+    ["stepId", "userId"],
+    ["userId", "createdAt"],
+  ],
+  FieldDefinition: [
+    ["tenantId", "eventId"],
+    ["eventId", "participantTypeId", "sortOrder"],
+  ],
+  AuditLog: [["tenantId", "action"], ["tenantId", "entityType", "entityId"], ["createdAt"]],
 };
 
 async function verifyIndexes() {

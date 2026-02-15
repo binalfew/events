@@ -42,6 +42,58 @@ export function buildEvent(overrides?: Record<string, unknown>) {
   };
 }
 
+export function buildRole(overrides?: Record<string, unknown>) {
+  const n = unique();
+  return {
+    name: `Role ${n}`,
+    description: `Test role ${n}`,
+    ...overrides,
+  };
+}
+
+export function buildParticipantType(overrides?: Record<string, unknown>) {
+  const n = unique();
+  return {
+    name: `Type ${n}`,
+    code: `T${n}`,
+    description: `Test participant type ${n}`,
+    ...overrides,
+  };
+}
+
+export function buildWorkflow(overrides?: Record<string, unknown>) {
+  const n = unique();
+  return {
+    name: `Workflow ${n}`,
+    description: `Test workflow ${n}`,
+    status: "DRAFT" as const,
+    ...overrides,
+  };
+}
+
+export function buildStep(overrides?: Record<string, unknown>) {
+  const n = unique();
+  return {
+    name: `Step ${n}`,
+    description: `Test step ${n}`,
+    order: n,
+    stepType: "REVIEW" as const,
+    ...overrides,
+  };
+}
+
+export function buildParticipant(overrides?: Record<string, unknown>) {
+  const n = unique();
+  return {
+    registrationCode: `REG-${String(n).padStart(6, "0")}`,
+    firstName: `First${n}`,
+    lastName: `Last${n}`,
+    email: `participant${n}@test.com`,
+    status: "PENDING" as const,
+    ...overrides,
+  };
+}
+
 export async function seedFullScenario(prisma: PrismaClient) {
   const tenant = await prisma.tenant.create({ data: buildTenant() });
   const passwordHash = await hash("TestPassword123!", 10);
@@ -58,5 +110,31 @@ export async function seedFullScenario(prisma: PrismaClient) {
       tenantId: tenant.id,
     },
   });
-  return { tenant, user, event };
+
+  const participantType = await prisma.participantType.create({
+    data: {
+      ...buildParticipantType(),
+      tenantId: tenant.id,
+      eventId: event.id,
+    },
+  });
+
+  const workflow = await prisma.workflow.create({
+    data: {
+      ...buildWorkflow(),
+      tenantId: tenant.id,
+      eventId: event.id,
+    },
+  });
+
+  const step = await prisma.step.create({
+    data: {
+      ...buildStep(),
+      workflowId: workflow.id,
+      isEntryPoint: true,
+      isTerminal: true,
+    },
+  });
+
+  return { tenant, user, event, participantType, workflow, step };
 }

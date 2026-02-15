@@ -67,6 +67,46 @@ function withSoftDelete(client: PrismaClient) {
           return query(args);
         },
       },
+      participant: {
+        async findMany({ args, query }) {
+          const includeDeleted = (args as any).includeDeleted === true;
+          delete (args as any).includeDeleted;
+          addSoftDeleteFilter(args, includeDeleted);
+          return query(args);
+        },
+        async findFirst({ args, query }) {
+          const includeDeleted = (args as any).includeDeleted === true;
+          delete (args as any).includeDeleted;
+          addSoftDeleteFilter(args, includeDeleted);
+          return query(args);
+        },
+        async count({ args, query }) {
+          const includeDeleted = (args as any).includeDeleted === true;
+          delete (args as any).includeDeleted;
+          addSoftDeleteFilter(args, includeDeleted);
+          return query(args);
+        },
+      },
+      workflow: {
+        async findMany({ args, query }) {
+          const includeDeleted = (args as any).includeDeleted === true;
+          delete (args as any).includeDeleted;
+          addSoftDeleteFilter(args, includeDeleted);
+          return query(args);
+        },
+        async findFirst({ args, query }) {
+          const includeDeleted = (args as any).includeDeleted === true;
+          delete (args as any).includeDeleted;
+          addSoftDeleteFilter(args, includeDeleted);
+          return query(args);
+        },
+        async count({ args, query }) {
+          const includeDeleted = (args as any).includeDeleted === true;
+          delete (args as any).includeDeleted;
+          addSoftDeleteFilter(args, includeDeleted);
+          return query(args);
+        },
+      },
     },
   });
 }
