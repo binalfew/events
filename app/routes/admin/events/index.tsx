@@ -1,4 +1,6 @@
 import { data, Link, useLoaderData } from "react-router";
+
+export const handle = { breadcrumb: "Events" };
 import { requirePermission } from "~/lib/require-auth.server";
 import { prisma } from "~/lib/db.server";
 import type { Route } from "./+types/index";

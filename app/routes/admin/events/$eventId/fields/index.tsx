@@ -1,4 +1,6 @@
 import { data, Form, Link, redirect, useLoaderData, useSearchParams } from "react-router";
+
+export const handle = { breadcrumb: "Fields" };
 import { requirePermission } from "~/lib/require-auth.server";
 import { prisma } from "~/lib/db.server";
 import {

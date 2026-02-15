@@ -1,4 +1,7 @@
 import { data, Link, redirect, useActionData, useLoaderData } from "react-router";
+
+export const handle = { breadcrumb: "Edit Field" };
+
 import { requirePermission } from "~/lib/require-auth.server";
 import { prisma } from "~/lib/db.server";
 import { updateField, FieldError } from "~/services/fields.server";

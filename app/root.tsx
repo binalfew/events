@@ -12,6 +12,9 @@ import {
 import type { Route } from "./+types/root";
 import { initSentryClient, captureException as captureClientException } from "~/lib/sentry.client";
 import { useNonce } from "~/lib/nonce-provider";
+import { getTheme } from "~/lib/theme.server";
+import { useOptimisticThemeMode } from "~/routes/resources/theme-switch";
+import type { Theme } from "~/lib/theme.server";
 import "./app.css";
 
 export const links: Route.LinksFunction = () => [
@@ -27,17 +30,28 @@ export const links: Route.LinksFunction = () => [
   },
 ];
 
-export function loader({ context }: Route.LoaderArgs) {
+export function loader({ request }: Route.LoaderArgs) {
   return {
     sentryDsn: process.env.SENTRY_DSN || "",
+    theme: getTheme(request),
   };
+}
+
+function useThemeClass(): string {
+  const data = useRouteLoaderData("root") as { theme: Theme | null } | undefined;
+  const optimisticMode = useOptimisticThemeMode();
+  if (optimisticMode) {
+    return optimisticMode === "system" ? "" : optimisticMode;
+  }
+  return data?.theme ?? "";
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const nonce = useNonce();
+  const themeClass = useThemeClass();
 
   return (
-    <html lang="en">
+    <html lang="en" className={themeClass}>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />

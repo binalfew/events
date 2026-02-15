@@ -1,5 +1,7 @@
 import { useRouteLoaderData } from "react-router";
 
+export const handle = { breadcrumb: "Dashboard" };
+
 export default function DashboardIndex() {
   const data = useRouteLoaderData("routes/admin/_layout") as
     | { user: { id: string; name: string | null; email: string }; roles: string[] }

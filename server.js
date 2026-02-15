@@ -36,6 +36,9 @@ app.disable("x-powered-by");
 app.use(correlationMiddleware);
 app.use(requestLogger);
 
+/** @type {() => Promise<any>} */
+let slaLoader;
+
 if (DEVELOPMENT) {
   logger.info("Starting development server");
   const viteDevServer = await import("vite").then((vite) =>
@@ -56,6 +59,8 @@ if (DEVELOPMENT) {
       next(error);
     }
   });
+  // Use Vite's ssrLoadModule so ~ aliases and TypeScript resolve correctly
+  slaLoader = () => viteDevServer.ssrLoadModule(SLA_CHECKER_DEV);
 } else {
   logger.info("Starting production server");
   app.use(
@@ -64,13 +69,14 @@ if (DEVELOPMENT) {
   );
   app.use(express.static("build/client", { maxAge: "1h" }));
   app.use(await import(BUILD_PATH).then((mod) => mod.app));
+  slaLoader = () => import(SLA_CHECKER_PROD);
 }
 
 app.listen(PORT, () => {
   logger.info({ port: PORT }, `Server is running on http://localhost:${PORT}`);
 
   // Start SLA background job
-  startSLACheckJob(() => import(DEVELOPMENT ? SLA_CHECKER_DEV : SLA_CHECKER_PROD));
+  startSLACheckJob(slaLoader);
 
   const shutdown = () => {
     stopSLACheckJob();

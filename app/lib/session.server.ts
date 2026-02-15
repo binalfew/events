@@ -38,7 +38,9 @@ export async function requireUserId(request: Request, redirectTo?: string): Prom
   return userId;
 }
 
-export async function requireUser(request: Request) {
+const userCache = new WeakMap<Request, ReturnType<typeof fetchUser>>();
+
+async function fetchUser(request: Request) {
   const userId = await requireUserId(request);
   const user = await prisma.user.findFirst({
     where: { id: userId },
@@ -52,6 +54,14 @@ export async function requireUser(request: Request) {
     throw await logout(request);
   }
   return user;
+}
+
+export function requireUser(request: Request) {
+  const existing = userCache.get(request);
+  if (existing) return existing;
+  const promise = fetchUser(request);
+  userCache.set(request, promise);
+  return promise;
 }
 
 export async function createUserSession(userId: string, redirectTo: string) {
