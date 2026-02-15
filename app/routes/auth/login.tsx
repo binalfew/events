@@ -7,7 +7,10 @@ import { prisma } from "~/lib/db.server";
 import { env } from "~/lib/env.server";
 import { logger } from "~/lib/logger.server";
 import { getUserId, createUserSession } from "~/lib/session.server";
-import type { Route } from "./+types/auth.login";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
+import type { Route } from "./+types/login";
 
 const loginSchema = z.object({
   email: z.email("Please enter a valid email address"),
@@ -187,62 +190,62 @@ export default function LoginPage({ actionData }: Route.ComponentProps) {
   });
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-muted px-4">
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
             Accreditation Platform
           </h1>
-          <p className="mt-2 text-sm text-gray-600">Sign in to your account</p>
+          <p className="mt-2 text-sm text-muted-foreground">Sign in to your account</p>
         </div>
 
         <Form
           method="post"
           {...getFormProps(form)}
-          className="space-y-6 rounded-lg bg-white p-8 shadow"
+          className="space-y-6 rounded-lg bg-card p-8 shadow"
         >
           {form.errors && form.errors.length > 0 && (
-            <div className="rounded-md bg-red-50 p-4">
-              <p className="text-sm text-red-700">{form.errors[0]}</p>
+            <div className="rounded-md bg-destructive/10 p-4">
+              <p className="text-sm text-destructive">{form.errors[0]}</p>
             </div>
           )}
 
           <div>
-            <label htmlFor={fields.email.id} className="block text-sm font-medium text-gray-700">
-              Email address
-            </label>
-            <input
-              {...getInputProps(fields.email, { type: "email" })}
-              autoComplete="email"
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
+            <Label htmlFor={fields.email.id}>Email address</Label>
+            {(() => {
+              const { key, ...emailProps } = getInputProps(fields.email, { type: "email" });
+              return <Input key={key} {...emailProps} autoComplete="email" className="mt-1" />;
+            })()}
             {fields.email.errors && (
-              <p className="mt-1 text-sm text-red-600">{fields.email.errors[0]}</p>
+              <p className="mt-1 text-sm text-destructive">{fields.email.errors[0]}</p>
             )}
           </div>
 
           <div>
-            <label htmlFor={fields.password.id} className="block text-sm font-medium text-gray-700">
-              Password
-            </label>
-            <input
-              {...getInputProps(fields.password, { type: "password" })}
-              autoComplete="current-password"
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
+            <Label htmlFor={fields.password.id}>Password</Label>
+            {(() => {
+              const { key, ...passwordProps } = getInputProps(fields.password, {
+                type: "password",
+              });
+              return (
+                <Input
+                  key={key}
+                  {...passwordProps}
+                  autoComplete="current-password"
+                  className="mt-1"
+                />
+              );
+            })()}
             {fields.password.errors && (
-              <p className="mt-1 text-sm text-red-600">{fields.password.errors[0]}</p>
+              <p className="mt-1 text-sm text-destructive">{fields.password.errors[0]}</p>
             )}
           </div>
 
           <input type="hidden" name="redirectTo" value="" />
 
-          <button
-            type="submit"
-            className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
+          <Button type="submit" className="w-full">
             Sign in
-          </button>
+          </Button>
         </Form>
       </div>
     </div>

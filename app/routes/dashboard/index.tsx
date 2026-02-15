@@ -1,7 +1,7 @@
 import { useRouteLoaderData } from "react-router";
 
 export default function DashboardIndex() {
-  const data = useRouteLoaderData("routes/_dashboard") as
+  const data = useRouteLoaderData("routes/dashboard/_layout") as
     | { user: { id: string; name: string | null; email: string }; roles: string[] }
     | undefined;
 
@@ -10,10 +10,10 @@ export default function DashboardIndex() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">
+        <h2 className="text-2xl font-bold text-foreground">
           Welcome{user?.name ? `, ${user.name}` : ""}
         </h2>
-        <p className="mt-1 text-sm text-gray-600">
+        <p className="mt-1 text-sm text-muted-foreground">
           Here's an overview of your accreditation platform.
         </p>
       </div>
@@ -29,9 +29,9 @@ export default function DashboardIndex() {
 
 function StatCard({ title, value }: { title: string; value: number }) {
   return (
-    <div className="rounded-lg bg-white p-6 shadow">
-      <p className="text-sm font-medium text-gray-500">{title}</p>
-      <p className="mt-2 text-3xl font-semibold text-gray-900">{value}</p>
+    <div className="rounded-lg bg-card p-6 shadow">
+      <p className="text-sm font-medium text-muted-foreground">{title}</p>
+      <p className="mt-2 text-3xl font-semibold text-foreground">{value}</p>
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { redirect } from "react-router";
 import { prisma } from "~/lib/db.server";
 import { logger } from "~/lib/logger.server";
 import { getUserId, logout } from "~/lib/session.server";
-import type { Route } from "./+types/auth.logout";
+import type { Route } from "./+types/logout";
 
 export async function loader() {
   throw redirect("/auth/login");
