@@ -254,6 +254,69 @@ describe("fields.server", () => {
         status: 409,
       });
     });
+
+    it("succeeds when expectedVersion matches", async () => {
+      const { updateField } = await import("../fields.server");
+      const existing = {
+        id: "f1",
+        tenantId: "tenant-1",
+        name: "old_name",
+        label: "Old",
+        dataType: "TEXT",
+        updatedAt: new Date("2026-02-15T10:00:00.000Z"),
+      };
+      mockFindFirst.mockResolvedValue(existing);
+      mockUpdate.mockResolvedValue({ ...existing, label: "New Label" });
+
+      const result = await updateField(
+        "f1",
+        { label: "New Label" },
+        ctx,
+        "2026-02-15T10:00:00.000Z",
+      );
+
+      expect(result.label).toBe("New Label");
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "f1", updatedAt: new Date("2026-02-15T10:00:00.000Z") },
+        }),
+      );
+    });
+
+    it("throws ConflictError when expectedVersion does not match", async () => {
+      const { updateField } = await import("../fields.server");
+      const { ConflictError } = await import("~/services/optimistic-lock.server");
+      mockFindFirst.mockResolvedValue({
+        id: "f1",
+        tenantId: "tenant-1",
+        name: "old_name",
+        label: "Old",
+        dataType: "TEXT",
+        updatedAt: new Date("2026-02-15T10:00:00.000Z"),
+      });
+
+      await expect(
+        updateField("f1", { label: "New" }, ctx, "2026-02-15T09:00:00.000Z"),
+      ).rejects.toThrow(ConflictError);
+    });
+
+    it("converts Prisma P2025 to ConflictError during versioned update", async () => {
+      const { updateField } = await import("../fields.server");
+      const { ConflictError } = await import("~/services/optimistic-lock.server");
+      mockFindFirst.mockResolvedValue({
+        id: "f1",
+        tenantId: "tenant-1",
+        name: "old_name",
+        label: "Old",
+        dataType: "TEXT",
+        updatedAt: new Date("2026-02-15T10:00:00.000Z"),
+      });
+      mockUpdate.mockRejectedValue({ code: "P2025" });
+
+      await expect(
+        updateField("f1", { label: "New" }, ctx, "2026-02-15T10:00:00.000Z"),
+      ).rejects.toThrow(ConflictError);
+    });
   });
 
   describe("deleteField", () => {

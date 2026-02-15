@@ -1,5 +1,6 @@
 import { prisma } from "~/lib/db.server";
 import { logger } from "~/lib/logger.server";
+import { ConflictError, isPrismaNotFoundError } from "~/services/optimistic-lock.server";
 import { deserializeWorkflow, WorkflowError } from "./serializer.server";
 import type { ApprovalAction } from "../../generated/prisma/client.js";
 
@@ -8,6 +9,7 @@ export async function processWorkflowAction(
   userId: string,
   action: ApprovalAction,
   comment?: string,
+  expectedVersion?: string,
 ) {
   const participant = await prisma.participant.findFirst({
     where: { id: participantId, deletedAt: null },
@@ -16,6 +18,18 @@ export async function processWorkflowAction(
 
   if (!participant) {
     throw new WorkflowError("Participant not found", 404);
+  }
+
+  if (expectedVersion) {
+    const currentVersion = participant.updatedAt.toISOString();
+    if (currentVersion !== expectedVersion) {
+      throw new ConflictError("Participant was modified by another user", {
+        id: participant.id,
+        status: participant.status,
+        currentStepId: participant.currentStepId,
+        updatedAt: participant.updatedAt,
+      });
+    }
   }
 
   if (!participant.workflowVersion) {
@@ -72,13 +86,34 @@ export async function processWorkflowAction(
     );
   }
 
-  await prisma.participant.update({
-    where: { id: participantId },
-    data: {
-      currentStepId: isComplete ? previousStepId : nextStepId,
-      status,
-    },
-  });
+  const updateWhere: Record<string, unknown> = { id: participantId };
+  if (expectedVersion) {
+    updateWhere.updatedAt = new Date(expectedVersion);
+  }
+
+  try {
+    await prisma.participant.update({
+      where: updateWhere as { id: string; updatedAt?: Date },
+      data: {
+        currentStepId: isComplete ? previousStepId : nextStepId,
+        status,
+      },
+    });
+  } catch (error) {
+    if (isPrismaNotFoundError(error)) {
+      // Re-fetch to get current state for conflict response
+      const current = await prisma.participant.findFirst({
+        where: { id: participantId },
+      });
+      throw new ConflictError("Participant was modified by another user", {
+        id: current?.id,
+        status: current?.status,
+        currentStepId: current?.currentStepId,
+        updatedAt: current?.updatedAt,
+      });
+    }
+    throw error;
+  }
 
   await prisma.approval.create({
     data: {

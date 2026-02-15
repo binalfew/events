@@ -2,6 +2,7 @@ import { prisma } from "~/lib/db.server";
 import { logger } from "~/lib/logger.server";
 import { FIELD_LIMITS } from "~/config/fields";
 import { ensureFieldIndex, dropFieldIndex } from "~/services/field-query.server";
+import { ConflictError, isPrismaNotFoundError } from "~/services/optimistic-lock.server";
 import type { CreateFieldInput, UpdateFieldInput, ReorderFieldsInput } from "~/lib/schemas/field";
 
 interface ServiceContext {
@@ -147,7 +148,12 @@ export async function createField(input: CreateFieldInput, ctx: ServiceContext) 
   }
 }
 
-export async function updateField(id: string, input: UpdateFieldInput, ctx: ServiceContext) {
+export async function updateField(
+  id: string,
+  input: UpdateFieldInput,
+  ctx: ServiceContext,
+  expectedVersion?: string,
+) {
   const existing = await prisma.fieldDefinition.findFirst({
     where: { id, tenantId: ctx.tenantId },
   });
@@ -155,9 +161,26 @@ export async function updateField(id: string, input: UpdateFieldInput, ctx: Serv
     throw new FieldError("Field not found", 404);
   }
 
+  if (expectedVersion) {
+    const currentVersion = existing.updatedAt.toISOString();
+    if (currentVersion !== expectedVersion) {
+      throw new ConflictError("Field was modified by another user", {
+        id: existing.id,
+        name: existing.name,
+        label: existing.label,
+        updatedAt: existing.updatedAt,
+      });
+    }
+  }
+
+  const updateWhere: Record<string, unknown> = { id };
+  if (expectedVersion) {
+    updateWhere.updatedAt = new Date(expectedVersion);
+  }
+
   try {
     const field = await prisma.fieldDefinition.update({
-      where: { id },
+      where: updateWhere as { id: string; updatedAt?: Date },
       data: {
         ...(input.participantTypeId !== undefined && {
           participantTypeId: input.participantTypeId ?? null,
@@ -207,6 +230,17 @@ export async function updateField(id: string, input: UpdateFieldInput, ctx: Serv
 
     return field;
   } catch (error: unknown) {
+    if (isPrismaNotFoundError(error) && expectedVersion) {
+      const current = await prisma.fieldDefinition.findFirst({
+        where: { id, tenantId: ctx.tenantId },
+      });
+      throw new ConflictError("Field was modified by another user", {
+        id: current?.id,
+        name: current?.name,
+        label: current?.label,
+        updatedAt: current?.updatedAt,
+      });
+    }
     if (isPrismaUniqueConstraintError(error)) {
       throw new FieldError(
         `A field with name "${input.name}" already exists for this event and entity type`,

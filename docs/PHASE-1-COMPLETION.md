@@ -2,7 +2,7 @@
 
 > **Started:** 2026-02-15
 > **Last updated:** 2026-02-15
-> **Tasks completed:** P1-00, P1-01, P1-02, P1-03, P1-04 (of P1-00 through P1-11)
+> **Tasks completed:** P1-00, P1-01, P1-02, P1-03, P1-04, P1-05, P1-06, P1-07, P1-08, P1-09 (of P1-00 through P1-11)
 > **Status:** In progress
 
 ---
@@ -958,46 +958,514 @@ Rather than creating 8 separate base input component files (as the task doc sugg
 
 ## 7. P1-05 — Field Admin UI
 
-> **Status:** Not started
+> **Status:** Complete
 > **Depends on:** P1-01, P1-04
 
-_To be completed._
+### What This Task Does
+
+Builds a complete field administration interface where tenant admins can browse events, create/edit/delete field definitions, configure type-specific options, reorder fields, and scope them to participant types — all through the browser without code changes or deployments.
+
+### Why It's Designed This Way
+
+The admin UI follows React Router 7's file-system routing conventions with nested routes under `/admin/events/:eventId/fields/`. Each CRUD operation maps to a route module with co-located loader/action functions. The `FieldForm` component auto-generates snake_case field names from labels (e.g., "Passport Number" → `passport_number`), reducing admin effort while enforcing naming conventions that work as JSONB storage keys.
+
+Type-specific configuration (enum options, text patterns, number ranges) is handled by a `TypeConfigPanel` component that renders different inputs based on the selected `dataType`. Config is stored as JSON in the `config` column, keeping the schema flexible without requiring migration changes when new config options are added.
+
+### Files Created
+
+| File                                                   | Purpose                                                     |
+| ------------------------------------------------------ | ----------------------------------------------------------- |
+| `app/routes/admin/events/index.tsx`                    | Event listing page with field definition counts             |
+| `app/routes/admin/events/$eventId/fields/index.tsx`    | Field list with filtering, reordering, and delete           |
+| `app/routes/admin/events/$eventId/fields/new.tsx`      | Create new field definition                                 |
+| `app/routes/admin/events/$eventId/fields/$fieldId.tsx` | Edit existing field definition                              |
+| `app/components/fields/FieldForm.tsx`                  | Comprehensive field create/edit form with all 16 data types |
+| `app/components/fields/FieldTable.tsx`                 | Field list table with inline reorder and actions            |
+| `app/components/fields/DeleteFieldDialog.tsx`          | Confirmation dialog with data-existence warning             |
+| `app/components/fields/TypeConfigPanel.tsx`            | Type-specific configuration inputs                          |
+| `app/components/fields/EnumOptionsEditor.tsx`          | Visual editor for enum option management                    |
+| `app/components/fields/+utils.ts`                      | `labelToFieldName`, `formatDataType` helpers                |
+| `app/components/ui/button.tsx`                         | shadcn/ui Button component                                  |
+| `app/components/ui/table.tsx`                          | shadcn/ui Table component                                   |
+| `app/components/ui/dialog.tsx`                         | shadcn/ui Dialog component                                  |
+| `app/components/ui/badge.tsx`                          | shadcn/ui Badge component                                   |
+| `app/components/ui/card.tsx`                           | shadcn/ui Card component                                    |
+| `app/components/ui/switch.tsx`                         | shadcn/ui Switch component                                  |
+| `app/components/ui/separator.tsx`                      | shadcn/ui Separator component                               |
+| `app/components/ui/alert.tsx`                          | shadcn/ui Alert component                                   |
+
+### Component Architecture
+
+**FieldForm** — The main form component:
+
+| Feature             | Behavior                                               |
+| ------------------- | ------------------------------------------------------ |
+| Name generation     | Auto-converts label to snake_case (`labelToFieldName`) |
+| Data type selection | All 16 `FieldDataType` values in a dropdown            |
+| Entity type         | Participant or Event scoping                           |
+| Participant type    | Optional scoping to a specific type                    |
+| Constraints         | Required, unique, searchable, filterable toggles       |
+| Default value       | Type-appropriate default value input                   |
+| Type config         | Renders `TypeConfigPanel` based on selected dataType   |
+
+**TypeConfigPanel** — Type-specific config:
+
+| Data Type       | Config Inputs                              |
+| --------------- | ------------------------------------------ |
+| TEXT            | maxLength, minLength, pattern, placeholder |
+| LONG_TEXT       | maxLength, rows                            |
+| NUMBER          | min, max, step, placeholder                |
+| DATE/DATETIME   | minDate, maxDate                           |
+| ENUM/MULTI_ENUM | `EnumOptionsEditor` for option management  |
+| FILE/IMAGE      | accept types, maxSizeMB                    |
+
+**EnumOptionsEditor** — Visual enum option management:
+
+- Add options with auto-generated values (label → snake_case)
+- Edit option labels and values
+- Reorder options (up/down arrows)
+- Remove options with confirmation
+- Prevents duplicate values
+
+**DeleteFieldDialog** — Safe deletion:
+
+- Shows data-existence count if participants have data in this field
+- Warns that data won't be deleted but won't be displayed/validated
+- Uses `force=true` parameter when overriding the data-existence check
+
+### Key Capabilities
+
+1. **Browse events** and navigate to field management
+2. **View all fields** for an event with filtering by data type and participant type
+3. **Create new fields** with full type-specific configuration
+4. **Edit existing fields** with pre-populated forms
+5. **Delete fields** with safety warnings when participant data exists
+6. **Reorder fields** to control display and form order
+7. **Scope fields** to specific participant types or all participants
+
+### Verification Results
+
+| Check               | Result                                                         |
+| ------------------- | -------------------------------------------------------------- |
+| `npm run typecheck` | Zero errors                                                    |
+| `npx vitest run`    | All tests pass (including 25 component logic tests from P1-04) |
 
 ---
 
 ## 8. P1-06 — JSONB Query Layer & Expression Indexes
 
-> **Status:** Not started
+> **Status:** Complete
 > **Depends on:** P1-00
 
-_To be completed._
+### What This Task Does
+
+Builds a parameterized SQL query engine for filtering participants by their JSONB `extras` fields, and an automatic expression index lifecycle that creates/drops PostgreSQL indexes when field definitions change. This makes dynamic field queries fast (index scans instead of sequential scans on JSONB) while preventing SQL injection through strict input validation and parameterized queries.
+
+### Why It's Designed This Way
+
+The query engine uses raw SQL (`$queryRawUnsafe`) instead of Prisma's query builder because Prisma has no native support for JSONB operators like `->>`, `?`, or expression index creation. All user input is passed as positional parameters (`$1`, `$2`, `$3`) — never string-interpolated into SQL. Field names are additionally validated against a strict regex (`/^[a-z][a-z0-9_]*$/`) before being used in column references.
+
+Expression indexes are managed dynamically rather than through Prisma migrations because tenant admins create/modify field definitions at runtime. The `CONCURRENTLY` keyword avoids table locks during index DDL, and `IF NOT EXISTS`/`IF EXISTS` guards ensure idempotency.
+
+Index operations are fire-and-forget (async, non-blocking) from the field CRUD operations. If an index creation fails, the field still works — queries are just slower (sequential scan vs. index scan). The `reconcileFieldIndexes` function can be run periodically to fix drift.
+
+### Files Created
+
+| File                                                | Purpose                                                       |
+| --------------------------------------------------- | ------------------------------------------------------------- |
+| `app/lib/schemas/field-query.ts`                    | Zod validation schemas for query conditions and search params |
+| `app/services/field-query.server.ts`                | JSONB query builder, expression index management              |
+| `app/routes/api/v1/participants/search.tsx`         | `POST /api/v1/participants/search` REST endpoint              |
+| `app/lib/schemas/__tests__/field-query.test.ts`     | 16 schema validation tests                                    |
+| `app/services/__tests__/field-query.server.test.ts` | 25+ query and index management tests                          |
+
+### Files Modified
+
+| File                            | Change                                                                                       |
+| ------------------------------- | -------------------------------------------------------------------------------------------- |
+| `app/services/fields.server.ts` | Auto-create/drop indexes on field create/update/delete when `isSearchable` or `isFilterable` |
+
+### Query Operators (12)
+
+| Operator                 | SQL Generated                      | Use Case                              |
+| ------------------------ | ---------------------------------- | ------------------------------------- |
+| `eq`                     | `(extras->>'field')::TYPE = $N`    | Exact match                           |
+| `neq`                    | `(extras->>'field')::TYPE != $N`   | Not equal                             |
+| `contains`               | `(extras->>'field') ILIKE $N`      | Substring search (case-insensitive)   |
+| `startsWith`             | `(extras->>'field') ILIKE $N`      | Prefix search (case-insensitive)      |
+| `gt`, `gte`, `lt`, `lte` | `(extras->>'field')::NUMERIC > $N` | Numeric comparisons with type casting |
+| `in`                     | `(extras->>'field') = ANY($N)`     | Value in array                        |
+| `notIn`                  | `(extras->>'field') != ALL($N)`    | Value not in array                    |
+| `isNull`                 | `NOT (extras ? 'field')`           | JSONB key doesn't exist               |
+| `isNotNull`              | `(extras ? 'field')`               | JSONB key exists                      |
+
+### Type Casting
+
+| FieldDataType                      | PostgreSQL Cast    | Index Expression                      |
+| ---------------------------------- | ------------------ | ------------------------------------- |
+| TEXT, LONG_TEXT, EMAIL, URL, PHONE | No cast (raw text) | `((extras->>'field'))`                |
+| NUMBER                             | `::NUMERIC`        | `(((extras->>'field'))::NUMERIC)`     |
+| BOOLEAN                            | `::BOOLEAN`        | `(((extras->>'field'))::BOOLEAN)`     |
+| DATE                               | `::DATE`           | `(((extras->>'field'))::DATE)`        |
+| DATETIME                           | `::TIMESTAMPTZ`    | `(((extras->>'field'))::TIMESTAMPTZ)` |
+
+### Expression Index Lifecycle
+
+```
+Admin creates field (isSearchable=true)
+    → ensureFieldIndex() → CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_Participant_cf_country_code ...
+
+Admin updates field (isFilterable changed)
+    → ensureFieldIndex() or dropFieldIndex() based on new state
+
+Admin deletes field
+    → dropFieldIndex() → DROP INDEX CONCURRENTLY IF EXISTS idx_Participant_cf_country_code
+
+Index drift detected
+    → reconcileFieldIndexes() → creates missing, drops orphaned, reports unchanged
+```
+
+### API Endpoint
+
+| Method | Path                          | Description                               | Auth               |
+| ------ | ----------------------------- | ----------------------------------------- | ------------------ |
+| POST   | `/api/v1/participants/search` | Filter participants by JSONB field values | `participant:read` |
+
+**Request body:** `{ eventId, conditions: [{ field, operator, value }], limit, offset, orderBy, orderDir }`
+
+**Response:** `{ data: Participant[], meta: { total, limit, offset, hasMore } }`
+
+### Security Measures
+
+- Field names validated against `/^[a-z][a-z0-9_]*$/` before use in SQL
+- All values passed as parameterized query arguments (`$1`, `$2`, etc.)
+- Max 20 conditions per query to prevent abuse
+- Max 200 records per page with default of 50
+- Tenant isolation enforced on every query
+
+### Verification Results
+
+| Check               | Result                         |
+| ------------------- | ------------------------------ |
+| `npm run typecheck` | Zero errors                    |
+| `npx vitest run`    | All tests pass (41+ new tests) |
 
 ---
 
 ## 9. P1-07 — Workflow Versioning
 
-> **Status:** Not started
+> **Status:** Complete
 > **Depends on:** P1-00
 
-_To be completed._
+### What This Task Does
+
+Implements workflow versioning so that in-flight participants follow the workflow structure they entered under, even if an admin edits the live workflow. When a participant enters a workflow, the current step configuration is snapshotted into a `WorkflowVersion` record. The participant's record is locked to that version. New participants get the latest version; existing participants are unaffected by edits.
+
+### Why It's Designed This Way
+
+The versioning system uses **hash-based deduplication**: when `ensureCurrentVersion` is called, it serializes the current workflow + steps, computes a SHA-256 hash, and compares it to the latest version's hash (stored in `changeDescription`). If they match, no new version is created — this prevents version explosion from repeated calls without actual changes.
+
+The snapshot is stored as a JSON column in `WorkflowVersion`, containing the complete workflow structure (all steps, routing, SLA config). This makes the participant's version fully self-contained — reading a participant's workflow state requires zero joins to the Step table, only deserializing the snapshot JSON.
+
+Step field mapping converts between Prisma model fields and snapshot fields:
+
+- `Step.order` → `StepSnapshot.sortOrder`
+- `Step.isTerminal` → `StepSnapshot.isFinalStep`
+- `Step.config` → `StepSnapshot.conditions`
+- Forward-compatibility fields: `slaWarningMinutes: null`, `assignedRoleId: null`
+
+### Schema Changes
+
+Added `workflowVersionId` to `Participant` model:
+
+```prisma
+model Participant {
+  // ... existing fields ...
+  workflowVersionId String?
+  workflowVersion   WorkflowVersion? @relation(fields: [workflowVersionId], references: [id])
+  @@index([workflowVersionId])
+}
+
+model WorkflowVersion {
+  // ... existing fields ...
+  participants Participant[]
+}
+```
+
+Migration: `20260215144504_add_workflow_version_to_participant`
+
+### Files Created
+
+| File                                                               | Purpose                                                                                                                |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `app/services/workflow-engine/serializer.server.ts`                | `StepSnapshot`, `WorkflowSnapshot`, `WorkflowError`, `serializeWorkflow`, `deserializeWorkflow`, `computeWorkflowHash` |
+| `app/services/workflow-engine/versioning.server.ts`                | `ensureCurrentVersion`, `getParticipantVersion`, `publishWorkflowVersion`, `listWorkflowVersions`, `compareVersions`   |
+| `app/services/workflow-engine/entry.server.ts`                     | `enterWorkflow` — assigns version + entry step to participant                                                          |
+| `app/services/workflow-engine/navigation.server.ts`                | `processWorkflowAction` — routes participants through versioned steps                                                  |
+| `app/services/workflow-engine/__tests__/serializer.server.test.ts` | 8 tests for serialization, hashing, deserialization                                                                    |
+| `app/services/workflow-engine/__tests__/versioning.server.test.ts` | 9 tests for version management                                                                                         |
+| `app/services/workflow-engine/__tests__/entry.server.test.ts`      | 3 tests for workflow entry                                                                                             |
+| `app/services/workflow-engine/__tests__/navigation.server.test.ts` | 11 tests for step navigation                                                                                           |
+
+### Core Functions
+
+**`serializeWorkflow(workflow)`** — Converts a Prisma Workflow+Steps into a `WorkflowSnapshot`. Steps are sorted by `order`. Field names are remapped (e.g., `isTerminal` → `isFinalStep`). Forward-compatibility fields (`slaWarningMinutes`, `assignedRoleId`) are set to `null`.
+
+**`computeWorkflowHash(workflow)`** — Serializes to snapshot, converts to canonical JSON (keys sorted recursively via `stableStringify`), then SHA-256 hashes the result. Deterministic: same workflow state always produces the same hash.
+
+**`ensureCurrentVersion(workflowId, userId)`** — Hash-based deduplication:
+
+1. Load workflow with steps
+2. Compute hash of current state
+3. If latest version's hash matches → return existing version
+4. Otherwise → create new version (version = max + 1)
+
+**`processWorkflowAction(participantId, userId, action, comment?)`** — Step navigation engine:
+
+| Action   | Routes To                        | Notes                       |
+| -------- | -------------------------------- | --------------------------- |
+| APPROVE  | `currentStep.nextStepId`         | Forward progression         |
+| PRINT    | `currentStep.nextStepId`         | Same as APPROVE             |
+| REJECT   | `currentStep.rejectionTargetId`  | Backward loop               |
+| BYPASS   | `currentStep.bypassTargetId`     | Skip step                   |
+| ESCALATE | `currentStep.escalationTargetId` | Escalation path             |
+| RETURN   | Last Approval record's `stepId`  | Return to previous reviewer |
+
+**Completion logic:** If the next step is `null` AND the current step has `isFinalStep: true`, the participant status is set to `APPROVED` and `isComplete: true`. If next step is `null` but not a final step, a `WorkflowError(400)` is thrown ("No target step configured for this action").
+
+### Prisma JSON Type Workaround
+
+Prisma 7's `Json` type doesn't accept typed objects directly. The workaround is `JSON.parse(JSON.stringify(snapshot))` which produces a plain object that Prisma accepts without type errors.
+
+### Verification Results
+
+| Check                | Result                                 |
+| -------------------- | -------------------------------------- |
+| `prisma migrate dev` | Migration applied cleanly              |
+| `npm run typecheck`  | Zero errors                            |
+| `npx vitest run`     | All tests pass (31 new workflow tests) |
+| `prisma db seed`     | Seed still works                       |
 
 ---
 
 ## 10. P1-08 — SLA Enforcement
 
-> **Status:** Not started
+> **Status:** Complete
 > **Depends on:** P1-07
 
-_To be completed._
+### What This Task Does
+
+Implements a background job that checks active participants every 5 minutes for SLA violations. When a step has `slaDurationMinutes` configured and a participant exceeds that time, the system executes the step's configured `slaAction` (NOTIFY, ESCALATE, AUTO_APPROVE, AUTO_REJECT, or REASSIGN). Also provides dashboard query functions for SLA metrics and overdue participant lists.
+
+### Why It's Designed This Way
+
+The SLA checker runs as a `setInterval` background job started from `server.js`, not as a separate process or cron job. This keeps the deployment simple (single Node.js process) while providing near-real-time SLA enforcement. The 5-minute interval is configurable via `SLA_CHECK_INTERVAL_MS`.
+
+The job runner (`server/sla-job.js`) uses a **lazy loader pattern**: it accepts a function that returns a Promise of the SLA checker module. This allows the server to start without importing the full application module tree upfront, and works with both Vite dev server (imports `.ts` files) and production builds (imports compiled `.js` files).
+
+Notifications are Phase 1 stubs that log to Pino and create AuditLog records. Phase 2 will implement actual email/SMS delivery via Azure Communication Services.
+
+### Schema Changes
+
+Added `SLA_BREACH` to `AuditAction` enum:
+
+```prisma
+enum AuditAction {
+  // ... existing values ...
+  SLA_BREACH
+}
+```
+
+Migration: `20260215154603_add_sla_breach_audit_action`
+
+### Files Created
+
+| File                                                                      | Purpose                                                                     |
+| ------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `app/services/workflow-engine/sla-checker.server.ts`                      | `checkOverdueSLAs` — scans participants, detects breaches, executes actions |
+| `app/services/workflow-engine/sla-notifications.server.ts`                | `sendSLAWarningNotification`, `sendSLABreachNotification` — Phase 1 stubs   |
+| `app/services/workflow-engine/sla-stats.server.ts`                        | `getSLAStats`, `getOverdueParticipants` — dashboard queries                 |
+| `app/services/jobs/sla-job.server.ts`                                     | TypeScript job runner (for tests)                                           |
+| `server/sla-job.js`                                                       | Plain JS job runner for `server.js` integration                             |
+| `app/services/workflow-engine/__tests__/sla-checker.server.test.ts`       | 11 tests for SLA checking and action execution                              |
+| `app/services/workflow-engine/__tests__/sla-notifications.server.test.ts` | 4 tests for notification stubs                                              |
+| `app/services/workflow-engine/__tests__/sla-stats.server.test.ts`         | 7 tests for dashboard queries                                               |
+| `app/services/jobs/__tests__/sla-job.server.test.ts`                      | 4 tests for job lifecycle                                                   |
+
+### Files Modified
+
+| File        | Change                                                            |
+| ----------- | ----------------------------------------------------------------- |
+| `server.js` | Imports SLA job, starts on server listen, stops on SIGTERM/SIGINT |
+
+### SLA Check Flow
+
+```
+setInterval (every 5 minutes)
+    │
+    ▼
+checkOverdueSLAs()
+    │
+    ├── Find all active participants with workflow versions
+    │   (status IN [PENDING, IN_PROGRESS], has currentStepId, has workflowVersionId)
+    │
+    ├── For each participant:
+    │   ├── Deserialize workflow snapshot
+    │   ├── Find current step
+    │   ├── Skip if no slaDurationMinutes configured
+    │   │
+    │   ├── Calculate: deadline = stepEnteredAt + slaDurationMinutes
+    │   │
+    │   ├── If now > deadline (BREACHED):
+    │   │   ├── Send breach notification (AuditLog + Pino log)
+    │   │   └── Execute SLA action based on step.slaAction:
+    │   │       ├── NOTIFY → log only (notification sent above)
+    │   │       ├── ESCALATE → processWorkflowAction("ESCALATE")
+    │   │       ├── AUTO_APPROVE → processWorkflowAction("APPROVE")
+    │   │       ├── AUTO_REJECT → processWorkflowAction("REJECT")
+    │   │       └── REASSIGN → AuditLog entry (deferred to Phase 2)
+    │   │
+    │   └── If in warning zone (now >= deadline - slaWarningMinutes):
+    │       └── Send warning notification
+    │
+    └── Return { checked, warnings, breached, actions[] }
+```
+
+### Dashboard Functions
+
+**`getSLAStats(workflowId)`** → Returns:
+
+- `totalWithSLA` — participants at steps with SLA configured
+- `withinSLA` — on track
+- `warningZone` — approaching deadline
+- `breached` — past deadline
+- `averageTimeAtStep` — per-step average time in minutes
+
+**`getOverdueParticipants(workflowId, options?)`** → Returns overdue participants sorted by urgency (breached first, most overdue first). Supports filtering by `stepId` and `onlyBreached`.
+
+### server.js Integration
+
+The SLA job uses variable-based dynamic imports to prevent TypeScript's static resolver from trying to validate `.ts` file imports from the `server.js` context:
+
+```javascript
+const SLA_CHECKER_DEV = "./app/services/workflow-engine/sla-checker.server.ts";
+const SLA_CHECKER_PROD = "./build/server/services/workflow-engine/sla-checker.server.js";
+
+startSLACheckJob(() => import(DEVELOPMENT ? SLA_CHECKER_DEV : SLA_CHECKER_PROD));
+```
+
+This pattern matches the existing `BUILD_PATH` pattern in `server.js`.
+
+### Verification Results
+
+| Check                | Result                            |
+| -------------------- | --------------------------------- |
+| `prisma migrate dev` | Migration applied cleanly         |
+| `npm run typecheck`  | Zero errors                       |
+| `npx vitest run`     | All tests pass (26 new SLA tests) |
+| `prisma db seed`     | Seed still works                  |
 
 ---
 
 ## 11. P1-09 — Optimistic Locking
 
-> **Status:** Not started
+> **Status:** Complete
 > **Depends on:** P1-00
 
-_To be completed._
+### What This Task Does
+
+Prevents concurrent users from silently overwriting each other's changes. When two users load the same participant or field definition, edit it, and submit at the same time, the second save receives a 409 Conflict response with the current server state instead of blindly overwriting the first user's changes.
+
+### Why It's Designed This Way
+
+The locking mechanism uses `updatedAt` timestamps as version identifiers rather than introducing a separate version counter column. This is a pragmatic choice: `updatedAt` already exists on every model, changes on every update, and has millisecond precision. Clients send the expected version via the `If-Match` HTTP header (for API requests) or a `_version` hidden form field (for progressive enhancement forms).
+
+The version check is implemented at two levels:
+
+1. **Application-level**: `checkOptimisticLock()` compares versions before the update, providing a fast fail with a clear error message
+2. **Database-level**: `withVersionCheck()` adds `updatedAt` to the Prisma `where` clause, so the update only succeeds if the row hasn't been modified since the client read it. If another user modifies the row between the app check and the DB update, Prisma throws P2025 ("Record not found"), which is caught and converted to `ConflictError`.
+
+The unified `formatErrorResponse` utility in `api-error.server.ts` provides consistent error response formatting across all error types (ConflictError, NotFoundError, FieldError, WorkflowError, Prisma errors), eliminating duplicated error handling in route files.
+
+### Files Created
+
+| File                                                    | Purpose                                                                                                                                                                                   |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/services/optimistic-lock.server.ts`                | `ConflictError`, `PreconditionRequiredError`, `NotFoundError`, `checkOptimisticLock`, `getExpectedVersion`, `getExpectedVersionFromFormData`, `withVersionCheck`, `isPrismaNotFoundError` |
+| `app/utils/api-error.server.ts`                         | `formatErrorResponse` — unified error→Response mapping                                                                                                                                    |
+| `app/services/__tests__/optimistic-lock.server.test.ts` | 14 tests for lock utilities                                                                                                                                                               |
+| `app/utils/__tests__/api-error.server.test.ts`          | 7 tests for error formatting                                                                                                                                                              |
+
+### Files Modified
+
+| File                                                               | Change                                                                                                      |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `app/services/fields.server.ts`                                    | Added `expectedVersion?` parameter to `updateField`, version check before update, P2025→ConflictError catch |
+| `app/services/workflow-engine/navigation.server.ts`                | Added `expectedVersion?` parameter to `processWorkflowAction`, version check, P2025→ConflictError catch     |
+| `app/services/__tests__/fields.server.test.ts`                     | +3 optimistic locking tests                                                                                 |
+| `app/services/workflow-engine/__tests__/navigation.server.test.ts` | +3 optimistic locking tests                                                                                 |
+
+### Error Classes
+
+```typescript
+class ConflictError extends Error {
+  statusCode = 409;
+  code = "CONFLICT";
+  currentResource: Record<string, unknown>; // The current server state for client reconciliation
+}
+
+class PreconditionRequiredError extends Error {
+  statusCode = 428;
+  code = "PRECONDITION_REQUIRED"; // Client didn't send a version
+}
+
+class NotFoundError extends Error {
+  statusCode = 404;
+  code = "NOT_FOUND";
+}
+```
+
+### Version Flow
+
+```
+Client loads resource → receives { ..., updatedAt: "2026-02-15T10:00:00.000Z" }
+    │
+Client edits and submits with:
+    If-Match: "2026-02-15T10:00:00.000Z"   (API header)
+    — or —
+    <input type="hidden" name="_version" value="2026-02-15T10:00:00.000Z" />  (form field)
+    │
+Server checks:
+    1. getExpectedVersion(request) or getExpectedVersionFromFormData(request)
+    2. checkOptimisticLock(resource, expectedVersion, "Resource")
+       ├── resource is null → throw NotFoundError (404)
+       ├── expectedVersion is null → throw PreconditionRequiredError (428)
+       ├── versions don't match → throw ConflictError (409, includes current resource)
+       └── versions match → proceed
+    3. prisma.update({ where: { id, updatedAt: expectedVersion } })
+       └── P2025 (row not found = modified between check and update) → ConflictError
+```
+
+### `formatErrorResponse` Mapping
+
+| Error Type                  | HTTP Status    | Response Body                                                          |
+| --------------------------- | -------------- | ---------------------------------------------------------------------- |
+| `ConflictError`             | 409            | `{ error: "CONFLICT", message, currentVersion, current }`              |
+| `PreconditionRequiredError` | 428            | `{ error: "PRECONDITION_REQUIRED", message }`                          |
+| `NotFoundError`             | 404            | `{ error: "NOT_FOUND", message }`                                      |
+| `FieldError`                | `error.status` | `{ error: "FIELD_ERROR", message }`                                    |
+| `WorkflowError`             | `error.status` | `{ error: "WORKFLOW_ERROR", message }`                                 |
+| Prisma P2025                | 409            | `{ error: "CONFLICT", message }`                                       |
+| Unknown                     | 500            | `{ error: "INTERNAL_ERROR", message: "An unexpected error occurred" }` |
+
+Uses `Response.json()` (not react-router's `data()`) because `data()` returns a typed response without a standard `.json()` method, which breaks test assertions.
+
+### Verification Results
+
+| Check               | Result                                   |
+| ------------------- | ---------------------------------------- |
+| `npm run typecheck` | Zero errors                              |
+| `npx vitest run`    | 291/291 tests pass (24 new + 6 modified) |
 
 ---
 
@@ -1029,17 +1497,16 @@ _To be completed._
 4428e61 fix: propagate CSP nonce to React SSR pipeline
 37c665f chore: upgrade to Prisma 7 with driver adapters and Node 22 LTS
 
-d80455e feat: implement P1-01 authentication & session management
 28de3ab feat: implement P1-00 core data model migration
-
+d80455e feat: implement P1-01 authentication & session management
 61dbf8b feat: implement P1-02 custom field definition CRUD
-
-feat: implement P1-03 dynamic Zod schema builder
-feat: implement P1-04 dynamic form renderer
-
 a332ff2 feat: migrate to react-router-auto-routes for file-system routing
-
-(Phase 1 commits — to be updated as tasks are completed)
+568ac53 refactor: rename dashboard routes to admin and complete P1-03/P1-04/P1-05 implementation
+fa66845 refactor: rename dynamic-fields/custom-fields to fields across codebase
+93464b5 feat: implement P1-06 JSONB query layer & expression indexes
+7b54595 feat: implement P1-07 workflow versioning with snapshot-based navigation
+b669c8e feat: implement P1-08 SLA enforcement with background job and breach actions
+(P1-09 — pending commit)
 ```
 
 ---
@@ -1080,19 +1547,60 @@ a332ff2 feat: migrate to react-router-auto-routes for file-system routing
 | `app/components/fields/index.ts`                                                         | P1-04 | Barrel exports                                                                           |
 | `app/components/fields/__tests__/fields.test.ts`                                         | P1-04 | 25 pure logic tests for helper functions                                                 |
 | `app/routes/admin/test-field-form.tsx`                                                   | P1-04 | Integration test route: full field form pipeline                                         |
+| `app/routes/admin/events/index.tsx`                                                      | P1-05 | Event listing page with field definition counts                                          |
+| `app/routes/admin/events/$eventId/fields/index.tsx`                                      | P1-05 | Field list with filtering, reordering, and delete                                        |
+| `app/routes/admin/events/$eventId/fields/new.tsx`                                        | P1-05 | Create new field definition                                                              |
+| `app/routes/admin/events/$eventId/fields/$fieldId.tsx`                                   | P1-05 | Edit existing field definition                                                           |
+| `app/components/fields/FieldForm.tsx`                                                    | P1-05 | Field create/edit form with all 16 data types                                            |
+| `app/components/fields/FieldTable.tsx`                                                   | P1-05 | Field list table with inline reorder and actions                                         |
+| `app/components/fields/DeleteFieldDialog.tsx`                                            | P1-05 | Confirmation dialog with data-existence warning                                          |
+| `app/components/fields/TypeConfigPanel.tsx`                                              | P1-05 | Type-specific configuration inputs                                                       |
+| `app/components/fields/EnumOptionsEditor.tsx`                                            | P1-05 | Visual editor for enum option management                                                 |
+| `app/components/fields/+utils.ts`                                                        | P1-05 | `labelToFieldName`, `formatDataType` helpers                                             |
+| `app/components/ui/*.tsx` (button, table, dialog, badge, card, switch, separator, alert) | P1-05 | shadcn/ui component library                                                              |
+| `app/lib/schemas/field-query.ts`                                                         | P1-06 | Zod schemas for JSONB query conditions and search params                                 |
+| `app/services/field-query.server.ts`                                                     | P1-06 | JSONB query builder, expression index management                                         |
+| `app/routes/api/v1/participants/search.tsx`                                              | P1-06 | `POST /api/v1/participants/search` endpoint                                              |
+| `app/lib/schemas/__tests__/field-query.test.ts`                                          | P1-06 | 16 schema validation tests                                                               |
+| `app/services/__tests__/field-query.server.test.ts`                                      | P1-06 | 25+ query and index management tests                                                     |
+| `prisma/migrations/20260215144504_add_workflow_version_to_participant/migration.sql`     | P1-07 | Add workflowVersionId + index to Participant                                             |
+| `app/services/workflow-engine/serializer.server.ts`                                      | P1-07 | Workflow snapshot serialization, hashing, deserialization                                |
+| `app/services/workflow-engine/versioning.server.ts`                                      | P1-07 | Version management: ensure, publish, list, compare                                       |
+| `app/services/workflow-engine/entry.server.ts`                                           | P1-07 | Workflow entry: assign version + entry step                                              |
+| `app/services/workflow-engine/navigation.server.ts`                                      | P1-07 | Step navigation engine for 6 workflow actions                                            |
+| `app/services/workflow-engine/__tests__/serializer.server.test.ts`                       | P1-07 | 8 serializer tests                                                                       |
+| `app/services/workflow-engine/__tests__/versioning.server.test.ts`                       | P1-07 | 9 version management tests                                                               |
+| `app/services/workflow-engine/__tests__/entry.server.test.ts`                            | P1-07 | 3 workflow entry tests                                                                   |
+| `app/services/workflow-engine/__tests__/navigation.server.test.ts`                       | P1-07 | 11 navigation tests (+3 P1-09)                                                           |
+| `prisma/migrations/20260215154603_add_sla_breach_audit_action/migration.sql`             | P1-08 | Add SLA_BREACH to AuditAction enum                                                       |
+| `app/services/workflow-engine/sla-checker.server.ts`                                     | P1-08 | SLA violation detection and action execution                                             |
+| `app/services/workflow-engine/sla-notifications.server.ts`                               | P1-08 | Phase 1 notification stubs (Pino log + AuditLog)                                         |
+| `app/services/workflow-engine/sla-stats.server.ts`                                       | P1-08 | Dashboard queries: getSLAStats, getOverdueParticipants                                   |
+| `app/services/jobs/sla-job.server.ts`                                                    | P1-08 | TypeScript SLA job runner                                                                |
+| `server/sla-job.js`                                                                      | P1-08 | Plain JS SLA job runner for server.js                                                    |
+| `app/services/workflow-engine/__tests__/sla-checker.server.test.ts`                      | P1-08 | 11 SLA checker tests                                                                     |
+| `app/services/workflow-engine/__tests__/sla-notifications.server.test.ts`                | P1-08 | 4 notification tests                                                                     |
+| `app/services/workflow-engine/__tests__/sla-stats.server.test.ts`                        | P1-08 | 7 SLA stats tests                                                                        |
+| `app/services/jobs/__tests__/sla-job.server.test.ts`                                     | P1-08 | 4 job lifecycle tests                                                                    |
+| `app/services/optimistic-lock.server.ts`                                                 | P1-09 | Optimistic locking utilities and error classes                                           |
+| `app/utils/api-error.server.ts`                                                          | P1-09 | Unified error→Response formatting                                                        |
+| `app/services/__tests__/optimistic-lock.server.test.ts`                                  | P1-09 | 14 optimistic lock tests                                                                 |
+| `app/utils/__tests__/api-error.server.test.ts`                                           | P1-09 | 7 error formatting tests                                                                 |
 
 ### Files Modified
 
-| File                               | Task(s)      | Changes                                                                          |
-| ---------------------------------- | ------------ | -------------------------------------------------------------------------------- |
-| `prisma/schema.prisma`             | P1-00        | +8 enums, +10 models, updated Tenant/User/Event relations (~350 new lines)       |
-| `app/lib/db.server.ts`             | P1-00        | +2 soft-delete middleware blocks (participant, workflow)                         |
-| `prisma/seed.ts`                   | P1-00        | Expanded from 2 entities to full RBAC + event + workflow scenario                |
-| `tests/setup/integration-setup.ts` | P1-00        | Truncation order: 5 tables → 17 tables                                           |
-| `tests/factories/index.ts`         | P1-00, P1-02 | +5 factory functions, expanded seedFullScenario, +`buildFieldDefinition`         |
-| `scripts/verify-indexes.ts`        | P1-00        | Expected indexes: 4 models → 16 models (33 total index checks)                   |
-| `app/routes.ts`                    | Infra        | Migrated to `autoRoutes()` from `react-router-auto-routes` (file-system routing) |
-| `app/lib/require-auth.server.ts`   | P1-02        | Added `requirePermission(request, resource, action)` helper                      |
+| File                               | Task(s)             | Changes                                                                                  |
+| ---------------------------------- | ------------------- | ---------------------------------------------------------------------------------------- |
+| `prisma/schema.prisma`             | P1-00, P1-07, P1-08 | +8 enums, +10 models, +workflowVersionId to Participant, +SLA_BREACH to AuditAction      |
+| `app/lib/db.server.ts`             | P1-00               | +2 soft-delete middleware blocks (participant, workflow)                                 |
+| `prisma/seed.ts`                   | P1-00               | Expanded from 2 entities to full RBAC + event + workflow scenario                        |
+| `tests/setup/integration-setup.ts` | P1-00               | Truncation order: 5 tables → 17 tables                                                   |
+| `tests/factories/index.ts`         | P1-00, P1-02        | +5 factory functions, expanded seedFullScenario, +`buildFieldDefinition`                 |
+| `scripts/verify-indexes.ts`        | P1-00               | Expected indexes: 4 models → 16 models (33 total index checks)                           |
+| `app/routes.ts`                    | Infra               | Migrated to `autoRoutes()` from `react-router-auto-routes` (file-system routing)         |
+| `app/lib/require-auth.server.ts`   | P1-02               | Added `requirePermission(request, resource, action)` helper                              |
+| `app/services/fields.server.ts`    | P1-06, P1-09        | Auto index management on CRUD; +`expectedVersion` param to `updateField`, P2025 handling |
+| `server.js`                        | P1-08               | SLA job import/start/stop integration                                                    |
 
 ---
 
@@ -1131,6 +1639,47 @@ a332ff2 feat: migrate to react-router-auto-routes for file-system routing
 **Fix:** Use `z.record(z.string(), z.unknown())` instead of `z.record(z.unknown())`.
 
 **Prevention:** When using Zod v4 (`import { z } from "zod/v4"`), always provide both key and value types to `z.record()`.
+
+### 5. Prisma 7 JSON type rejects typed objects
+
+**Problem:** `snapshot as unknown as Record<string, unknown>` caused TS2322 when passed to Prisma's `Json` column.
+
+**Cause:** Prisma 7's `Json` type doesn't accept TypeScript interfaces directly — it expects a plain object.
+
+**Fix:** Use `JSON.parse(JSON.stringify(snapshot))` which produces a plain object that Prisma accepts.
+
+**Prevention:** When writing to Prisma `Json` columns, always round-trip through `JSON.parse(JSON.stringify())` to strip TypeScript type information.
+
+### 6. tsconfig.node.json boundary violations from server.js
+
+**Problem:** Importing TypeScript `.ts` files from `server.js` caused TS6307 errors because `tsconfig.node.json` only includes `server.js`, `server/*.js`, and `vite.config.ts`.
+
+**Cause:** The server.js file runs as plain JavaScript before Vite starts. Static `import()` paths that reference `.ts` files are resolved by TypeScript's static analyzer even though they work at runtime (Vite handles `.ts` imports in dev).
+
+**Fix:** Created `server/sla-job.js` as a plain JS wrapper, and used variable-based dynamic imports to prevent static analysis:
+
+```javascript
+const SLA_CHECKER_DEV = "./app/services/workflow-engine/sla-checker.server.ts";
+startSLACheckJob(() => import(DEVELOPMENT ? SLA_CHECKER_DEV : SLA_CHECKER_PROD));
+```
+
+This matches the existing `BUILD_PATH` pattern already used in `server.js`.
+
+### 7. react-router `data()` vs `Response.json()` in error formatting
+
+**Problem:** Tests calling `response.json()` on error responses failed because `data()` from react-router returns a typed data response without a standard `.json()` method.
+
+**Cause:** react-router's `data()` helper returns a `DataWithResponseInit` object, not a standard `Response`.
+
+**Fix:** Switched `api-error.server.ts` to use `Response.json()` instead of `data()` from react-router. `Response.json()` creates a standard `Response` object that works with test assertions.
+
+### 8. Navigation test failure with isFinalStep step
+
+**Problem:** Testing "throws when no target configured for action" failed because the test used BYPASS on step-2 which had `isFinalStep: true`. Instead of throwing, the action completed with `isComplete: true`.
+
+**Cause:** The completion logic checks `if (nextStepId === null && currentStep.isFinalStep)` before checking the "no target" error condition. A final step with no bypass target is treated as completion, not an error.
+
+**Fix:** Changed the test to use ESCALATE on step-1 with `escalationTargetId` set to `null` in a custom snapshot. Step-1 is not a final step, so the "no target configured" error is correctly thrown.
 
 ---
 
@@ -1193,21 +1742,60 @@ a332ff2 feat: migrate to react-router-auto-routes for file-system routing
 3. Expression indexes on JSONB paths (`CREATE INDEX ON "Participant" ((extras->>'weapon_permit'))`) provide query performance for searchable fields
 4. The `FieldDefinition` model serves as the "schema registry" — it defines what's allowed in `extras`, driving Zod validation, form rendering, and index creation
 
+### AD-06: Hash-based workflow version deduplication
+
+**Decision:** `ensureCurrentVersion` computes a SHA-256 hash of the serialized workflow snapshot and compares it to the latest version's hash (stored in `changeDescription`). Only creates a new version if the hash differs.
+
+**Rationale:**
+
+1. Prevents version number explosion from repeated calls without actual changes (e.g., re-publishing an unchanged workflow)
+2. SHA-256 is deterministic — same workflow state always produces the same hash
+3. `stableStringify` ensures JSON key ordering doesn't affect the hash
+4. The hash doubles as a change-detection mechanism for comparing versions
+
+**Trade-off:** Storing the hash in the `changeDescription` field (repurposed) rather than a dedicated column. This avoids a migration but means `changeDescription` serves dual purpose: hash for auto-created versions, human-readable description for manually published versions.
+
+### AD-07: setInterval SLA job over external scheduler
+
+**Decision:** The SLA checker runs as a `setInterval` background job within the Node.js process, not as a separate cron job, queue worker, or external scheduler.
+
+**Rationale:**
+
+1. Single-process deployment is simpler — no Redis, no Bull, no separate worker process
+2. 5-minute intervals are adequate for SLA enforcement (not real-time critical)
+3. The job is idempotent — running it twice on the same data produces the same result
+4. If the server restarts, the job restarts automatically
+
+**Trade-off:** Not horizontally scalable — in a multi-instance deployment, multiple instances would run the check concurrently. Phase 2 could add a database lock or move to a proper job queue if scaling becomes necessary.
+
+### AD-08: updatedAt as optimistic lock version
+
+**Decision:** Use `updatedAt` timestamp as the version identifier for optimistic locking, rather than introducing a dedicated version counter column.
+
+**Rationale:**
+
+1. `updatedAt` already exists on every model and changes on every update
+2. No migration needed — works with the existing schema
+3. Millisecond precision is sufficient for distinguishing concurrent edits
+4. The `If-Match` HTTP header pattern is a standard ETag-like approach
+
+**Trade-off:** Theoretically, two updates within the same millisecond could collide. In practice, PostgreSQL's timestamp resolution and the time between network roundtrips make this negligible.
+
 ---
 
 ## 18. Quality Gate Progress
 
 Progress toward the Phase 1 → Phase 2 quality gate:
 
-| Criterion                                                     | Status      | Notes                                  |
-| ------------------------------------------------------------- | ----------- | -------------------------------------- |
-| Admin can create, edit, reorder, and delete field definitions | In progress | P1-02 API complete, P1-05 UI pending   |
-| Fields render on registration forms                           | Complete    | P1-04 — 25 tests, test route available |
-| JSONB queries support filtering with expression indexes       | Not started | P1-06                                  |
-| Workflow versioning snapshots active version on entry         | Not started | P1-07                                  |
-| SLA overdue detection runs as background job (5 min)          | Not started | P1-08                                  |
-| Optimistic locking prevents concurrent approve/reject         | Not started | P1-09                                  |
-| Rate limiting active on all authenticated API routes          | Not started | P1-10                                  |
-| File uploads scanned for malware before acceptance            | Not started | P1-11                                  |
-| Zod schemas validate field data on submission                 | Complete    | P1-03 — 53 tests                       |
-| Unit test coverage ≥ 85% for new code                         | In progress | 142/142 tests pass across 9 test files |
+| Criterion                                                     | Status      | Notes                                                      |
+| ------------------------------------------------------------- | ----------- | ---------------------------------------------------------- |
+| Admin can create, edit, reorder, and delete field definitions | Complete    | P1-02 API + P1-05 UI — full CRUD with type-specific config |
+| Fields render on registration forms                           | Complete    | P1-04 — 25 tests, test route available                     |
+| JSONB queries support filtering with expression indexes       | Complete    | P1-06 — 12 operators, auto index lifecycle, 41+ tests      |
+| Workflow versioning snapshots active version on entry         | Complete    | P1-07 — hash-based dedup, 31 tests                         |
+| SLA overdue detection runs as background job (5 min)          | Complete    | P1-08 — 5 actions, dashboard queries, 26 tests             |
+| Optimistic locking prevents concurrent approve/reject         | Complete    | P1-09 — If-Match header + \_version form field, 24 tests   |
+| Rate limiting active on all authenticated API routes          | Not started | P1-10                                                      |
+| File uploads scanned for malware before acceptance            | Not started | P1-11                                                      |
+| Zod schemas validate field data on submission                 | Complete    | P1-03 — 53 tests                                           |
+| Unit test coverage ≥ 85% for new code                         | In progress | 291/291 tests pass across 23 test files                    |

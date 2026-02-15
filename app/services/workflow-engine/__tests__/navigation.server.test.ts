@@ -79,6 +79,8 @@ function makeParticipant(currentStepId: string) {
   return {
     id: "p-1",
     currentStepId,
+    status: "PENDING",
+    updatedAt: new Date("2026-02-15T10:00:00.000Z"),
     deletedAt: null,
     workflowVersion: {
       id: "v-1",
@@ -249,6 +251,47 @@ describe("navigation.server", () => {
       await expect(processWorkflowAction("p-missing", "user-1", "APPROVE")).rejects.toThrow(
         WorkflowError,
       );
+    });
+
+    it("succeeds when expectedVersion matches", async () => {
+      const { processWorkflowAction } = await import("../navigation.server");
+      mockParticipantFindFirst.mockResolvedValue(makeParticipant("step-1"));
+
+      const result = await processWorkflowAction(
+        "p-1",
+        "user-1",
+        "APPROVE",
+        undefined,
+        "2026-02-15T10:00:00.000Z",
+      );
+
+      expect(result.nextStepId).toBe("step-2");
+      expect(mockParticipantUpdate).toHaveBeenCalledWith({
+        where: { id: "p-1", updatedAt: new Date("2026-02-15T10:00:00.000Z") },
+        data: expect.any(Object),
+      });
+    });
+
+    it("throws ConflictError when expectedVersion does not match", async () => {
+      const { processWorkflowAction } = await import("../navigation.server");
+      const { ConflictError } = await import("~/services/optimistic-lock.server");
+      mockParticipantFindFirst.mockResolvedValue(makeParticipant("step-1"));
+
+      await expect(
+        processWorkflowAction("p-1", "user-1", "APPROVE", undefined, "2026-02-15T09:00:00.000Z"),
+      ).rejects.toThrow(ConflictError);
+    });
+
+    it("converts Prisma P2025 to ConflictError during versioned update", async () => {
+      const { processWorkflowAction } = await import("../navigation.server");
+      const { ConflictError } = await import("~/services/optimistic-lock.server");
+
+      mockParticipantFindFirst.mockResolvedValue(makeParticipant("step-1"));
+      mockParticipantUpdate.mockRejectedValue({ code: "P2025" });
+
+      await expect(
+        processWorkflowAction("p-1", "user-1", "APPROVE", undefined, "2026-02-15T10:00:00.000Z"),
+      ).rejects.toThrow(ConflictError);
     });
   });
 });
