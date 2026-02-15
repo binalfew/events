@@ -1,11 +1,11 @@
 import type { FormMetadata } from "@conform-to/react";
 import type { FieldDefinition } from "~/generated/prisma/client";
-import { DynamicFieldRenderer } from "./DynamicFieldRenderer";
+import { FieldRenderer } from "./FieldRenderer";
 import { sortFieldDefs } from "./types";
 
 const FULL_WIDTH_TYPES = new Set(["LONG_TEXT", "BOOLEAN", "JSON", "MULTI_ENUM"]);
 
-interface DynamicFieldSectionProps {
+interface FieldSectionProps {
   title?: string;
   description?: string;
   fieldDefs: FieldDefinition[];
@@ -13,13 +13,13 @@ interface DynamicFieldSectionProps {
   columns?: 1 | 2;
 }
 
-export function DynamicFieldSection({
+export function FieldSection({
   title,
   description,
   fieldDefs,
   form,
   columns = 2,
-}: DynamicFieldSectionProps) {
+}: FieldSectionProps) {
   if (fieldDefs.length === 0) return null;
 
   const sorted = sortFieldDefs(fieldDefs);
@@ -42,7 +42,7 @@ export function DynamicFieldSection({
 
           return (
             <div key={fieldDef.id} className={isFullWidth ? "md:col-span-2" : ""}>
-              <DynamicFieldRenderer fieldDef={fieldDef} meta={meta} />
+              <FieldRenderer fieldDef={fieldDef} meta={meta} />
             </div>
           );
         })}

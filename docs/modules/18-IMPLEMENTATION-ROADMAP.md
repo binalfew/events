@@ -304,19 +304,19 @@ Every new capability ships behind a feature flag. Feature flags align with the p
 
 ### 4.1 Deliverables
 
-| #    | Item                       | Category       | Module Reference                                               | Deliverable                                               |
-| ---- | -------------------------- | -------------- | -------------------------------------------------------------- | --------------------------------------------------------- |
-| 1.1  | CustomFieldDef model       | Dynamic Schema | [Module 02](./02-DYNAMIC-SCHEMA-ENGINE.md#custom-field-def)    | Prisma migration + CRUD routes                            |
-| 1.2  | `customData` JSONB column  | Dynamic Schema | [Module 02](./02-DYNAMIC-SCHEMA-ENGINE.md#jsonb)               | Add to Participant and Event models                       |
-| 1.3  | Dynamic Zod validation     | Dynamic Schema | [Module 02](./02-DYNAMIC-SCHEMA-ENGINE.md#validation)          | `buildCustomDataSchema()` server utility                  |
-| 1.4  | Dynamic form renderer      | Dynamic Schema | [Module 02](./02-DYNAMIC-SCHEMA-ENGINE.md#renderer)            | `DynamicFieldRenderer` + `DynamicFieldSection` components |
-| 1.5  | Custom field admin UI      | Dynamic Schema | [Module 02](./02-DYNAMIC-SCHEMA-ENGINE.md#admin-ui)            | List, create, edit, reorder, delete field definitions     |
-| 1.6  | JSONB query layer          | Dynamic Schema | [Module 02](./02-DYNAMIC-SCHEMA-ENGINE.md#queries)             | `filterWithCustomFields()` + expression index management  |
-| 1.7  | Workflow versioning        | Core           | [Module 04](./04-WORKFLOW-ENGINE.md#versioning)                | WorkflowVersion model, snapshot on participant entry      |
-| 1.8  | SLA enforcement            | Core           | [Module 04](./04-WORKFLOW-ENGINE.md#sla)                       | Background job for overdue detection + email alerts       |
-| 1.9  | Optimistic locking         | Core           | [Module 07](./07-API-AND-INTEGRATION-LAYER.md#locking)         | Prevent concurrent actions on same participant            |
-| 1.10 | Rate limiting completeness | Security       | [Module 05](./05-SECURITY-AND-ACCESS-CONTROL.md#rate-limiting) | Add limits to authenticated routes                        |
-| 1.11 | File upload scanning       | Security       | [Module 05](./05-SECURITY-AND-ACCESS-CONTROL.md#file-scanning) | ClamAV or Azure Defender integration                      |
+| #    | Item                       | Category       | Module Reference                                               | Deliverable                                              |
+| ---- | -------------------------- | -------------- | -------------------------------------------------------------- | -------------------------------------------------------- |
+| 1.1  | FieldDefinition model      | Dynamic Schema | [Module 02](./02-DYNAMIC-SCHEMA-ENGINE.md#field-definition)    | Prisma migration + CRUD routes                           |
+| 1.2  | `customData` JSONB column  | Dynamic Schema | [Module 02](./02-DYNAMIC-SCHEMA-ENGINE.md#jsonb)               | Add to Participant and Event models                      |
+| 1.3  | Dynamic Zod validation     | Dynamic Schema | [Module 02](./02-DYNAMIC-SCHEMA-ENGINE.md#validation)          | `buildCustomDataSchema()` server utility                 |
+| 1.4  | Dynamic form renderer      | Dynamic Schema | [Module 02](./02-DYNAMIC-SCHEMA-ENGINE.md#renderer)            | `FieldRenderer` + `FieldSection` components              |
+| 1.5  | Custom field admin UI      | Dynamic Schema | [Module 02](./02-DYNAMIC-SCHEMA-ENGINE.md#admin-ui)            | List, create, edit, reorder, delete field definitions    |
+| 1.6  | JSONB query layer          | Dynamic Schema | [Module 02](./02-DYNAMIC-SCHEMA-ENGINE.md#queries)             | `filterWithCustomFields()` + expression index management |
+| 1.7  | Workflow versioning        | Core           | [Module 04](./04-WORKFLOW-ENGINE.md#versioning)                | WorkflowVersion model, snapshot on participant entry     |
+| 1.8  | SLA enforcement            | Core           | [Module 04](./04-WORKFLOW-ENGINE.md#sla)                       | Background job for overdue detection + email alerts      |
+| 1.9  | Optimistic locking         | Core           | [Module 07](./07-API-AND-INTEGRATION-LAYER.md#locking)         | Prevent concurrent actions on same participant           |
+| 1.10 | Rate limiting completeness | Security       | [Module 05](./05-SECURITY-AND-ACCESS-CONTROL.md#rate-limiting) | Add limits to authenticated routes                       |
+| 1.11 | File upload scanning       | Security       | [Module 05](./05-SECURITY-AND-ACCESS-CONTROL.md#file-scanning) | ClamAV or Azure Defender integration                     |
 
 ### 4.2 Definition of Done — Phase 1
 

@@ -1,12 +1,12 @@
 import { data, Link, redirect, useActionData, useLoaderData } from "react-router";
 import { requirePermission } from "~/lib/require-auth.server";
 import { prisma } from "~/lib/db.server";
-import { updateDynamicField, DynamicFieldError } from "~/services/dynamic-fields.server";
-import { FieldForm } from "~/components/dynamic-fields/FieldForm";
+import { updateField, FieldError } from "~/services/fields.server";
+import { FieldForm } from "~/components/fields/FieldForm";
 import type { Route } from "./+types/$fieldId";
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const { user } = await requirePermission(request, "dynamic-field", "read");
+  const { user } = await requirePermission(request, "field", "read");
   const tenantId = user.tenantId;
   if (!tenantId) {
     throw data({ error: "User is not associated with a tenant" }, { status: 403 });
@@ -39,7 +39,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
-  const { user } = await requirePermission(request, "dynamic-field", "update");
+  const { user } = await requirePermission(request, "field", "update");
   const tenantId = user.tenantId;
   if (!tenantId) {
     throw data({ error: "User is not associated with a tenant" }, { status: 403 });
@@ -107,10 +107,10 @@ export async function action({ request, params }: Route.ActionArgs) {
   };
 
   try {
-    await updateDynamicField(fieldId, input, ctx);
+    await updateField(fieldId, input, ctx);
     return redirect(`/admin/events/${eventId}/fields`);
   } catch (error) {
-    if (error instanceof DynamicFieldError) {
+    if (error instanceof FieldError) {
       return data({ formErrors: [error.message] }, { status: error.status });
     }
     throw error;

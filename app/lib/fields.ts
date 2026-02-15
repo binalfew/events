@@ -176,7 +176,7 @@ function applyValidationRules(schema: z.ZodTypeAny, field: FieldDefinition): z.Z
  * This is a shared (non-server) module so it can be used in both
  * server loaders/actions and client-side form validation.
  */
-export function buildDynamicDataSchema(
+export function buildFieldSchema(
   fieldDefs: FieldDefinition[],
 ): z.ZodObject<Record<string, z.ZodTypeAny>> {
   const shape: Record<string, z.ZodTypeAny> = {};

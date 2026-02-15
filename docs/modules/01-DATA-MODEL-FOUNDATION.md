@@ -34,7 +34,7 @@ The data model must satisfy three competing demands simultaneously:
 
 1. **Strict multi-tenancy isolation** -- every row of tenant-owned data carries a `tenantId` foreign key, and composite unique constraints prevent cross-tenant collisions.
 2. **Type-safe universal fields** -- identity, workflow position, and audit columns are fixed Prisma columns with full ORM type safety, migration support, and standard B-tree indexing.
-3. **Schema-less extensibility** -- event-specific and participant-type-specific fields live in JSONB `customData` columns, defined at runtime through metadata records (`CustomFieldDef`), validated by dynamically generated Zod schemas, and queryable via GIN and expression indexes.
+3. **Schema-less extensibility** -- event-specific and participant-type-specific fields live in JSONB `customData` columns, defined at runtime through metadata records (`FieldDefinition`), validated by dynamically generated Zod schemas, and queryable via GIN and expression indexes.
 
 ### 1.2 Scope
 
@@ -151,7 +151,7 @@ prisma/schema.prisma
   |     AuditLog, SystemSetting, CustomReport, SavedView, DatabaseBackup
   |
   |-- Custom Objects Domain
-  |     CustomObjectDef, CustomFieldDef, CustomObjectRecord
+  |     CustomObjectDef, FieldDefinition, CustomObjectRecord
   |
   |-- Reference Data Domain
   |     Country, Title, Menu, MenuItem
@@ -186,7 +186,7 @@ erDiagram
     Tenant ||--o{ Participant : "registers"
     Tenant ||--o{ Template : "designs"
     Tenant ||--o{ FormTemplate : "designs"
-    Tenant ||--o{ CustomFieldDef : "defines"
+    Tenant ||--o{ FieldDefinition : "defines"
     Tenant ||--o{ CustomObjectRecord : "stores"
 
     User ||--o| Password : "authenticates with"
@@ -216,7 +216,7 @@ erDiagram
     Event ||--o{ Participant : "registers"
     Event ||--o{ Template : "uses"
     Event ||--o{ FormTemplate : "uses"
-    Event ||--o{ CustomFieldDef : "scopes"
+    Event ||--o{ FieldDefinition : "scopes"
     Event ||--o{ CustomObjectRecord : "contains"
     Event ||--o{ UserEventAccess : "grants"
 
@@ -226,7 +226,7 @@ erDiagram
     ParticipantType ||--o{ Participant : "classifies"
     ParticipantType ||--o{ Template : "applies"
     ParticipantType ||--o{ FormTemplate : "applies"
-    ParticipantType ||--o{ CustomFieldDef : "scopes"
+    ParticipantType ||--o{ FieldDefinition : "scopes"
     ParticipantType ||--o{ InvitationConstraint : "limits"
 
     Participant ||--o{ Approval : "receives"
@@ -258,7 +258,7 @@ erDiagram
     BadgeTemplate ||--o{ Template : "used by"
     Template ||--o{ Attachment : "includes"
 
-    CustomObjectDef ||--o{ CustomFieldDef : "defines"
+    CustomObjectDef ||--o{ FieldDefinition : "defines"
     CustomObjectDef ||--o{ CustomObjectRecord : "stores"
 ```
 
@@ -310,7 +310,7 @@ The following table lists every core model in the platform, grouped by domain. T
 | 36  | `SavedView`              | Audit & System    | Airtable-style saved view configuration                                         | ~100        | Module 01    |
 | 37  | `DatabaseBackup`         | Audit & System    | Record of database backup operations                                            | ~100        | Module 08    |
 | 38  | `CustomObjectDef`        | Custom Objects    | Tenant-defined entity type (Vehicle, Accommodation)                             | ~10         | Module 02    |
-| 39  | `CustomFieldDef`         | Custom Objects    | Field definition for custom data on any model                                   | ~200        | Module 02    |
+| 39  | `FieldDefinition`        | Custom Objects    | Field definition for custom data on any model                                   | ~200        | Module 02    |
 | 40  | `CustomObjectRecord`     | Custom Objects    | Instance of a custom object with JSONB data                                     | ~5,000      | Module 02    |
 | 41  | `Country`                | Reference Data    | ISO country reference table                                                     | ~250        | Module 01    |
 | 42  | `Title`                  | Reference Data    | Honorific titles (Mr., Mrs., H.E., Dr.)                                         | ~20         | Module 01    |
@@ -361,7 +361,7 @@ model Tenant {
   badgeTemplates    BadgeTemplate[]
   formTemplates     FormTemplate[]
   customObjectDefs  CustomObjectDef[]
-  customFieldDefs   CustomFieldDef[]
+  fieldDefinitions   FieldDefinition[]
   customObjectRecords CustomObjectRecord[]
   savedViews        SavedView[]
   sectionTemplates  SectionTemplate[]
@@ -563,7 +563,7 @@ model Event {
   participants      Participant[]
   templates         Template[]
   formTemplates     FormTemplate[]
-  customFieldDefs   CustomFieldDef[]
+  fieldDefinitions   FieldDefinition[]
   customObjectRecords CustomObjectRecord[]
   userAccess        UserEventAccess[]
 
@@ -601,7 +601,7 @@ model ParticipantType {
   participants          Participant[]
   templates             Template[]
   formTemplates         FormTemplate[]
-  customFieldDefs       CustomFieldDef[]
+  fieldDefinitions       FieldDefinition[]
   invitationConstraints InvitationConstraint[]
 
   @@unique([tenantId, name])
@@ -721,7 +721,7 @@ model Participant {
   country           Country       @relation("Country", fields: [countryId], references: [id], onDelete: Cascade)
   email             String?
 
-  // Dynamic fields (event/type-specific, defined by CustomFieldDef)
+  // Dynamic fields (event/type-specific, defined by FieldDefinition)
   customData        Json          @default("{}")
 
   // Workflow state
@@ -1400,7 +1400,7 @@ model CustomObjectDef {
   detailLayout Json @default("{}")
   formLayout   Json @default("{}")
 
-  fields  CustomFieldDef[]
+  fields  FieldDefinition[]
   records CustomObjectRecord[]
 
   createdAt DateTime @default(now())
@@ -1411,10 +1411,10 @@ model CustomObjectDef {
 }
 ```
 
-#### CustomFieldDef
+#### FieldDefinition
 
 ```prisma
-model CustomFieldDef {
+model FieldDefinition {
   id                String           @id @default(cuid())
   tenantId          String
   tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -2004,7 +2004,7 @@ ON "Event" USING GIN ("customData");
 
 #### Expression Indexes for Custom Fields
 
-When a `CustomFieldDef` is marked `isSearchable: true`, the system auto-creates an expression index:
+When a `FieldDefinition` is marked `isSearchable: true`, the system auto-creates an expression index:
 
 ```sql
 -- Auto-created when admin marks "visa_status" as searchable
@@ -2235,7 +2235,7 @@ For large schema changes, feature flags gate the new schema:
 // Check feature flag before using new table
 const tenant = await getTenant(request);
 if (tenant.featureFlags?.customObjects) {
-  // Use CustomObjectDef, CustomFieldDef, CustomObjectRecord
+  // Use CustomObjectDef, FieldDefinition, CustomObjectRecord
 } else {
   // Fall back to legacy behavior
 }
@@ -2399,21 +2399,21 @@ The platform admin dashboard provides database visibility:
 
 ### 7.1 Per-Module Data Ownership Matrix
 
-| Model            | Owner Module        | Reads                          | Writes                    |
-| ---------------- | ------------------- | ------------------------------ | ------------------------- |
-| `Tenant`         | 01 - Data Model     | All modules                    | Module 01, Module 05      |
-| `User`           | 05 - Security       | All modules                    | Module 05                 |
-| `Event`          | 01 - Data Model     | All modules                    | Module 01                 |
-| `Participant`    | 03 - Registration   | Modules 01, 04, 05, 06, 07, 08 | Module 03, Module 04      |
-| `Workflow`       | 04 - Workflow       | Modules 01, 03                 | Module 04                 |
-| `Step`           | 04 - Workflow       | Modules 01, 03, 05             | Module 04                 |
-| `Approval`       | 04 - Workflow       | Modules 01, 03, 08             | Module 04                 |
-| `CustomFieldDef` | 02 - Dynamic Schema | Modules 01, 03                 | Module 02                 |
-| `AuditLog`       | 08 - Audit          | Modules 01, 05                 | All modules (append-only) |
-| `Notification`   | 07 - Notification   | Module 01                      | Module 07                 |
-| `BadgeTemplate`  | 06 - Badge          | Modules 01, 03                 | Module 06                 |
-| `FormTemplate`   | 02 - Dynamic Schema | Modules 01, 03                 | Module 02                 |
-| `SystemSetting`  | 01 - Data Model     | All modules                    | Module 01, Module 05      |
+| Model             | Owner Module        | Reads                          | Writes                    |
+| ----------------- | ------------------- | ------------------------------ | ------------------------- |
+| `Tenant`          | 01 - Data Model     | All modules                    | Module 01, Module 05      |
+| `User`            | 05 - Security       | All modules                    | Module 05                 |
+| `Event`           | 01 - Data Model     | All modules                    | Module 01                 |
+| `Participant`     | 03 - Registration   | Modules 01, 04, 05, 06, 07, 08 | Module 03, Module 04      |
+| `Workflow`        | 04 - Workflow       | Modules 01, 03                 | Module 04                 |
+| `Step`            | 04 - Workflow       | Modules 01, 03, 05             | Module 04                 |
+| `Approval`        | 04 - Workflow       | Modules 01, 03, 08             | Module 04                 |
+| `FieldDefinition` | 02 - Dynamic Schema | Modules 01, 03                 | Module 02                 |
+| `AuditLog`        | 08 - Audit          | Modules 01, 05                 | All modules (append-only) |
+| `Notification`    | 07 - Notification   | Module 01                      | Module 07                 |
+| `BadgeTemplate`   | 06 - Badge          | Modules 01, 03                 | Module 06                 |
+| `FormTemplate`    | 02 - Dynamic Schema | Modules 01, 03                 | Module 02                 |
+| `SystemSetting`   | 01 - Data Model     | All modules                    | Module 01, Module 05      |
 
 ### 7.2 Cross-Domain Query Patterns
 
@@ -2766,13 +2766,13 @@ SET LOCAL app.tenant_id = 'clx_tenant_123';
 
 **PII fields in the system:**
 
-| Model                    | PII Fields                                                  | Handling                                                 |
-| ------------------------ | ----------------------------------------------------------- | -------------------------------------------------------- |
-| `User`                   | `email`, `name`                                             | Indexed, used for authentication                         |
-| `Participant`            | `firstName`, `familyName`, `email`, `dateOfBirth`, `gender` | Displayed in UI, exported in reports                     |
-| `Participant.customData` | May contain passport numbers, visa data, phone numbers      | Defined by tenant; flagged via `CustomFieldDef.dataType` |
-| `ParticipantDocument`    | Document images (passport scans, photos)                    | Stored in Azure Blob Storage with SAS token access       |
-| `AuditLog.metadata`      | May contain before/after PII snapshots                      | Retained for compliance; anonymized on GDPR purge        |
+| Model                    | PII Fields                                                  | Handling                                                  |
+| ------------------------ | ----------------------------------------------------------- | --------------------------------------------------------- |
+| `User`                   | `email`, `name`                                             | Indexed, used for authentication                          |
+| `Participant`            | `firstName`, `familyName`, `email`, `dateOfBirth`, `gender` | Displayed in UI, exported in reports                      |
+| `Participant.customData` | May contain passport numbers, visa data, phone numbers      | Defined by tenant; flagged via `FieldDefinition.dataType` |
+| `ParticipantDocument`    | Document images (passport scans, photos)                    | Stored in Azure Blob Storage with SAS token access        |
+| `AuditLog.metadata`      | May contain before/after PII snapshots                      | Retained for compliance; anonymized on GDPR purge         |
 
 **PII access logging:** All reads of participant PII are logged in AuditLog with `action: READ` when triggered from export or detail views.
 
@@ -2834,7 +2834,7 @@ Every query executed from a loader or action must be covered by an index. "Cover
 
 **Guidelines:**
 
-- Fields marked `isSearchable` in `CustomFieldDef` get expression indexes automatically.
+- Fields marked `isSearchable` in `FieldDefinition` get expression indexes automatically.
 - Fields marked `isFilterable` but not `isSearchable` rely on the GIN index.
 - If a JSONB path appears in more than 80% of queries for a table, consider promoting it to a stored generated column.
 
@@ -2873,62 +2873,62 @@ Every query executed from a loader or action must be covered by an index. "Cover
 | `AuditAction`         | CREATE, UPDATE, DELETE, LOGIN, LOGOUT, APPROVE, REJECT, PRINT, COLLECT, EXPORT, IMPORT, CONFIGURE                                                  | `AuditLog.action`                                                                   |
 | `AuditEntityType`     | USER, PARTICIPANT, EVENT, WORKFLOW, STEP, INVITATION, TEMPLATE, BADGE, SETTING, ROLE, REPORT, BACKUP                                               | `AuditLog.entityType`                                                               |
 | `SettingType`         | STRING, NUMBER, BOOLEAN, JSON, ENUM, SECRET                                                                                                        | `SystemSetting.type`                                                                |
-| `FieldDataType`       | TEXT, LONG_TEXT, NUMBER, BOOLEAN, DATE, DATETIME, ENUM, MULTI_ENUM, EMAIL, URL, PHONE, FILE, IMAGE, REFERENCE, FORMULA, AUTO_NUMBER, COUNTRY, USER | `CustomFieldDef.dataType`                                                           |
+| `FieldDataType`       | TEXT, LONG_TEXT, NUMBER, BOOLEAN, DATE, DATETIME, ENUM, MULTI_ENUM, EMAIL, URL, PHONE, FILE, IMAGE, REFERENCE, FORMULA, AUTO_NUMBER, COUNTRY, USER | `FieldDefinition.dataType`                                                          |
 | `ObjectScope`         | TENANT, EVENT                                                                                                                                      | `CustomObjectDef.scope`                                                             |
 | `ViewType`            | TABLE, KANBAN, CALENDAR, GALLERY                                                                                                                   | `SavedView.type`                                                                    |
 
 ### B. Index Catalog
 
-| Table                  | Index Name                                               | Columns / Expression                      | Type   | Partial                   |
-| ---------------------- | -------------------------------------------------------- | ----------------------------------------- | ------ | ------------------------- |
-| `Tenant`               | `Tenant_name_email_idx`                                  | `(name, email)`                           | B-tree | No                        |
-| `User`                 | `User_deletedAt_idx`                                     | `(deletedAt)`                             | B-tree | No                        |
-| `Role`                 | `Role_scope_idx`                                         | `(scope)`                                 | B-tree | No                        |
-| `Session`              | `Session_userId_idx`                                     | `(userId)`                                | B-tree | No                        |
-| `Event`                | `Event_tenantId_status_idx`                              | `(tenantId, status)`                      | B-tree | No                        |
-| `Event`                | `Event_deletedAt_idx`                                    | `(deletedAt)`                             | B-tree | No                        |
-| `Participant`          | `Participant_deletedAt_idx`                              | `(deletedAt)`                             | B-tree | No                        |
-| `Participant`          | `Participant_eventId_stepId_status_idx`                  | `(eventId, stepId, status)`               | B-tree | No                        |
-| `Participant`          | `Participant_tenantId_eventId_participantTypeId_idx`     | `(tenantId, eventId, participantTypeId)`  | B-tree | No                        |
-| `Participant`          | `Participant_status_createdAt_idx`                       | `(status, createdAt)`                     | B-tree | No                        |
-| `Participant`          | `Participant_userId_idx`                                 | `(userId)`                                | B-tree | No                        |
-| `Participant`          | `Participant_invitationId_idx`                           | `(invitationId)`                          | B-tree | No                        |
-| `Participant`          | `Participant_titleId_idx`                                | `(titleId)`                               | B-tree | No                        |
-| `Participant`          | `idx_participant_custom_data_gin`                        | `(customData)`                            | GIN    | No                        |
-| `Participant`          | `idx_participant_cf_*`                                   | `(customData->>'fieldName')`              | B-tree | Yes (`deletedAt IS NULL`) |
-| `Workflow`             | `Workflow_eventId_participantTypeId_idx`                 | `(eventId, participantTypeId)`            | B-tree | No                        |
-| `Workflow`             | `Workflow_deletedAt_idx`                                 | `(deletedAt)`                             | B-tree | No                        |
-| `WorkflowVersion`      | `WorkflowVersion_workflowId_idx`                         | `(workflowId)`                            | B-tree | No                        |
-| `Step`                 | `Step_workflowId_action_idx`                             | `(workflowId, action)`                    | B-tree | No                        |
-| `Step`                 | `Step_workflowId_isBypassTarget_idx`                     | `(workflowId, isBypassTarget)`            | B-tree | No                        |
-| `Step`                 | `Step_workflowId_isRejectionTarget_idx`                  | `(workflowId, isRejectionTarget)`         | B-tree | No                        |
-| `Step`                 | `Step_roleId_idx`                                        | `(roleId)`                                | B-tree | No                        |
-| `StepAssignment`       | `StepAssignment_assignedTo_completedAt_idx`              | `(assignedTo, completedAt)`               | B-tree | No                        |
-| `StepAssignment`       | `StepAssignment_participantId_idx`                       | `(participantId)`                         | B-tree | No                        |
-| `Approval`             | `Approval_participantId_createdAt_idx`                   | `(participantId, createdAt)`              | B-tree | No                        |
-| `Approval`             | `Approval_userId_createdAt_idx`                          | `(userId, createdAt)`                     | B-tree | No                        |
-| `Approval`             | `Approval_stepId_idx`                                    | `(stepId)`                                | B-tree | No                        |
-| `Invitation`           | `Invitation_tenantId_eventId_email_idx`                  | `(tenantId, eventId, email)`              | B-tree | No                        |
-| `InvitationConstraint` | `InvitationConstraint_invitationId_idx`                  | `(invitationId)`                          | B-tree | No                        |
-| `InvitationConstraint` | `InvitationConstraint_sourceRestrictionId_idx`           | `(sourceRestrictionId)`                   | B-tree | No                        |
-| `Restriction`          | `Restriction_eventId_name_idx`                           | `(eventId, name)`                         | B-tree | No                        |
-| `Constraint`           | `Constraint_restrictionId_participantTypeId_idx`         | `(restrictionId, participantTypeId)`      | B-tree | No                        |
-| `BadgeTemplate`        | `BadgeTemplate_tenantId_idx`                             | `(tenantId)`                              | B-tree | No                        |
-| `Notification`         | `Notification_userId_readAt_createdAt_idx`               | `(userId, readAt, createdAt)`             | B-tree | No                        |
-| `Notification`         | `Notification_tenantId_idx`                              | `(tenantId)`                              | B-tree | No                        |
-| `AuditLog`             | `AuditLog_tenantId_action_idx`                           | `(tenantId, action)`                      | B-tree | No                        |
-| `AuditLog`             | `AuditLog_tenantId_entityType_entityId_idx`              | `(tenantId, entityType, entityId)`        | B-tree | No                        |
-| `AuditLog`             | `AuditLog_tenantId_userId_idx`                           | `(tenantId, userId)`                      | B-tree | No                        |
-| `AuditLog`             | `AuditLog_createdAt_idx`                                 | `(createdAt)`                             | B-tree | No                        |
-| `SystemSetting`        | `SystemSetting_category_idx`                             | `(category)`                              | B-tree | No                        |
-| `SystemSetting`        | `SystemSetting_tenantId_idx`                             | `(tenantId)`                              | B-tree | No                        |
-| `CustomFieldDef`       | `CustomFieldDef_tenantId_targetModel_eventId_idx`        | `(tenantId, targetModel, eventId)`        | B-tree | No                        |
-| `CustomFieldDef`       | `CustomFieldDef_eventId_participantTypeId_sortOrder_idx` | `(eventId, participantTypeId, sortOrder)` | B-tree | No                        |
-| `CustomObjectDef`      | `CustomObjectDef_tenantId_idx`                           | `(tenantId)`                              | B-tree | No                        |
-| `CustomObjectRecord`   | `CustomObjectRecord_tenantId_objectDefId_eventId_idx`    | `(tenantId, objectDefId, eventId)`        | B-tree | No                        |
-| `CustomObjectRecord`   | `CustomObjectRecord_deletedAt_idx`                       | `(deletedAt)`                             | B-tree | No                        |
-| `SavedView`            | `SavedView_tenantId_targetModel_idx`                     | `(tenantId, targetModel)`                 | B-tree | No                        |
-| `FormTemplate`         | `FormTemplate_tenantId_eventId_idx`                      | `(tenantId, eventId)`                     | B-tree | No                        |
+| Table                  | Index Name                                                | Columns / Expression                      | Type   | Partial                   |
+| ---------------------- | --------------------------------------------------------- | ----------------------------------------- | ------ | ------------------------- |
+| `Tenant`               | `Tenant_name_email_idx`                                   | `(name, email)`                           | B-tree | No                        |
+| `User`                 | `User_deletedAt_idx`                                      | `(deletedAt)`                             | B-tree | No                        |
+| `Role`                 | `Role_scope_idx`                                          | `(scope)`                                 | B-tree | No                        |
+| `Session`              | `Session_userId_idx`                                      | `(userId)`                                | B-tree | No                        |
+| `Event`                | `Event_tenantId_status_idx`                               | `(tenantId, status)`                      | B-tree | No                        |
+| `Event`                | `Event_deletedAt_idx`                                     | `(deletedAt)`                             | B-tree | No                        |
+| `Participant`          | `Participant_deletedAt_idx`                               | `(deletedAt)`                             | B-tree | No                        |
+| `Participant`          | `Participant_eventId_stepId_status_idx`                   | `(eventId, stepId, status)`               | B-tree | No                        |
+| `Participant`          | `Participant_tenantId_eventId_participantTypeId_idx`      | `(tenantId, eventId, participantTypeId)`  | B-tree | No                        |
+| `Participant`          | `Participant_status_createdAt_idx`                        | `(status, createdAt)`                     | B-tree | No                        |
+| `Participant`          | `Participant_userId_idx`                                  | `(userId)`                                | B-tree | No                        |
+| `Participant`          | `Participant_invitationId_idx`                            | `(invitationId)`                          | B-tree | No                        |
+| `Participant`          | `Participant_titleId_idx`                                 | `(titleId)`                               | B-tree | No                        |
+| `Participant`          | `idx_participant_custom_data_gin`                         | `(customData)`                            | GIN    | No                        |
+| `Participant`          | `idx_participant_cf_*`                                    | `(customData->>'fieldName')`              | B-tree | Yes (`deletedAt IS NULL`) |
+| `Workflow`             | `Workflow_eventId_participantTypeId_idx`                  | `(eventId, participantTypeId)`            | B-tree | No                        |
+| `Workflow`             | `Workflow_deletedAt_idx`                                  | `(deletedAt)`                             | B-tree | No                        |
+| `WorkflowVersion`      | `WorkflowVersion_workflowId_idx`                          | `(workflowId)`                            | B-tree | No                        |
+| `Step`                 | `Step_workflowId_action_idx`                              | `(workflowId, action)`                    | B-tree | No                        |
+| `Step`                 | `Step_workflowId_isBypassTarget_idx`                      | `(workflowId, isBypassTarget)`            | B-tree | No                        |
+| `Step`                 | `Step_workflowId_isRejectionTarget_idx`                   | `(workflowId, isRejectionTarget)`         | B-tree | No                        |
+| `Step`                 | `Step_roleId_idx`                                         | `(roleId)`                                | B-tree | No                        |
+| `StepAssignment`       | `StepAssignment_assignedTo_completedAt_idx`               | `(assignedTo, completedAt)`               | B-tree | No                        |
+| `StepAssignment`       | `StepAssignment_participantId_idx`                        | `(participantId)`                         | B-tree | No                        |
+| `Approval`             | `Approval_participantId_createdAt_idx`                    | `(participantId, createdAt)`              | B-tree | No                        |
+| `Approval`             | `Approval_userId_createdAt_idx`                           | `(userId, createdAt)`                     | B-tree | No                        |
+| `Approval`             | `Approval_stepId_idx`                                     | `(stepId)`                                | B-tree | No                        |
+| `Invitation`           | `Invitation_tenantId_eventId_email_idx`                   | `(tenantId, eventId, email)`              | B-tree | No                        |
+| `InvitationConstraint` | `InvitationConstraint_invitationId_idx`                   | `(invitationId)`                          | B-tree | No                        |
+| `InvitationConstraint` | `InvitationConstraint_sourceRestrictionId_idx`            | `(sourceRestrictionId)`                   | B-tree | No                        |
+| `Restriction`          | `Restriction_eventId_name_idx`                            | `(eventId, name)`                         | B-tree | No                        |
+| `Constraint`           | `Constraint_restrictionId_participantTypeId_idx`          | `(restrictionId, participantTypeId)`      | B-tree | No                        |
+| `BadgeTemplate`        | `BadgeTemplate_tenantId_idx`                              | `(tenantId)`                              | B-tree | No                        |
+| `Notification`         | `Notification_userId_readAt_createdAt_idx`                | `(userId, readAt, createdAt)`             | B-tree | No                        |
+| `Notification`         | `Notification_tenantId_idx`                               | `(tenantId)`                              | B-tree | No                        |
+| `AuditLog`             | `AuditLog_tenantId_action_idx`                            | `(tenantId, action)`                      | B-tree | No                        |
+| `AuditLog`             | `AuditLog_tenantId_entityType_entityId_idx`               | `(tenantId, entityType, entityId)`        | B-tree | No                        |
+| `AuditLog`             | `AuditLog_tenantId_userId_idx`                            | `(tenantId, userId)`                      | B-tree | No                        |
+| `AuditLog`             | `AuditLog_createdAt_idx`                                  | `(createdAt)`                             | B-tree | No                        |
+| `SystemSetting`        | `SystemSetting_category_idx`                              | `(category)`                              | B-tree | No                        |
+| `SystemSetting`        | `SystemSetting_tenantId_idx`                              | `(tenantId)`                              | B-tree | No                        |
+| `FieldDefinition`      | `FieldDefinition_tenantId_targetModel_eventId_idx`        | `(tenantId, targetModel, eventId)`        | B-tree | No                        |
+| `FieldDefinition`      | `FieldDefinition_eventId_participantTypeId_sortOrder_idx` | `(eventId, participantTypeId, sortOrder)` | B-tree | No                        |
+| `CustomObjectDef`      | `CustomObjectDef_tenantId_idx`                            | `(tenantId)`                              | B-tree | No                        |
+| `CustomObjectRecord`   | `CustomObjectRecord_tenantId_objectDefId_eventId_idx`     | `(tenantId, objectDefId, eventId)`        | B-tree | No                        |
+| `CustomObjectRecord`   | `CustomObjectRecord_deletedAt_idx`                        | `(deletedAt)`                             | B-tree | No                        |
+| `SavedView`            | `SavedView_tenantId_targetModel_idx`                      | `(tenantId, targetModel)`                 | B-tree | No                        |
+| `FormTemplate`         | `FormTemplate_tenantId_eventId_idx`                       | `(tenantId, eventId)`                     | B-tree | No                        |
 
 ### C. Migration Runbook
 
@@ -2969,7 +2969,7 @@ Prisma does not support automatic rollback. For each migration, maintain a corre
 ```sql
 -- prisma/migrations/YYYYMMDDHHMMSS_add_custom_objects/down.sql
 DROP TABLE IF EXISTS "CustomObjectRecord";
-DROP TABLE IF EXISTS "CustomFieldDef";
+DROP TABLE IF EXISTS "FieldDefinition";
 DROP TABLE IF EXISTS "CustomObjectDef";
 DROP TYPE IF EXISTS "ObjectScope";
 DROP TYPE IF EXISTS "FieldDataType";

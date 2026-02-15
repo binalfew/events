@@ -37,7 +37,7 @@
    - 4.1 [Events API](#41-events-api)
    - 4.2 [Participants API](#42-participants-api)
    - 4.3 [Workflows API](#43-workflows-api)
-   - 4.4 [Custom Fields API](#44-custom-fields-api)
+   - 4.4 [Fields API](#44-fields-api)
    - 4.5 [Custom Objects API](#45-custom-objects-api)
    - 4.6 [Delegations API](#46-delegations-api)
    - 4.7 [Check-in API](#47-check-in-api)
@@ -1243,14 +1243,14 @@ Response 200:
 }
 ```
 
-### 4.4 Custom Fields API
+### 4.4 Fields API
 
-#### `GET /api/v1/events/:eventId/custom-fields`
+#### `GET /api/v1/events/:eventId/fields`
 
 List custom field definitions for an event.
 
 ```
-Permission: custom-fields:read
+Permission: fields:read
 Rate Limit: General (100/min)
 
 Response 200:
@@ -1271,12 +1271,12 @@ Response 200:
 }
 ```
 
-#### `POST /api/v1/events/:eventId/custom-fields`
+#### `POST /api/v1/events/:eventId/fields`
 
 Create a custom field definition.
 
 ```
-Permission: custom-fields:write
+Permission: fields:write
 Rate Limit: Mutations (50/min)
 
 Request Body:
@@ -1302,24 +1302,24 @@ Response 201:
 }
 ```
 
-#### `PUT /api/v1/events/:eventId/custom-fields/:fieldId`
+#### `PUT /api/v1/events/:eventId/fields/:fieldId`
 
 Update a custom field definition.
 
 ```
-Permission: custom-fields:write
+Permission: fields:write
 Rate Limit: Mutations (50/min)
 
 Error Responses:
   409 Conflict - Field has existing data; destructive changes blocked
 ```
 
-#### `DELETE /api/v1/events/:eventId/custom-fields/:fieldId`
+#### `DELETE /api/v1/events/:eventId/fields/:fieldId`
 
 Delete a custom field definition.
 
 ```
-Permission: custom-fields:delete
+Permission: fields:delete
 Rate Limit: Mutations (50/min)
 
 Error Responses:
@@ -3772,7 +3772,7 @@ export const ERROR_CODES = {
 │  │    [x] participants:read [x] participants:write              │  │
 │  │    [ ] participants:approve  [ ] participants:reject         │  │
 │  │    [ ] webhooks:read    [ ] webhooks:write                  │  │
-│  │    [ ] analytics:read   [ ] custom-fields:read              │  │
+│  │    [ ] analytics:read   [ ] fields:read              │  │
 │  │                                                              │  │
 │  │  Rate Limit:   [STANDARD ▼]                                  │  │
 │  │  Expires:      [2027-01-01      ] (optional)                 │  │

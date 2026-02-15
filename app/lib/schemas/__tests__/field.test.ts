@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
   fieldNameSchema,
-  createDynamicFieldSchema,
-  updateDynamicFieldSchema,
+  createFieldSchema,
+  updateFieldSchema,
   reorderFieldsSchema,
-} from "../dynamic-field";
+} from "../field";
 
-describe("dynamic-field schemas", () => {
+describe("field schemas", () => {
   describe("fieldNameSchema", () => {
     it("accepts valid snake_case names", () => {
       expect(fieldNameSchema.safeParse("first_name").success).toBe(true);
@@ -46,7 +46,7 @@ describe("dynamic-field schemas", () => {
     });
   });
 
-  describe("createDynamicFieldSchema", () => {
+  describe("createFieldSchema", () => {
     const validInput = {
       eventId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
       name: "country_code",
@@ -55,7 +55,7 @@ describe("dynamic-field schemas", () => {
     };
 
     it("accepts valid input with minimal fields", () => {
-      const result = createDynamicFieldSchema.safeParse(validInput);
+      const result = createFieldSchema.safeParse(validInput);
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.entityType).toBe("Participant");
@@ -88,55 +88,53 @@ describe("dynamic-field schemas", () => {
         "JSON",
       ];
       for (const dataType of dataTypes) {
-        const result = createDynamicFieldSchema.safeParse({ ...validInput, dataType });
+        const result = createFieldSchema.safeParse({ ...validInput, dataType });
         expect(result.success).toBe(true);
       }
     });
 
     it("rejects invalid dataType values", () => {
-      expect(
-        createDynamicFieldSchema.safeParse({ ...validInput, dataType: "COUNTRY" }).success,
-      ).toBe(false);
-      expect(createDynamicFieldSchema.safeParse({ ...validInput, dataType: "USER" }).success).toBe(
+      expect(createFieldSchema.safeParse({ ...validInput, dataType: "COUNTRY" }).success).toBe(
         false,
       );
-      expect(
-        createDynamicFieldSchema.safeParse({ ...validInput, dataType: "INVALID" }).success,
-      ).toBe(false);
+      expect(createFieldSchema.safeParse({ ...validInput, dataType: "USER" }).success).toBe(false);
+      expect(createFieldSchema.safeParse({ ...validInput, dataType: "INVALID" }).success).toBe(
+        false,
+      );
     });
 
     it("accepts both entity types", () => {
       expect(
-        createDynamicFieldSchema.safeParse({ ...validInput, entityType: "Participant" }).success,
+        createFieldSchema.safeParse({ ...validInput, entityType: "Participant" }).success,
       ).toBe(true);
-      expect(
-        createDynamicFieldSchema.safeParse({ ...validInput, entityType: "Event" }).success,
-      ).toBe(true);
+      expect(createFieldSchema.safeParse({ ...validInput, entityType: "Event" }).success).toBe(
+        true,
+      );
     });
 
     it("rejects invalid entity types", () => {
-      expect(
-        createDynamicFieldSchema.safeParse({ ...validInput, entityType: "Workflow" }).success,
-      ).toBe(false);
+      expect(createFieldSchema.safeParse({ ...validInput, entityType: "Workflow" }).success).toBe(
+        false,
+      );
     });
 
     it("requires eventId", () => {
       const { eventId: _, ...withoutEventId } = validInput;
-      expect(createDynamicFieldSchema.safeParse(withoutEventId).success).toBe(false);
+      expect(createFieldSchema.safeParse(withoutEventId).success).toBe(false);
     });
 
     it("requires name", () => {
       const { name: _, ...withoutName } = validInput;
-      expect(createDynamicFieldSchema.safeParse(withoutName).success).toBe(false);
+      expect(createFieldSchema.safeParse(withoutName).success).toBe(false);
     });
 
     it("requires label", () => {
       const { label: _, ...withoutLabel } = validInput;
-      expect(createDynamicFieldSchema.safeParse(withoutLabel).success).toBe(false);
+      expect(createFieldSchema.safeParse(withoutLabel).success).toBe(false);
     });
 
     it("accepts optional participantTypeId", () => {
-      const result = createDynamicFieldSchema.safeParse({
+      const result = createFieldSchema.safeParse({
         ...validInput,
         participantTypeId: "clxxxxxxxxxxxxxxxxxxxxxxxxx",
       });
@@ -144,7 +142,7 @@ describe("dynamic-field schemas", () => {
     });
 
     it("accepts optional description", () => {
-      const result = createDynamicFieldSchema.safeParse({
+      const result = createFieldSchema.safeParse({
         ...validInput,
         description: "A description",
       });
@@ -152,7 +150,7 @@ describe("dynamic-field schemas", () => {
     });
 
     it("accepts config as a record", () => {
-      const result = createDynamicFieldSchema.safeParse({
+      const result = createFieldSchema.safeParse({
         ...validInput,
         config: { options: ["a", "b"] },
       });
@@ -160,7 +158,7 @@ describe("dynamic-field schemas", () => {
     });
 
     it("accepts validation as an array of records", () => {
-      const result = createDynamicFieldSchema.safeParse({
+      const result = createFieldSchema.safeParse({
         ...validInput,
         validation: [
           { type: "min", value: 0 },
@@ -171,19 +169,19 @@ describe("dynamic-field schemas", () => {
     });
   });
 
-  describe("updateDynamicFieldSchema", () => {
+  describe("updateFieldSchema", () => {
     it("allows partial updates", () => {
-      const result = updateDynamicFieldSchema.safeParse({ label: "New Label" });
+      const result = updateFieldSchema.safeParse({ label: "New Label" });
       expect(result.success).toBe(true);
     });
 
     it("allows empty object (no changes)", () => {
-      const result = updateDynamicFieldSchema.safeParse({});
+      const result = updateFieldSchema.safeParse({});
       expect(result.success).toBe(true);
     });
 
     it("does not accept eventId", () => {
-      const result = updateDynamicFieldSchema.safeParse({ eventId: "clxxxxxxxxxxxxxxxxxxxxxxxxx" });
+      const result = updateFieldSchema.safeParse({ eventId: "clxxxxxxxxxxxxxxxxxxxxxxxxx" });
       expect(result.success).toBe(true);
       if (result.success) {
         expect("eventId" in result.data).toBe(false);
@@ -191,8 +189,8 @@ describe("dynamic-field schemas", () => {
     });
 
     it("validates name if provided", () => {
-      expect(updateDynamicFieldSchema.safeParse({ name: "Valid_name" }).success).toBe(false);
-      expect(updateDynamicFieldSchema.safeParse({ name: "valid_name" }).success).toBe(true);
+      expect(updateFieldSchema.safeParse({ name: "Valid_name" }).success).toBe(false);
+      expect(updateFieldSchema.safeParse({ name: "valid_name" }).success).toBe(true);
     });
   });
 

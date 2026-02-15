@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { DYNAMIC_FIELD_LIMITS } from "~/config/dynamic-fields";
+import { FIELD_LIMITS } from "~/config/fields";
 
 const FIELD_DATA_TYPES = [
   "TEXT",
@@ -25,16 +25,13 @@ const ENTITY_TYPES = ["Participant", "Event"] as const;
 export const fieldNameSchema = z
   .string()
   .min(1, "Name is required")
-  .max(
-    DYNAMIC_FIELD_LIMITS.maxNameLength,
-    `Name must be at most ${DYNAMIC_FIELD_LIMITS.maxNameLength} characters`,
-  )
+  .max(FIELD_LIMITS.maxNameLength, `Name must be at most ${FIELD_LIMITS.maxNameLength} characters`)
   .regex(
     /^[a-z][a-z0-9_]*$/,
     "Name must start with a lowercase letter and contain only lowercase letters, digits, and underscores",
   );
 
-export const createDynamicFieldSchema = z.object({
+export const createFieldSchema = z.object({
   eventId: z.string().cuid(),
   participantTypeId: z.string().cuid().optional(),
   entityType: z.enum(ENTITY_TYPES).default("Participant"),
@@ -43,14 +40,14 @@ export const createDynamicFieldSchema = z.object({
     .string()
     .min(1, "Label is required")
     .max(
-      DYNAMIC_FIELD_LIMITS.maxLabelLength,
-      `Label must be at most ${DYNAMIC_FIELD_LIMITS.maxLabelLength} characters`,
+      FIELD_LIMITS.maxLabelLength,
+      `Label must be at most ${FIELD_LIMITS.maxLabelLength} characters`,
     ),
   description: z
     .string()
     .max(
-      DYNAMIC_FIELD_LIMITS.maxDescriptionLength,
-      `Description must be at most ${DYNAMIC_FIELD_LIMITS.maxDescriptionLength} characters`,
+      FIELD_LIMITS.maxDescriptionLength,
+      `Description must be at most ${FIELD_LIMITS.maxDescriptionLength} characters`,
     )
     .optional(),
   dataType: z.enum(FIELD_DATA_TYPES),
@@ -63,12 +60,12 @@ export const createDynamicFieldSchema = z.object({
   validation: z.array(z.record(z.string(), z.unknown())).default([]),
 });
 
-export const updateDynamicFieldSchema = createDynamicFieldSchema.omit({ eventId: true }).partial();
+export const updateFieldSchema = createFieldSchema.omit({ eventId: true }).partial();
 
 export const reorderFieldsSchema = z.object({
   fieldIds: z.array(z.string().cuid()).min(1, "At least one field ID is required"),
 });
 
-export type CreateDynamicFieldInput = z.infer<typeof createDynamicFieldSchema>;
-export type UpdateDynamicFieldInput = z.infer<typeof updateDynamicFieldSchema>;
+export type CreateFieldInput = z.infer<typeof createFieldSchema>;
+export type UpdateFieldInput = z.infer<typeof updateFieldSchema>;
 export type ReorderFieldsInput = z.infer<typeof reorderFieldsSchema>;

@@ -1,15 +1,15 @@
 # P1-00: Core Data Model Migration
 
-| Field                  | Value                                                                                                                                                                                        |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Task ID**            | P1-00                                                                                                                                                                                        |
-| **Phase**              | 1 — Dynamic Schema + Core Reliability                                                                                                                                                        |
-| **Category**           | Data Model                                                                                                                                                                                   |
-| **Suggested Assignee** | Senior Backend Engineer                                                                                                                                                                      |
-| **Depends On**         | None (Phase 0 complete)                                                                                                                                                                      |
-| **Blocks**             | All other Phase 1 tasks (P1-01 through P1-11)                                                                                                                                                |
-| **Estimated Effort**   | 3 days                                                                                                                                                                                       |
-| **Module References**  | [Module 01 §Data Model](../../modules/01-DATA-MODEL-FOUNDATION.md), [Module 02 §CustomFieldDef](../../modules/02-DYNAMIC-SCHEMA-ENGINE.md), [Module 04](../../modules/04-WORKFLOW-ENGINE.md) |
+| Field                  | Value                                                                                                                                                                                         |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Task ID**            | P1-00                                                                                                                                                                                         |
+| **Phase**              | 1 — Dynamic Schema + Core Reliability                                                                                                                                                         |
+| **Category**           | Data Model                                                                                                                                                                                    |
+| **Suggested Assignee** | Senior Backend Engineer                                                                                                                                                                       |
+| **Depends On**         | None (Phase 0 complete)                                                                                                                                                                       |
+| **Blocks**             | All other Phase 1 tasks (P1-01 through P1-11)                                                                                                                                                 |
+| **Estimated Effort**   | 3 days                                                                                                                                                                                        |
+| **Module References**  | [Module 01 §Data Model](../../modules/01-DATA-MODEL-FOUNDATION.md), [Module 02 §FieldDefinition](../../modules/02-DYNAMIC-SCHEMA-ENGINE.md), [Module 04](../../modules/04-WORKFLOW-ENGINE.md) |
 
 ---
 
@@ -23,7 +23,7 @@ The current schema has:
 - **User** — identity with soft delete, account lockout fields
 - **Password** — credential storage
 - **Session** — cookie-based session tracking
-- **Event** — event management with `customData` JSONB column
+- **Event** — event management with `extras` JSONB column
 
 Phase 1 adds the following models in a single, well-planned migration.
 
@@ -143,7 +143,7 @@ model ParticipantType {
   updatedAt   DateTime @updatedAt
 
   participants Participant[]
-  customFields CustomFieldDef[]
+  fieldDefinitions FieldDefinition[]
 
   @@unique([tenantId, eventId, code])
   @@index([eventId])
@@ -152,7 +152,7 @@ model ParticipantType {
 
 ### 3. Participant Model
 
-The core entity that flows through workflows. Has both fixed columns for universal fields and a JSONB `customData` column for event-specific fields:
+The core entity that flows through workflows. Has both fixed columns for universal fields and a JSONB `extras` column for event-specific fields:
 
 ```prisma
 model Participant {
@@ -176,8 +176,8 @@ model Participant {
   email             String?
   phone             String?
 
-  // Dynamic fields (JSONB — defined by CustomFieldDef)
-  customData        Json           @default("{}")
+  // Dynamic fields (JSONB — defined by FieldDefinition)
+  extras            Json           @default("{}")
 
   // Workflow positioning
   status            RequestStatus  @default(PENDING)
@@ -313,22 +313,22 @@ model Approval {
 }
 ```
 
-### 7. CustomFieldDef Model
+### 7. FieldDefinition Model
 
-Metadata defining each custom field. This is the heart of the dynamic schema engine:
+Metadata defining each field. This is the heart of the dynamic schema engine:
 
 ```prisma
-model CustomFieldDef {
+model FieldDefinition {
   id                String        @id @default(cuid())
   tenantId          String
-  targetModel       String?       // "Participant", "Event", null for custom objects
+  entityType        String?       // "Participant", "Event", null for custom objects
   eventId           String?
   event             Event?        @relation(fields: [eventId], references: [id], onDelete: Cascade)
   participantTypeId String?
   participantType   ParticipantType? @relation(fields: [participantTypeId], references: [id])
 
   // Field definition
-  name              String        // snake_case storage key in customData
+  name              String        // snake_case storage key in extras
   label             String        // Human-readable display label
   description       String?
   dataType          FieldDataType
@@ -353,8 +353,8 @@ model CustomFieldDef {
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
-  @@unique([tenantId, targetModel, eventId, participantTypeId, name])
-  @@index([tenantId, targetModel, eventId])
+  @@unique([tenantId, entityType, eventId, participantTypeId, name])
+  @@index([tenantId, entityType, eventId])
   @@index([eventId, participantTypeId, sortOrder])
 }
 ```
@@ -369,7 +369,7 @@ model AuditLog {
   tenantId    String
   userId      String?
   action      AuditAction
-  entityType  String      // "Participant", "Workflow", "CustomFieldDef", etc.
+  entityType  String      // "Participant", "Workflow", "FieldDefinition", etc.
   entityId    String
   changes     Json?       // { before: {...}, after: {...} }
   ipAddress   String?
@@ -404,7 +404,7 @@ model Role {
 
 model Permission {
   id          String   @id @default(cuid())
-  resource    String   // "participant", "workflow", "custom-field", "event", "settings"
+  resource    String   // "participant", "workflow", "field", "event", "settings"
   action      String   // "create", "read", "update", "delete", "approve", "reject"
   description String?
 
@@ -456,7 +456,7 @@ model Event {
   participantTypes ParticipantType[]
   participants     Participant[]
   workflows        Workflow[]
-  customFields     CustomFieldDef[]
+  fieldDefinitions FieldDefinition[]
 }
 ```
 
@@ -496,4 +496,4 @@ npx vitest run
 - [ ] The migration is backward-compatible (no data loss for existing Tenant/User/Event records)
 - [ ] Every foreign key column has a corresponding index
 - [ ] Composite unique constraints prevent cross-tenant data collisions
-- [ ] The `customData` JSONB column on Participant defaults to `{}`
+- [ ] The `extras` JSONB column on Participant defaults to `{}`

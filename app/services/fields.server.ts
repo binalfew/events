@@ -1,11 +1,7 @@
 import { prisma } from "~/lib/db.server";
 import { logger } from "~/lib/logger.server";
-import { DYNAMIC_FIELD_LIMITS } from "~/config/dynamic-fields";
-import type {
-  CreateDynamicFieldInput,
-  UpdateDynamicFieldInput,
-  ReorderFieldsInput,
-} from "~/lib/schemas/dynamic-field";
+import { FIELD_LIMITS } from "~/config/fields";
+import type { CreateFieldInput, UpdateFieldInput, ReorderFieldsInput } from "~/lib/schemas/field";
 
 interface ServiceContext {
   userId: string;
@@ -14,7 +10,7 @@ interface ServiceContext {
   userAgent?: string;
 }
 
-export async function listDynamicFields(
+export async function listFields(
   tenantId: string,
   filters: {
     eventId?: string;
@@ -45,13 +41,13 @@ export async function listDynamicFields(
   return fields;
 }
 
-export async function createDynamicField(input: CreateDynamicFieldInput, ctx: ServiceContext) {
+export async function createField(input: CreateFieldInput, ctx: ServiceContext) {
   // Verify event belongs to tenant
   const event = await prisma.event.findFirst({
     where: { id: input.eventId, tenantId: ctx.tenantId },
   });
   if (!event) {
-    throw new DynamicFieldError("Event not found or does not belong to your organization", 404);
+    throw new FieldError("Event not found or does not belong to your organization", 404);
   }
 
   // Verify participantType belongs to event (if provided)
@@ -60,10 +56,7 @@ export async function createDynamicField(input: CreateDynamicFieldInput, ctx: Se
       where: { id: input.participantTypeId, eventId: input.eventId, tenantId: ctx.tenantId },
     });
     if (!pt) {
-      throw new DynamicFieldError(
-        "Participant type not found or does not belong to this event",
-        404,
-      );
+      throw new FieldError("Participant type not found or does not belong to this event", 404);
     }
   }
 
@@ -71,9 +64,9 @@ export async function createDynamicField(input: CreateDynamicFieldInput, ctx: Se
   const tenantCount = await prisma.fieldDefinition.count({
     where: { tenantId: ctx.tenantId },
   });
-  if (tenantCount >= DYNAMIC_FIELD_LIMITS.maxPerTenant) {
-    throw new DynamicFieldError(
-      `Tenant limit reached: maximum ${DYNAMIC_FIELD_LIMITS.maxPerTenant} dynamic fields per organization`,
+  if (tenantCount >= FIELD_LIMITS.maxPerTenant) {
+    throw new FieldError(
+      `Tenant limit reached: maximum ${FIELD_LIMITS.maxPerTenant} fields per organization`,
       422,
     );
   }
@@ -82,9 +75,9 @@ export async function createDynamicField(input: CreateDynamicFieldInput, ctx: Se
   const eventCount = await prisma.fieldDefinition.count({
     where: { tenantId: ctx.tenantId, eventId: input.eventId },
   });
-  if (eventCount >= DYNAMIC_FIELD_LIMITS.maxPerEvent) {
-    throw new DynamicFieldError(
-      `Event limit reached: maximum ${DYNAMIC_FIELD_LIMITS.maxPerEvent} dynamic fields per event`,
+  if (eventCount >= FIELD_LIMITS.maxPerEvent) {
+    throw new FieldError(
+      `Event limit reached: maximum ${FIELD_LIMITS.maxPerEvent} fields per event`,
       422,
     );
   }
@@ -119,7 +112,7 @@ export async function createDynamicField(input: CreateDynamicFieldInput, ctx: Se
       },
     });
 
-    logger.info({ fieldId: field.id, tenantId: ctx.tenantId }, "Dynamic field created");
+    logger.info({ fieldId: field.id, tenantId: ctx.tenantId }, "Field created");
 
     await prisma.auditLog.create({
       data: {
@@ -128,7 +121,7 @@ export async function createDynamicField(input: CreateDynamicFieldInput, ctx: Se
         action: "CREATE",
         entityType: "FieldDefinition",
         entityId: field.id,
-        description: `Created dynamic field "${input.label}" (${input.name})`,
+        description: `Created field "${input.label}" (${input.name})`,
         ipAddress: ctx.ipAddress,
         userAgent: ctx.userAgent,
         metadata: { name: input.name, dataType: input.dataType, entityType: input.entityType },
@@ -138,7 +131,7 @@ export async function createDynamicField(input: CreateDynamicFieldInput, ctx: Se
     return field;
   } catch (error: unknown) {
     if (isPrismaUniqueConstraintError(error)) {
-      throw new DynamicFieldError(
+      throw new FieldError(
         `A field with name "${input.name}" already exists for this event and entity type`,
         409,
       );
@@ -147,16 +140,12 @@ export async function createDynamicField(input: CreateDynamicFieldInput, ctx: Se
   }
 }
 
-export async function updateDynamicField(
-  id: string,
-  input: UpdateDynamicFieldInput,
-  ctx: ServiceContext,
-) {
+export async function updateField(id: string, input: UpdateFieldInput, ctx: ServiceContext) {
   const existing = await prisma.fieldDefinition.findFirst({
     where: { id, tenantId: ctx.tenantId },
   });
   if (!existing) {
-    throw new DynamicFieldError("Dynamic field not found", 404);
+    throw new FieldError("Field not found", 404);
   }
 
   try {
@@ -181,7 +170,7 @@ export async function updateDynamicField(
       },
     });
 
-    logger.info({ fieldId: id, tenantId: ctx.tenantId }, "Dynamic field updated");
+    logger.info({ fieldId: id, tenantId: ctx.tenantId }, "Field updated");
 
     await prisma.auditLog.create({
       data: {
@@ -190,7 +179,7 @@ export async function updateDynamicField(
         action: "UPDATE",
         entityType: "FieldDefinition",
         entityId: id,
-        description: `Updated dynamic field "${field.label}" (${field.name})`,
+        description: `Updated field "${field.label}" (${field.name})`,
         ipAddress: ctx.ipAddress,
         userAgent: ctx.userAgent,
         metadata: {
@@ -203,7 +192,7 @@ export async function updateDynamicField(
     return field;
   } catch (error: unknown) {
     if (isPrismaUniqueConstraintError(error)) {
-      throw new DynamicFieldError(
+      throw new FieldError(
         `A field with name "${input.name}" already exists for this event and entity type`,
         409,
       );
@@ -212,7 +201,7 @@ export async function updateDynamicField(
   }
 }
 
-export async function deleteDynamicField(
+export async function deleteField(
   id: string,
   ctx: ServiceContext,
   options: { force?: boolean } = {},
@@ -221,7 +210,7 @@ export async function deleteDynamicField(
     where: { id, tenantId: ctx.tenantId },
   });
   if (!existing) {
-    throw new DynamicFieldError("Dynamic field not found", 404);
+    throw new FieldError("Field not found", 404);
   }
 
   // Check if any participant has data for this field (unless force)
@@ -233,7 +222,7 @@ export async function deleteDynamicField(
       existing.name,
     );
     if (hasData[0] && Number(hasData[0].count) > 0) {
-      throw new DynamicFieldError(
+      throw new FieldError(
         `Cannot delete: ${Number(hasData[0].count)} record(s) have data for this field. Use force=true to delete anyway.`,
         422,
       );
@@ -242,7 +231,7 @@ export async function deleteDynamicField(
 
   await prisma.fieldDefinition.delete({ where: { id } });
 
-  logger.info({ fieldId: id, tenantId: ctx.tenantId }, "Dynamic field deleted");
+  logger.info({ fieldId: id, tenantId: ctx.tenantId }, "Field deleted");
 
   await prisma.auditLog.create({
     data: {
@@ -251,7 +240,7 @@ export async function deleteDynamicField(
       action: "DELETE",
       entityType: "FieldDefinition",
       entityId: id,
-      description: `Deleted dynamic field "${existing.label}" (${existing.name})`,
+      description: `Deleted field "${existing.label}" (${existing.name})`,
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
       metadata: { name: existing.name, dataType: existing.dataType },
@@ -261,7 +250,7 @@ export async function deleteDynamicField(
   return { success: true };
 }
 
-export async function reorderDynamicFields(input: ReorderFieldsInput, ctx: ServiceContext) {
+export async function reorderFields(input: ReorderFieldsInput, ctx: ServiceContext) {
   // Verify all fields belong to this tenant
   const fields = await prisma.fieldDefinition.findMany({
     where: { id: { in: input.fieldIds }, tenantId: ctx.tenantId },
@@ -271,7 +260,7 @@ export async function reorderDynamicFields(input: ReorderFieldsInput, ctx: Servi
   const foundIds = new Set(fields.map((f) => f.id));
   const missing = input.fieldIds.filter((id) => !foundIds.has(id));
   if (missing.length > 0) {
-    throw new DynamicFieldError(`Fields not found or not accessible: ${missing.join(", ")}`, 404);
+    throw new FieldError(`Fields not found or not accessible: ${missing.join(", ")}`, 404);
   }
 
   await prisma.$transaction(
@@ -283,7 +272,7 @@ export async function reorderDynamicFields(input: ReorderFieldsInput, ctx: Servi
     ),
   );
 
-  logger.info({ tenantId: ctx.tenantId, count: input.fieldIds.length }, "Dynamic fields reordered");
+  logger.info({ tenantId: ctx.tenantId, count: input.fieldIds.length }, "Fields reordered");
 
   await prisma.auditLog.create({
     data: {
@@ -291,7 +280,7 @@ export async function reorderDynamicFields(input: ReorderFieldsInput, ctx: Servi
       userId: ctx.userId,
       action: "UPDATE",
       entityType: "FieldDefinition",
-      description: `Reordered ${input.fieldIds.length} dynamic fields`,
+      description: `Reordered ${input.fieldIds.length} fields`,
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
       metadata: { fieldIds: input.fieldIds },
@@ -318,13 +307,13 @@ export async function getFieldDataCount(fieldId: string, tenantId: string): Prom
 }
 
 // Error class for service-layer errors with HTTP status codes
-export class DynamicFieldError extends Error {
+export class FieldError extends Error {
   constructor(
     message: string,
     public status: number,
   ) {
     super(message);
-    this.name = "DynamicFieldError";
+    this.name = "FieldError";
   }
 }
 

@@ -1,4 +1,4 @@
-# P1-04: Dynamic Form Renderer
+# P1-04: Form Renderer
 
 | Field                  | Value                                                                 |
 | ---------------------- | --------------------------------------------------------------------- |
@@ -15,7 +15,7 @@
 
 ## Context
 
-The dynamic schema engine defines fields in the database and validates them with Zod. This task builds the React components that render those fields in forms. Each `CustomFieldDef` maps to a specific form input component based on its `dataType`. The renderer uses Conform for form binding and works with progressive enhancement (forms work without JavaScript).
+The schema engine defines fields in the database and validates them with Zod. This task builds the React components that render those fields in forms. Each `FieldDefinition` maps to a specific form input component based on its `dataType`. The renderer uses Conform for form binding and works with progressive enhancement (forms work without JavaScript).
 
 ---
 
@@ -43,17 +43,17 @@ Each component should:
 - Show validation errors below the input
 - Support the CSP nonce (no inline styles)
 
-### 2. Dynamic Field Renderer (`app/components/dynamic-fields/DynamicFieldRenderer.tsx`)
+### 2. Field Renderer (`app/components/fields/FieldRenderer.tsx`)
 
-The core component that maps a `CustomFieldDef` to the correct input component:
+The core component that maps a `FieldDefinition` to the correct input component:
 
 ```typescript
-interface DynamicFieldRendererProps {
-  fieldDef: CustomFieldDef;
+interface FieldRendererProps {
+  fieldDef: FieldDefinition;
   meta: FieldMetadata<string>; // From Conform's useForm()
 }
 
-export function DynamicFieldRenderer({ fieldDef, meta }: DynamicFieldRendererProps) {
+export function FieldRenderer({ fieldDef, meta }: FieldRendererProps) {
   // Switch on fieldDef.dataType → render the appropriate component
   // Pass config values (maxLength, min, max, options, placeholder) as props
 }
@@ -80,27 +80,22 @@ export function DynamicFieldRenderer({ fieldDef, meta }: DynamicFieldRendererPro
 | COUNTRY    | SelectField        | (country list from static data)       |
 | USER       | SelectField        | (user list loaded asynchronously)     |
 
-### 3. Dynamic Field Section (`app/components/dynamic-fields/DynamicFieldSection.tsx`)
+### 3. Field Section (`app/components/fields/FieldSection.tsx`)
 
-Groups multiple dynamic fields into a labeled section:
+Groups multiple fields into a labeled section:
 
 ```typescript
-interface DynamicFieldSectionProps {
+interface FieldSectionProps {
   title?: string;
   description?: string;
-  fields: CustomFieldDef[];
+  fields: FieldDefinition[];
   form: ReturnType<typeof useForm>; // Conform form instance
 }
 
-export function DynamicFieldSection({
-  title,
-  description,
-  fields,
-  form,
-}: DynamicFieldSectionProps) {
+export function FieldSection({ title, description, fields, form }: FieldSectionProps) {
   // Sort fields by sortOrder
   // Group by uiConfig.section if present
-  // Render each field using DynamicFieldRenderer
+  // Render each field using FieldRenderer
 }
 ```
 
@@ -121,10 +116,10 @@ export const countries = [
 Demonstrate the full pipeline in a sample route (can be a test route removed later):
 
 ```typescript
-// app/routes/admin/test-dynamic-form.tsx
+// app/routes/admin/test-field-form.tsx
 export async function loader({ request }: LoaderFunctionArgs) {
   const { user } = await requireAuth(request);
-  const fieldDefs = await listCustomFields({
+  const fieldDefs = await listFields({
     tenantId: user.tenantId,
     targetModel: "Participant",
     eventId: "some-event-id",
@@ -134,10 +129,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 export async function action({ request }: ActionFunctionArgs) {
   const formData = await request.formData();
-  // Parse, validate with buildCustomDataSchema, return errors or success
+  // Parse, validate with buildFieldSchema, return errors or success
 }
 
-export default function TestDynamicForm() {
+export default function TestFieldForm() {
   const { fieldDefs } = useLoaderData();
   const [form, fields] = useForm({
     // Conform setup with Zod schema
@@ -145,7 +140,7 @@ export default function TestDynamicForm() {
 
   return (
     <Form method="post" {...getFormProps(form)}>
-      <DynamicFieldSection fields={fieldDefs} form={form} />
+      <FieldSection fields={fieldDefs} form={form} />
       <button type="submit">Submit</button>
     </Form>
   );
@@ -168,7 +163,7 @@ Write tests for:
 
 ## Acceptance Criteria
 
-- [ ] `DynamicFieldRenderer` renders correct input for all 16 data types
+- [ ] `FieldRenderer` renders correct input for all 16 data types
 - [ ] Form inputs bind correctly to Conform via `FieldMetadata`
 - [ ] Validation errors from the server display next to the correct field
 - [ ] Required fields show visual indicator (asterisk or "Required" text)
@@ -188,16 +183,16 @@ Write tests for:
 
 The implementation diverged from the task doc in several areas to match the actual codebase:
 
-| Task Doc                                  | Actual                                             | Decision                                                                                |
-| ----------------------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `CustomFieldDef` type                     | `FieldDefinition` from `~/generated/prisma/client` | Used `FieldDefinition`                                                                  |
-| `COUNTRY`, `USER` data types              | Not in `FieldDataType` enum                        | Skipped — only mapped 16 existing types                                                 |
-| Country data file `app/data/countries.ts` | No COUNTRY type exists                             | Skipped entirely                                                                        |
-| Radix `Select` for ENUM                   | shadcn/ui adopted                                  | Used shadcn `NativeSelect` (progressive enhancement, Conform-compatible)                |
-| 8 separate base input component files     | shadcn/ui components installed                     | shadcn `Input`/`Textarea`/`NativeSelect` + ConformField wrapper in DynamicFieldRenderer |
-| `uiConfig.section` grouping               | No `uiConfig` field on FieldDefinition             | Flat rendering (no section grouping)                                                    |
-| React Testing Library for component tests | Not installed                                      | Tested extracted pure logic functions only (25 tests)                                   |
+| Task Doc                                  | Actual                                             | Decision                                                                         |
+| ----------------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `FieldDefinition` type                    | `FieldDefinition` from `~/generated/prisma/client` | Used `FieldDefinition`                                                           |
+| `COUNTRY`, `USER` data types              | Not in `FieldDataType` enum                        | Skipped — only mapped 16 existing types                                          |
+| Country data file `app/data/countries.ts` | No COUNTRY type exists                             | Skipped entirely                                                                 |
+| Radix `Select` for ENUM                   | shadcn/ui adopted                                  | Used shadcn `NativeSelect` (progressive enhancement, Conform-compatible)         |
+| 8 separate base input component files     | shadcn/ui components installed                     | shadcn `Input`/`Textarea`/`NativeSelect` + ConformField wrapper in FieldRenderer |
+| `uiConfig.section` grouping               | No `uiConfig` field on FieldDefinition             | Flat rendering (no section grouping)                                             |
+| React Testing Library for component tests | Not installed                                      | Tested extracted pure logic functions only (25 tests)                            |
 
-**Post-implementation refactor:** Adopted shadcn/ui as the project component library. Replaced raw HTML inputs with shadcn `Input`, `Textarea`, `NativeSelect`, `Button`, and `Label` components. Replaced `FieldWrapper` with `ConformField` (uses shadcn `Label` + semantic tokens like `text-destructive`, `text-muted-foreground`). Refactored `auth.login.tsx` and dashboard routes for consistency.
+**Post-implementation refactor:** Adopted shadcn/ui as the project component library. Replaced raw HTML inputs with shadcn `Input`, `Textarea`, `NativeSelect`, `Button`, and `Label` components. Replaced `FieldWrapper` with `ConformField` (uses shadcn `Label` + semantic tokens like `text-destructive`, `text-muted-foreground`). Refactored `auth/login.tsx` and dashboard routes for consistency.
 
 **Verification:** `npm run typecheck` zero errors, `npx vitest run` 142/142 tests pass.

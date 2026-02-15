@@ -12,9 +12,9 @@
 1. [Overview](#1-overview)
 2. [P1-00 — Core Data Model Migration](#2-p1-00--core-data-model-migration)
 3. [P1-01 — Authentication & Session Management](#3-p1-01--authentication--session-management)
-4. [P1-02 — Dynamic Field Definition CRUD](#4-p1-02--dynamic-field-definition-crud)
-5. [P1-03 — Dynamic Zod Schema Builder](#5-p1-03--dynamic-zod-schema-builder)
-6. [P1-04 — Dynamic Form Renderer](#6-p1-04--dynamic-form-renderer)
+4. [P1-02 — Field Definition CRUD](#4-p1-02--field-definition-crud)
+5. [P1-03 — Zod Schema Builder](#5-p1-03--zod-schema-builder)
+6. [P1-04 — Form Renderer](#6-p1-04--form-renderer)
 7. [P1-05 — Field Admin UI](#7-p1-05--field-admin-ui)
 8. [P1-06 — JSONB Query Layer & Expression Indexes](#8-p1-06--jsonb-query-layer--expression-indexes)
 9. [P1-07 — Workflow Versioning](#9-p1-07--workflow-versioning)
@@ -36,14 +36,14 @@ Phase 1 builds on the Phase 0 foundation to deliver the extensible data model, h
 
 ### Phase 1 Scope
 
-| Category        | Tasks                      | Key Deliverables                                                         |
-| --------------- | -------------------------- | ------------------------------------------------------------------------ |
-| Data Model      | P1-00                      | 8 enums, 10 models, RBAC tables, audit log, partial indexes              |
-| Security        | P1-01, P1-10, P1-11        | Auth flows, session management, rate limiting, file upload scanning      |
-| Dynamic Schema  | P1-02, P1-03, P1-04, P1-05 | FieldDefinition CRUD, Zod builder, dynamic form renderer, field admin UI |
-| Query Layer     | P1-06                      | JSONB filtering, expression indexes, type-safe query builders            |
-| Workflow Engine | P1-07, P1-08               | Workflow versioning with snapshots, SLA enforcement background job       |
-| API Hardening   | P1-09                      | Optimistic locking for concurrent operations                             |
+| Category        | Tasks                      | Key Deliverables                                                    |
+| --------------- | -------------------------- | ------------------------------------------------------------------- |
+| Data Model      | P1-00                      | 8 enums, 10 models, RBAC tables, audit log, partial indexes         |
+| Security        | P1-01, P1-10, P1-11        | Auth flows, session management, rate limiting, file upload scanning |
+| Dynamic Schema  | P1-02, P1-03, P1-04, P1-05 | FieldDefinition CRUD, Zod builder, form renderer, field admin UI    |
+| Query Layer     | P1-06                      | JSONB filtering, expression indexes, type-safe query builders       |
+| Workflow Engine | P1-07, P1-08               | Workflow versioning with snapshots, SLA enforcement background job  |
+| API Hardening   | P1-09                      | Optimistic locking for concurrent operations                        |
 
 ### Dependency Graph
 
@@ -77,7 +77,7 @@ P1-00 (Data Models) ──┬──► P1-01 (Auth) ──┬──► P1-05 (Ad
 
 ### What This Task Does
 
-Adds all Prisma models required for Phase 1 features: RBAC (roles, permissions, user-role assignments), participant management (types, registrations, workflow state), the workflow engine (steps with soft-reference routing, versioning), custom field definitions (the dynamic schema metadata), approval records, and an audit log. This is the **critical path blocker** — every other P1 task depends on these models existing.
+Adds all Prisma models required for Phase 1 features: RBAC (roles, permissions, user-role assignments), participant management (types, registrations, workflow state), the workflow engine (steps with soft-reference routing, versioning), field definitions (the dynamic schema metadata), approval records, and an audit log. This is the **critical path blocker** — every other P1 task depends on these models existing.
 
 ### Why It's Designed This Way
 
@@ -395,7 +395,7 @@ model Approval {
 }
 ```
 
-**FieldDefinition** — Metadata records that define dynamic fields. Each definition specifies the field's storage key (`name`), display label, data type, validation rules, and UI configuration. The 5-column unique constraint ensures no duplicate field names within a given scope:
+**FieldDefinition** — Metadata records that define fields. Each definition specifies the field's storage key (`name`), display label, data type, validation rules, and UI configuration. The 5-column unique constraint ensures no duplicate field names within a given scope:
 
 ```prisma
 model FieldDefinition {
@@ -528,23 +528,23 @@ The seed script (`prisma/seed.ts`) was expanded from 2 entities (tenant + admin 
 
 **20 Permissions** (resource:action pairs):
 
-| Resource      | Actions                                                       |
-| ------------- | ------------------------------------------------------------- |
-| participant   | create, read, update, delete, approve, reject, print, collect |
-| workflow      | create, read, update, delete                                  |
-| dynamic-field | create, read, update, delete                                  |
-| event         | create, read, update                                          |
-| settings      | manage                                                        |
+| Resource    | Actions                                                       |
+| ----------- | ------------------------------------------------------------- |
+| participant | create, read, update, delete, approve, reject, print, collect |
+| workflow    | create, read, update, delete                                  |
+| field       | create, read, update, delete                                  |
+| event       | create, read, update                                          |
+| settings    | manage                                                        |
 
 **5 Roles** with permission assignments:
 
-| Role       | Description                  | Permissions                                                     |
-| ---------- | ---------------------------- | --------------------------------------------------------------- |
-| ADMIN      | Full access to all resources | All 20 permissions                                              |
-| VALIDATOR  | Review and approve           | participant:read, update, approve, reject                       |
-| PRINTER    | Print badges                 | participant:read, print                                         |
-| DISPATCHER | Collect and dispatch badges  | participant:read, collect                                       |
-| VIEWER     | Read-only access             | participant:read, workflow:read, dynamic-field:read, event:read |
+| Role       | Description                  | Permissions                                             |
+| ---------- | ---------------------------- | ------------------------------------------------------- |
+| ADMIN      | Full access to all resources | All 20 permissions                                      |
+| VALIDATOR  | Review and approve           | participant:read, update, approve, reject               |
+| PRINTER    | Print badges                 | participant:read, print                                 |
+| DISPATCHER | Collect and dispatch badges  | participant:read, collect                               |
+| VIEWER     | Read-only access             | participant:read, workflow:read, field:read, event:read |
 
 **UserRole:** Admin user gets the ADMIN role with `eventId: null` (global scope).
 
@@ -695,14 +695,14 @@ Permission checking is decoupled from role checking — `hasPermission(userId, r
 
 ---
 
-## 4. P1-02 — Dynamic Field Definition CRUD
+## 4. P1-02 — Field Definition CRUD
 
 > **Status:** Complete
 > **Depends on:** P1-00, P1-01
 
 ### What This Task Does
 
-Builds server-side API routes for managing `FieldDefinition` records: listing with filters, creating with limit enforcement, updating with conflict detection, deleting with data-existence checking, and atomic reordering. These routes are the foundation for the dynamic schema pipeline (blocks P1-03). Originally named "custom fields", renamed to "dynamic fields" in implementation.
+Builds server-side API routes for managing `FieldDefinition` records: listing with filters, creating with limit enforcement, updating with conflict detection, deleting with data-existence checking, and atomic reordering. These routes are the foundation for the dynamic schema pipeline (blocks P1-03).
 
 ### Schema Reconciliation
 
@@ -710,7 +710,7 @@ The task doc diverged from the actual Prisma schema in several places. All decis
 
 | Task Doc                    | Actual Schema                       | Decision                                    |
 | --------------------------- | ----------------------------------- | ------------------------------------------- |
-| `CustomFieldDef`            | `FieldDefinition`                   | Used `FieldDefinition`                      |
+| `FieldDefinition`           | `FieldDefinition`                   | Used `FieldDefinition`                      |
 | `targetModel`               | `entityType`                        | Used `entityType`                           |
 | `uiConfig` (separate field) | Not in schema                       | Omitted — stored in `config` JSON if needed |
 | `COUNTRY`, `USER` dataTypes | Not in `FieldDataType` enum         | Used only the 16 existing enum values       |
@@ -719,7 +719,7 @@ The task doc diverged from the actual Prisma schema in several places. All decis
 
 ### Why It's Designed This Way
 
-The service layer (`dynamic-fields.server.ts`) is separated from the route layer to keep business logic testable with mocked Prisma. Each mutation verifies tenant ownership before proceeding, enforcing multi-tenant isolation at the service layer rather than relying solely on route-level auth.
+The service layer (`fields.server.ts`) is separated from the route layer to keep business logic testable with mocked Prisma. Each mutation verifies tenant ownership before proceeding, enforcing multi-tenant isolation at the service layer rather than relying solely on route-level auth.
 
 Delete operations check whether any `Participant` or `Event` records contain data for the field via a raw SQL query (`extras ? $fieldName`) using PostgreSQL's JSONB `?` operator. This prevents accidental data loss while supporting a `force` flag for intentional cleanup.
 
@@ -727,34 +727,34 @@ The `requirePermission` helper was added to combine authentication + permission 
 
 ### Files Created
 
-| File                                                   | Purpose                                                                                                                                            |
-| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `app/config/dynamic-fields.ts`                         | Limit constants: 500/tenant, 100/event, name/label max lengths                                                                                     |
-| `app/lib/schemas/dynamic-field.ts`                     | Zod v4 schemas: `createDynamicFieldSchema`, `updateDynamicFieldSchema`, `reorderFieldsSchema` + inferred types                                     |
-| `app/services/dynamic-fields.server.ts`                | Business logic: `listDynamicFields`, `createDynamicField`, `updateDynamicField`, `deleteDynamicField`, `reorderDynamicFields`, `DynamicFieldError` |
-| `app/routes/api/v1/dynamic-fields/index.tsx`           | GET (list with filters) + POST (create)                                                                                                            |
-| `app/routes/api/v1/dynamic-fields/$id.tsx`             | PUT (update) + DELETE (with force flag)                                                                                                            |
-| `app/routes/api/v1/dynamic-fields/reorder.tsx`         | POST (atomic reorder)                                                                                                                              |
-| `app/lib/schemas/__tests__/dynamic-field.test.ts`      | 28 schema validation tests                                                                                                                         |
-| `app/services/__tests__/dynamic-fields.server.test.ts` | 19 service layer tests (mocked Prisma)                                                                                                             |
+| File                                           | Purpose                                                                                                  |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `app/config/fields.ts`                         | Limit constants: 500/tenant, 100/event, name/label max lengths                                           |
+| `app/lib/schemas/field.ts`                     | Zod v4 schemas: `createFieldSchema`, `updateFieldSchema`, `reorderFieldsSchema` + inferred types         |
+| `app/services/fields.server.ts`                | Business logic: `listFields`, `createField`, `updateField`, `deleteField`, `reorderFields`, `FieldError` |
+| `app/routes/api/v1/fields/index.tsx`           | GET (list with filters) + POST (create)                                                                  |
+| `app/routes/api/v1/fields/$id.tsx`             | PUT (update) + DELETE (with force flag)                                                                  |
+| `app/routes/api/v1/fields/reorder.tsx`         | POST (atomic reorder)                                                                                    |
+| `app/lib/schemas/__tests__/field.test.ts`      | 28 schema validation tests                                                                               |
+| `app/services/__tests__/fields.server.test.ts` | 19 service layer tests (mocked Prisma)                                                                   |
 
 ### Files Modified
 
-| File                             | Change                                                                                                                                         |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `app/routes.ts`                  | Added 3 API routes (`dynamic-fields`, `dynamic-fields/reorder`, `dynamic-fields/:id`) — reorder registered before `:id` to avoid param capture |
-| `app/lib/require-auth.server.ts` | Added `requirePermission(request, resource, action)` combining auth + permission check + 403 throw                                             |
-| `tests/factories/index.ts`       | Added `buildFieldDefinition()` factory                                                                                                         |
+| File                             | Change                                                                                                                 |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `app/routes.ts`                  | Added 3 API routes (`fields`, `fields/reorder`, `fields/:id`) — reorder registered before `:id` to avoid param capture |
+| `app/lib/require-auth.server.ts` | Added `requirePermission(request, resource, action)` combining auth + permission check + 403 throw                     |
+| `tests/factories/index.ts`       | Added `buildFieldDefinition()` factory                                                                                 |
 
 ### API Endpoints
 
-| Method | Path                             | Description                                                                                            | Auth                   |
-| ------ | -------------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------- |
-| GET    | `/api/v1/dynamic-fields`         | List fields with optional filters (`eventId`, `participantTypeId`, `entityType`, `dataType`, `search`) | `dynamic-field:read`   |
-| POST   | `/api/v1/dynamic-fields`         | Create a field definition                                                                              | `dynamic-field:create` |
-| PUT    | `/api/v1/dynamic-fields/:id`     | Update a field definition                                                                              | `dynamic-field:update` |
-| DELETE | `/api/v1/dynamic-fields/:id`     | Delete a field (supports `?force=true`)                                                                | `dynamic-field:delete` |
-| POST   | `/api/v1/dynamic-fields/reorder` | Reorder fields atomically                                                                              | `dynamic-field:update` |
+| Method | Path                     | Description                                                                                            | Auth           |
+| ------ | ------------------------ | ------------------------------------------------------------------------------------------------------ | -------------- |
+| GET    | `/api/v1/fields`         | List fields with optional filters (`eventId`, `participantTypeId`, `entityType`, `dataType`, `search`) | `field:read`   |
+| POST   | `/api/v1/fields`         | Create a field definition                                                                              | `field:create` |
+| PUT    | `/api/v1/fields/:id`     | Update a field definition                                                                              | `field:update` |
+| DELETE | `/api/v1/fields/:id`     | Delete a field (supports `?force=true`)                                                                | `field:delete` |
+| POST   | `/api/v1/fields/reorder` | Reorder fields atomically                                                                              | `field:update` |
 
 ### Key Behaviors
 
@@ -779,20 +779,20 @@ Zod v4 changed the `z.record()` API to require explicit key and value types: `z.
 
 ---
 
-## 5. P1-03 — Dynamic Zod Schema Builder
+## 5. P1-03 — Zod Schema Builder
 
 > **Status:** Complete
 > **Depends on:** P1-02
 
 ### What This Task Does
 
-Builds the runtime bridge between `FieldDefinition` database records and Zod validation schemas. Four functions convert tenant-defined field metadata into executable validators, form data parsers, cached schemas, and Conform constraint objects. This is the critical link in the dynamic schema pipeline: `FieldDefinition (DB) → Zod Schema (runtime) → Conform (form binding) → Server Validation`.
+Builds the runtime bridge between `FieldDefinition` database records and Zod validation schemas. Four functions convert tenant-defined field metadata into executable validators, form data parsers, cached schemas, and Conform constraint objects. This is the critical link in the schema pipeline: `FieldDefinition (DB) → Zod Schema (runtime) → Conform (form binding) → Server Validation`.
 
 ### Why It's Designed This Way
 
-The dynamic schema engine must handle 16 different data types, each with type-specific configuration (min/max for numbers, options for enums, patterns for text), without requiring code changes or deployments. By mapping each `FieldDataType` to a specific Zod validator with config-driven constraints, tenant admins can define arbitrarily complex validation rules through the UI.
+The schema engine must handle 16 different data types, each with type-specific configuration (min/max for numbers, options for enums, patterns for text), without requiring code changes or deployments. By mapping each `FieldDataType` to a specific Zod validator with config-driven constraints, tenant admins can define arbitrarily complex validation rules through the UI.
 
-Form data coercion is separated from schema validation because HTML forms submit all values as strings. The `parseCustomFormData` function handles type coercion (string → number, checkbox → boolean, multi-select → array) before the Zod schema validates the typed values.
+Form data coercion is separated from schema validation because HTML forms submit all values as strings. The `parseFieldFormData` function handles type coercion (string → number, checkbox → boolean, multi-select → array) before the Zod schema validates the typed values.
 
 Schema caching with LRU eviction prevents rebuilding schemas on every request. The cache key combines tenant + event + participant type, and a hash of field IDs + updatedAt timestamps ensures stale schemas are rebuilt when field definitions change.
 
@@ -800,7 +800,7 @@ Schema caching with LRU eviction prevents rebuilding schemas on every request. T
 
 | Task Doc                     | Actual                                             | Decision                                              |
 | ---------------------------- | -------------------------------------------------- | ----------------------------------------------------- |
-| `CustomFieldDef` type        | `FieldDefinition` from `~/generated/prisma/client` | Used `FieldDefinition`                                |
+| `FieldDefinition` type       | `FieldDefinition` from `~/generated/prisma/client` | Used `FieldDefinition`                                |
 | `COUNTRY`, `USER` data types | Not in `FieldDataType` enum                        | Mapped only the 16 existing types                     |
 | `import { z } from "zod"`    | Codebase uses `import { z } from "zod/v4"`         | Used `zod/v4`                                         |
 | `z.record(z.unknown())`      | Zod v4 requires 2 args                             | Used `z.record(z.string(), z.unknown())` where needed |
@@ -808,14 +808,14 @@ Schema caching with LRU eviction prevents rebuilding schemas on every request. T
 
 ### Files Created
 
-| File                                              | Purpose                                                                                        |
-| ------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `app/lib/dynamic-fields.server.ts`                | `buildDynamicDataSchema`, `parseDynamicFormData`, `getCachedSchema`, `buildConformConstraints` |
-| `app/lib/__tests__/dynamic-fields.server.test.ts` | 53 comprehensive tests for all 4 functions                                                     |
+| File                                      | Purpose                                                                                |
+| ----------------------------------------- | -------------------------------------------------------------------------------------- |
+| `app/lib/fields.server.ts`                | `buildFieldSchema`, `parseFieldFormData`, `getCachedSchema`, `buildConformConstraints` |
+| `app/lib/__tests__/fields.server.test.ts` | 53 comprehensive tests for all 4 functions                                             |
 
 ### Functions
 
-#### `buildCustomDataSchema(fieldDefs: FieldDefinition[]): z.ZodObject`
+#### `buildFieldSchema(fieldDefs: FieldDefinition[]): z.ZodObject`
 
 Maps each field definition to a Zod validator based on `dataType` and `config`:
 
@@ -839,7 +839,7 @@ Maps each field definition to a Zod validator based on `dataType` and `config`:
 
 After building the base type, iterates `field.validation[]` to apply `.refine()` for custom rules (`regex`, `min`, `max`). Required fields remain required; optional fields are wrapped with `.optional()`.
 
-#### `parseCustomFormData(formData: FormData, fieldDefs: FieldDefinition[]): Record<string, unknown>`
+#### `parseFieldFormData(formData: FormData, fieldDefs: FieldDefinition[]): Record<string, unknown>`
 
 Coerces HTML form string values to correct JS types:
 
@@ -870,56 +870,56 @@ Maps each field to a Conform constraint object with `required`, `minLength`, `ma
 
 ---
 
-## 6. P1-04 — Dynamic Form Renderer
+## 6. P1-04 — Form Renderer
 
 > **Status:** Complete
 > **Depends on:** P1-03
 
 ### What This Task Does
 
-Builds the React components that render dynamic custom fields in forms. Each `FieldDefinition` maps to a specific form input component based on its `dataType`. The renderer uses Conform for form binding and works with progressive enhancement (forms work without JavaScript). Also provides a test route at `/admin/test-dynamic-form` that demonstrates the full pipeline: load field definitions → render dynamic form → validate with Zod → display results.
+Builds the React components that render fields in forms. Each `FieldDefinition` maps to a specific form input component based on its `dataType`. The renderer uses Conform for form binding and works with progressive enhancement (forms work without JavaScript). Also provides a test route at `/admin/test-field-form` that demonstrates the full pipeline: load field definitions → render form → validate with Zod → display results.
 
 ### Why It's Designed This Way
 
-Rather than creating 8 separate base input component files (as the task doc suggested), all rendering is handled inline within `DynamicFieldRenderer` using a single switch statement. This keeps the component tree flat and avoids premature abstraction — each data type maps to shadcn/ui components (`Input`, `Textarea`, `NativeSelect`) with Conform helpers (`getInputProps`, `getSelectProps`, `getTextareaProps`, `getCollectionProps`). A shared `ConformField` wrapper component (using shadcn `Label`) handles the consistent label + description + error display pattern with semantic design tokens (`text-destructive`, `text-muted-foreground`).
+Rather than creating 8 separate base input component files (as the task doc suggested), all rendering is handled inline within `FieldRenderer` using a single switch statement. This keeps the component tree flat and avoids premature abstraction — each data type maps to shadcn/ui components (`Input`, `Textarea`, `NativeSelect`) with Conform helpers (`getInputProps`, `getSelectProps`, `getTextareaProps`, `getCollectionProps`). A shared `ConformField` wrapper component (using shadcn `Label`) handles the consistent label + description + error display pattern with semantic design tokens (`text-destructive`, `text-muted-foreground`).
 
-**shadcn/ui adoption:** The project adopted shadcn/ui as the component library. All form inputs use shadcn's native wrappers (`Input`, `Textarea`, `NativeSelect`) which are directly compatible with Conform's `getInputProps`/`getTextareaProps`/`getSelectProps` helpers. For checkboxes (BOOLEAN, MULTI_ENUM), native `<input type="checkbox">` elements are used with shadcn design tokens, since Conform's `getInputProps` and `getCollectionProps` work directly with native checkboxes. The `auth.login.tsx` and dashboard routes also use shadcn `Button`, `Input`, and `Label` components for visual consistency.
+**shadcn/ui adoption:** The project adopted shadcn/ui as the component library. All form inputs use shadcn's native wrappers (`Input`, `Textarea`, `NativeSelect`) which are directly compatible with Conform's `getInputProps`/`getTextareaProps`/`getSelectProps` helpers. For checkboxes (BOOLEAN, MULTI_ENUM), native `<input type="checkbox">` elements are used with shadcn design tokens, since Conform's `getInputProps` and `getCollectionProps` work directly with native checkboxes. The `auth/login.tsx` and dashboard routes also use shadcn `Button`, `Input`, and `Label` components for visual consistency.
 
 ### Schema Reconciliation
 
-| Task Doc                                  | Actual                                             | Decision                                                                                |
-| ----------------------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `CustomFieldDef` type                     | `FieldDefinition` from `~/generated/prisma/client` | Used `FieldDefinition`                                                                  |
-| `COUNTRY`, `USER` data types              | Not in `FieldDataType` enum                        | Skipped — only mapped 16 existing types                                                 |
-| Country data file `app/data/countries.ts` | No COUNTRY type exists                             | Skipped entirely                                                                        |
-| Radix `Select` for ENUM                   | shadcn/ui adopted                                  | Used shadcn `NativeSelect` (progressive enhancement, Conform-compatible)                |
-| 8 separate base input component files     | shadcn/ui components installed                     | shadcn `Input`/`Textarea`/`NativeSelect` + ConformField wrapper in DynamicFieldRenderer |
-| `uiConfig.section` grouping               | No `uiConfig` field on FieldDefinition             | Flat rendering (no section grouping)                                                    |
-| React Testing Library for component tests | Not installed                                      | Tested extracted pure logic functions only                                              |
+| Task Doc                                  | Actual                                             | Decision                                                                         |
+| ----------------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `FieldDefinition` type                    | `FieldDefinition` from `~/generated/prisma/client` | Used `FieldDefinition`                                                           |
+| `COUNTRY`, `USER` data types              | Not in `FieldDataType` enum                        | Skipped — only mapped 16 existing types                                          |
+| Country data file `app/data/countries.ts` | No COUNTRY type exists                             | Skipped entirely                                                                 |
+| Radix `Select` for ENUM                   | shadcn/ui adopted                                  | Used shadcn `NativeSelect` (progressive enhancement, Conform-compatible)         |
+| 8 separate base input component files     | shadcn/ui components installed                     | shadcn `Input`/`Textarea`/`NativeSelect` + ConformField wrapper in FieldRenderer |
+| `uiConfig.section` grouping               | No `uiConfig` field on FieldDefinition             | Flat rendering (no section grouping)                                             |
+| React Testing Library for component tests | Not installed                                      | Tested extracted pure logic functions only                                       |
 
 ### Files Created
 
-| File                                                             | Purpose                                                                                                                    |
-| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `app/components/dynamic-fields/types.ts`                         | Shared types (`FieldConfig`, `FieldElementDescriptor`), helpers (`getFieldConfig`, `sortFieldDefs`, `getFieldElementType`) |
-| `app/components/ui/conform-field.tsx`                            | Conform-aware label + description + error wrapper using shadcn Label (standard and inline/checkbox layouts)                |
-| `app/components/dynamic-fields/DynamicFieldRenderer.tsx`         | Core component: maps `dataType` → shadcn Input/Textarea/NativeSelect with Conform binding                                  |
-| `app/components/dynamic-fields/DynamicFieldSection.tsx`          | Groups/sorts/renders array of field definitions in a responsive grid                                                       |
-| `app/components/dynamic-fields/index.ts`                         | Barrel exports                                                                                                             |
-| `app/components/dynamic-fields/__tests__/dynamic-fields.test.ts` | 25 pure logic tests for helpers (no DOM rendering)                                                                         |
-| `app/routes/admin/test-dynamic-form.tsx`                         | Integration example route showing full pipeline (loader → form → action → validation)                                      |
+| File                                             | Purpose                                                                                                                    |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `app/components/fields/types.ts`                 | Shared types (`FieldConfig`, `FieldElementDescriptor`), helpers (`getFieldConfig`, `sortFieldDefs`, `getFieldElementType`) |
+| `app/components/ui/conform-field.tsx`            | Conform-aware label + description + error wrapper using shadcn Label (standard and inline/checkbox layouts)                |
+| `app/components/fields/FieldRenderer.tsx`        | Core component: maps `dataType` → shadcn Input/Textarea/NativeSelect with Conform binding                                  |
+| `app/components/fields/FieldSection.tsx`         | Groups/sorts/renders array of field definitions in a responsive grid                                                       |
+| `app/components/fields/index.ts`                 | Barrel exports                                                                                                             |
+| `app/components/fields/__tests__/fields.test.ts` | 25 pure logic tests for helpers (no DOM rendering)                                                                         |
+| `app/routes/admin/test-field-form.tsx`           | Integration example route showing full pipeline (loader → form → action → validation)                                      |
 
 ### Files Modified
 
-| File                                                | Change                                                |
-| --------------------------------------------------- | ----------------------------------------------------- |
-| `app/routes.ts`                                     | Added `test-dynamic-form` as child of dashboard route |
-| `docs/PHASE-1-COMPLETION.md`                        | Added P1-04 section                                   |
-| `docs/tasks/phase-1/P1-04-dynamic-form-renderer.md` | Added reconciliation note                             |
+| File                                                | Change                                              |
+| --------------------------------------------------- | --------------------------------------------------- |
+| `app/routes.ts`                                     | Added `test-field-form` as child of dashboard route |
+| `docs/PHASE-1-COMPLETION.md`                        | Added P1-04 section                                 |
+| `docs/tasks/phase-1/P1-04-dynamic-form-renderer.md` | Added reconciliation note                           |
 
 ### Component Architecture
 
-**DynamicFieldRenderer** — Single switch on `fieldDef.dataType`, renders ConformField + shadcn component:
+**FieldRenderer** — Single switch on `fieldDef.dataType`, renders ConformField + shadcn component:
 
 | dataType   | Component                       | Conform Helper       | Special Behavior                                        |
 | ---------- | ------------------------------- | -------------------- | ------------------------------------------------------- |
@@ -940,7 +940,7 @@ Rather than creating 8 separate base input component files (as the task doc sugg
 | FORMULA    | `<span>`                        | none                 | Read-only "(Computed field)"                            |
 | JSON       | `<Textarea>`                    | `getTextareaProps`   | rows=5, monospace font                                  |
 
-**DynamicFieldSection** — Sorts fields, renders in responsive grid:
+**FieldSection** — Sorts fields, renders in responsive grid:
 
 - 1 or 2 column grid layout
 - Full-width types (LONG_TEXT, BOOLEAN, JSON, MULTI_ENUM) span both columns
@@ -1063,23 +1063,23 @@ a332ff2 feat: migrate to react-router-auto-routes for file-system routing
 | `app/lib/__tests__/auth.server.test.ts`                                                  | P1-01 | 5 tests for password hashing/verification                                                |
 | `app/lib/__tests__/session.server.test.ts`                                               | P1-01 | 3 tests for session management                                                           |
 | `app/lib/__tests__/require-auth.server.test.ts`                                          | P1-01 | 3 tests for RBAC permission checking                                                     |
-| `app/config/dynamic-fields.ts`                                                           | P1-02 | Limit constants (500/tenant, 100/event)                                                  |
-| `app/lib/schemas/dynamic-field.ts`                                                       | P1-02 | Zod v4 schemas for create, update, reorder                                               |
-| `app/services/dynamic-fields.server.ts`                                                  | P1-02 | Service layer: list, create, update, delete, reorder                                     |
-| `app/routes/api/v1/dynamic-fields/index.tsx`                                             | P1-02 | GET (list) + POST (create) route                                                         |
-| `app/routes/api/v1/dynamic-fields/$id.tsx`                                               | P1-02 | PUT (update) + DELETE route                                                              |
-| `app/routes/api/v1/dynamic-fields/reorder.tsx`                                           | P1-02 | POST (reorder) route                                                                     |
-| `app/lib/schemas/__tests__/dynamic-field.test.ts`                                        | P1-02 | 28 schema validation tests                                                               |
-| `app/services/__tests__/dynamic-fields.server.test.ts`                                   | P1-02 | 19 service layer tests                                                                   |
-| `app/lib/dynamic-fields.server.ts`                                                       | P1-03 | Dynamic Zod schema builder, form parser, cache, Conform constraints                      |
-| `app/lib/__tests__/dynamic-fields.server.test.ts`                                        | P1-03 | 53 tests for all 4 functions                                                             |
-| `app/components/dynamic-fields/types.ts`                                                 | P1-04 | Shared types (FieldConfig), helpers (getFieldConfig, sortFieldDefs, getFieldElementType) |
+| `app/config/fields.ts`                                                                   | P1-02 | Limit constants (500/tenant, 100/event)                                                  |
+| `app/lib/schemas/field.ts`                                                               | P1-02 | Zod v4 schemas for create, update, reorder                                               |
+| `app/services/fields.server.ts`                                                          | P1-02 | Service layer: list, create, update, delete, reorder                                     |
+| `app/routes/api/v1/fields/index.tsx`                                                     | P1-02 | GET (list) + POST (create) route                                                         |
+| `app/routes/api/v1/fields/$id.tsx`                                                       | P1-02 | PUT (update) + DELETE route                                                              |
+| `app/routes/api/v1/fields/reorder.tsx`                                                   | P1-02 | POST (reorder) route                                                                     |
+| `app/lib/schemas/__tests__/field.test.ts`                                                | P1-02 | 28 schema validation tests                                                               |
+| `app/services/__tests__/fields.server.test.ts`                                           | P1-02 | 19 service layer tests                                                                   |
+| `app/lib/fields.server.ts`                                                               | P1-03 | Zod schema builder, form parser, cache, Conform constraints                              |
+| `app/lib/__tests__/fields.server.test.ts`                                                | P1-03 | 53 tests for all 4 functions                                                             |
+| `app/components/fields/types.ts`                                                         | P1-04 | Shared types (FieldConfig), helpers (getFieldConfig, sortFieldDefs, getFieldElementType) |
 | `app/components/ui/conform-field.tsx`                                                    | P1-04 | Conform-aware label + description + error wrapper using shadcn Label                     |
-| `app/components/dynamic-fields/DynamicFieldRenderer.tsx`                                 | P1-04 | Core component: maps dataType → shadcn Input/Textarea/NativeSelect with Conform binding  |
-| `app/components/dynamic-fields/DynamicFieldSection.tsx`                                  | P1-04 | Groups/sorts/renders field definitions in responsive grid                                |
-| `app/components/dynamic-fields/index.ts`                                                 | P1-04 | Barrel exports                                                                           |
-| `app/components/dynamic-fields/__tests__/dynamic-fields.test.ts`                         | P1-04 | 25 pure logic tests for helper functions                                                 |
-| `app/routes/admin/test-dynamic-form.tsx`                                                 | P1-04 | Integration test route: full dynamic form pipeline                                       |
+| `app/components/fields/FieldRenderer.tsx`                                                | P1-04 | Core component: maps dataType → shadcn Input/Textarea/NativeSelect with Conform binding  |
+| `app/components/fields/FieldSection.tsx`                                                 | P1-04 | Groups/sorts/renders field definitions in responsive grid                                |
+| `app/components/fields/index.ts`                                                         | P1-04 | Barrel exports                                                                           |
+| `app/components/fields/__tests__/fields.test.ts`                                         | P1-04 | 25 pure logic tests for helper functions                                                 |
+| `app/routes/admin/test-field-form.tsx`                                                   | P1-04 | Integration test route: full field form pipeline                                         |
 
 ### Files Modified
 
@@ -1190,7 +1190,7 @@ a332ff2 feat: migrate to react-router-auto-routes for file-system routing
 
 1. Fixed columns get native PostgreSQL types, constraints, and indexes — optimal for universally-needed fields
 2. JSONB provides schema-on-read flexibility — tenant admins add fields without migrations
-3. Expression indexes on JSONB paths (`CREATE INDEX ON "Participant" ((extras->>'weapon_permit'))`) provide query performance for searchable custom fields
+3. Expression indexes on JSONB paths (`CREATE INDEX ON "Participant" ((extras->>'weapon_permit'))`) provide query performance for searchable fields
 4. The `FieldDefinition` model serves as the "schema registry" — it defines what's allowed in `extras`, driving Zod validation, form rendering, and index creation
 
 ---
@@ -1202,12 +1202,12 @@ Progress toward the Phase 1 → Phase 2 quality gate:
 | Criterion                                                     | Status      | Notes                                  |
 | ------------------------------------------------------------- | ----------- | -------------------------------------- |
 | Admin can create, edit, reorder, and delete field definitions | In progress | P1-02 API complete, P1-05 UI pending   |
-| Fields render dynamically on registration forms               | Complete    | P1-04 — 25 tests, test route available |
+| Fields render on registration forms                           | Complete    | P1-04 — 25 tests, test route available |
 | JSONB queries support filtering with expression indexes       | Not started | P1-06                                  |
 | Workflow versioning snapshots active version on entry         | Not started | P1-07                                  |
 | SLA overdue detection runs as background job (5 min)          | Not started | P1-08                                  |
 | Optimistic locking prevents concurrent approve/reject         | Not started | P1-09                                  |
 | Rate limiting active on all authenticated API routes          | Not started | P1-10                                  |
 | File uploads scanned for malware before acceptance            | Not started | P1-11                                  |
-| Dynamic Zod schemas validate custom data on submission        | Complete    | P1-03 — 53 tests                       |
+| Zod schemas validate field data on submission                 | Complete    | P1-03 — 53 tests                       |
 | Unit test coverage ≥ 85% for new code                         | In progress | 142/142 tests pass across 9 test files |

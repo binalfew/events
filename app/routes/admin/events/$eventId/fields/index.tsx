@@ -2,20 +2,20 @@ import { data, Form, Link, redirect, useLoaderData, useSearchParams } from "reac
 import { requirePermission } from "~/lib/require-auth.server";
 import { prisma } from "~/lib/db.server";
 import {
-  listDynamicFields,
-  deleteDynamicField,
-  reorderDynamicFields,
+  listFields,
+  deleteField,
+  reorderFields,
   getFieldDataCount,
-  DynamicFieldError,
-} from "~/services/dynamic-fields.server";
+  FieldError,
+} from "~/services/fields.server";
 import { Button } from "~/components/ui/button";
 import { NativeSelect, NativeSelectOption } from "~/components/ui/native-select";
 import { Separator } from "~/components/ui/separator";
-import { FieldTable } from "~/components/dynamic-fields/FieldTable";
+import { FieldTable } from "~/components/fields/FieldTable";
 import type { Route } from "./+types/index";
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const { user } = await requirePermission(request, "dynamic-field", "read");
+  const { user } = await requirePermission(request, "field", "read");
   const tenantId = user.tenantId;
   if (!tenantId) {
     throw data({ error: "User is not associated with a tenant" }, { status: 403 });
@@ -35,7 +35,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const participantTypeId = url.searchParams.get("participantTypeId") || undefined;
   const dataType = url.searchParams.get("dataType") || undefined;
 
-  const fields = await listDynamicFields(tenantId, {
+  const fields = await listFields(tenantId, {
     eventId,
     participantTypeId,
     dataType,
@@ -57,7 +57,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
-  const { user } = await requirePermission(request, "dynamic-field", "delete");
+  const { user } = await requirePermission(request, "field", "delete");
   const tenantId = user.tenantId;
   if (!tenantId) {
     throw data({ error: "User is not associated with a tenant" }, { status: 403 });
@@ -78,7 +78,7 @@ export async function action({ request, params }: Route.ActionArgs) {
     if (_action === "delete") {
       const fieldId = formData.get("fieldId") as string;
       const force = formData.get("force") === "true";
-      await deleteDynamicField(fieldId, ctx, { force });
+      await deleteField(fieldId, ctx, { force });
       return redirect(`/admin/events/${eventId}/fields`);
     }
 
@@ -87,7 +87,7 @@ export async function action({ request, params }: Route.ActionArgs) {
       const direction = formData.get("direction") as "up" | "down";
 
       // Get all fields in current order
-      const fields = await listDynamicFields(tenantId, { eventId });
+      const fields = await listFields(tenantId, { eventId });
       const currentIndex = fields.findIndex((f) => f.id === fieldId);
       if (currentIndex === -1) {
         return data({ error: "Field not found" }, { status: 404 });
@@ -102,13 +102,13 @@ export async function action({ request, params }: Route.ActionArgs) {
       const fieldIds = fields.map((f) => f.id);
       [fieldIds[currentIndex], fieldIds[swapIndex]] = [fieldIds[swapIndex], fieldIds[currentIndex]];
 
-      await reorderDynamicFields({ fieldIds }, ctx);
+      await reorderFields({ fieldIds }, ctx);
       return redirect(`/admin/events/${eventId}/fields`);
     }
 
     return data({ error: "Unknown action" }, { status: 400 });
   } catch (error) {
-    if (error instanceof DynamicFieldError) {
+    if (error instanceof FieldError) {
       return data({ error: error.message }, { status: error.status });
     }
     throw error;

@@ -72,10 +72,10 @@ P1-00 (Data Models) ──┬──► P1-01 (Auth) ──┬──► P1-05 (Ad
 
 ## Module References
 
-| Module                                                                          | Scope in Phase 1                                      |
-| ------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| [01 Data Model Foundation](../../modules/01-DATA-MODEL-FOUNDATION.md)           | Participant model, customData JSONB, ParticipantType  |
-| [02 Dynamic Schema Engine](../../modules/02-DYNAMIC-SCHEMA-ENGINE.md)           | Full: CustomFieldDef, Zod builder, renderer, admin UI |
-| [04 Workflow Engine](../../modules/04-WORKFLOW-ENGINE.md)                       | Hardening: versioning, SLA enforcement                |
-| [05 Security & Access Control](../../modules/05-SECURITY-AND-ACCESS-CONTROL.md) | Continuation: auth, rate limiting, file scanning      |
-| [07 API & Integration Layer](../../modules/07-API-AND-INTEGRATION-LAYER.md)     | Partial: optimistic locking                           |
+| Module                                                                          | Scope in Phase 1                                       |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| [01 Data Model Foundation](../../modules/01-DATA-MODEL-FOUNDATION.md)           | Participant model, extras JSONB, ParticipantType       |
+| [02 Dynamic Schema Engine](../../modules/02-DYNAMIC-SCHEMA-ENGINE.md)           | Full: FieldDefinition, Zod builder, renderer, admin UI |
+| [04 Workflow Engine](../../modules/04-WORKFLOW-ENGINE.md)                       | Hardening: versioning, SLA enforcement                 |
+| [05 Security & Access Control](../../modules/05-SECURITY-AND-ACCESS-CONTROL.md) | Continuation: auth, rate limiting, file scanning       |
+| [07 API & Integration Layer](../../modules/07-API-AND-INTEGRATION-LAYER.md)     | Partial: optimistic locking                            |

@@ -15,19 +15,19 @@
 
 ## Context
 
-Custom field data is stored in JSONB `customData` columns on Participant and Event models. Querying JSONB is flexible but can be slow without indexes. This task builds the query layer for filtering by custom field values and the expression index management system that ensures searchable/filterable fields have database indexes.
+Field data is stored in JSONB `extras` columns on Participant and Event models. Querying JSONB is flexible but can be slow without indexes. This task builds the query layer for filtering by field values and the expression index management system that ensures searchable/filterable fields have database indexes.
 
-The design uses **expression indexes** (also called functional indexes) which index a specific JSONB path, e.g., `CREATE INDEX ON "Participant" (("customData"->>'weapon_permit'))`.
+The design uses **expression indexes** (also called functional indexes) which index a specific JSONB path, e.g., `CREATE INDEX ON "Participant" (("extras"->>'weapon_permit'))`.
 
 ---
 
 ## Deliverables
 
-### 1. Query Condition Types (`app/services/custom-query.server.ts`)
+### 1. Query Condition Types (`app/services/field-query.server.ts`)
 
 ```typescript
 interface CustomFieldCondition {
-  field: string; // The CustomFieldDef.name (key in customData)
+  field: string; // The FieldDefinition.name (key in extras)
   operator:
     | "eq"
     | "neq"
@@ -57,64 +57,64 @@ interface CustomFieldQueryParams {
 }
 ```
 
-### 2. Query Builder (`app/services/custom-query.server.ts`)
+### 2. Query Builder (`app/services/field-query.server.ts`)
 
 Build Prisma queries that filter by JSONB custom data:
 
 ```typescript
 /**
- * Filter records by custom field values stored in JSONB customData.
+ * Filter records by field values stored in JSONB extras.
  * Uses Prisma's JSON filtering capabilities with expression index hints.
  */
-export async function filterWithCustomFields(
+export async function filterWithFields(
   params: CustomFieldQueryParams,
 ): Promise<{ data: any[]; total: number }>;
 ```
 
 **Operator → Prisma JSON filter mapping:**
 
-| Operator   | Prisma Filter                                 | Example                         |
-| ---------- | --------------------------------------------- | ------------------------------- |
-| eq         | `customData: { path: [field], equals: val }`  | `weapon_permit == "WP-123"`     |
-| neq        | `NOT: { customData: { path, equals } }`       | `weapon_permit != "WP-123"`     |
-| contains   | `customData: { path, string_contains }`       | `name contains "John"`          |
-| startsWith | `customData: { path, string_starts_with }`    | `name starts with "J"`          |
-| gt / gte   | Cast to numeric, use raw SQL for comparison   | `age > 18`                      |
-| lt / lte   | Cast to numeric, use raw SQL for comparison   | `age < 65`                      |
-| in         | `customData: { path, array_contains }`        | `country in ["US", "UK", "FR"]` |
-| isNull     | `customData: { path, equals: Prisma.DbNull }` | `visa_number is null`           |
-| isNotNull  | `NOT: { customData: { path, equals: null } }` | `visa_number is not null`       |
+| Operator   | Prisma Filter                               | Example                         |
+| ---------- | ------------------------------------------- | ------------------------------- |
+| eq         | `extras: { path: [field], equals: val }`    | `weapon_permit == "WP-123"`     |
+| neq        | `NOT: { extras: { path, equals } }`         | `weapon_permit != "WP-123"`     |
+| contains   | `extras: { path, string_contains }`         | `name contains "John"`          |
+| startsWith | `extras: { path, string_starts_with }`      | `name starts with "J"`          |
+| gt / gte   | Cast to numeric, use raw SQL for comparison | `age > 18`                      |
+| lt / lte   | Cast to numeric, use raw SQL for comparison | `age < 65`                      |
+| in         | `extras: { path, array_contains }`          | `country in ["US", "UK", "FR"]` |
+| isNull     | `extras: { path, equals: Prisma.DbNull }`   | `visa_number is null`           |
+| isNotNull  | `NOT: { extras: { path, equals: null } }`   | `visa_number is not null`       |
 
 **Implementation notes:**
 
-- Validate that each condition's field exists in CustomFieldDef for the given scope
+- Validate that each condition's field exists in FieldDefinition for the given scope
 - Prevent SQL injection by parameterizing all raw queries
-- For numeric comparisons, use `CAST(("customData"->>'field') AS NUMERIC)` in raw SQL
+- For numeric comparisons, use `CAST(("extras"->>'field') AS NUMERIC)` in raw SQL
 - Return both the data page and total count (for pagination)
 
-### 3. Expression Index Manager (`app/services/custom-query.server.ts`)
+### 3. Expression Index Manager (`app/services/field-query.server.ts`)
 
 Automatically create and drop PostgreSQL expression indexes when fields are marked as searchable/filterable:
 
 ```typescript
 /**
  * Create an expression index on a JSONB path for fast queries.
- * Called when a CustomFieldDef is created/updated with isSearchable or isFilterable.
+ * Called when a FieldDefinition is created/updated with isSearchable or isFilterable.
  */
-export async function ensureCustomFieldIndex(fieldDef: CustomFieldDef): Promise<void>;
+export async function ensureFieldIndex(fieldDef: FieldDefinition): Promise<void>;
 
 /**
- * Drop the expression index for a custom field.
+ * Drop the expression index for a field.
  * Called when a field is deleted or isSearchable/isFilterable is turned off.
  */
-export async function dropCustomFieldIndex(fieldDef: CustomFieldDef): Promise<void>;
+export async function dropFieldIndex(fieldDef: FieldDefinition): Promise<void>;
 
 /**
- * Reconcile all expression indexes for a tenant's custom fields.
+ * Reconcile all expression indexes for a tenant's fields.
  * Ensures indexes exist for searchable/filterable fields and don't exist for others.
  * Called on startup or as a maintenance task.
  */
-export async function reconcileCustomFieldIndexes(
+export async function reconcileFieldIndexes(
   tenantId: string,
 ): Promise<{ created: string[]; dropped: string[]; unchanged: string[] }>;
 ```
@@ -132,17 +132,17 @@ Example: `idx_Participant_cf_weapon_permit`
 ```sql
 -- For text fields
 CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_Participant_cf_weapon_permit"
-ON "Participant" (("customData"->>'weapon_permit'))
+ON "Participant" (("extras"->>'weapon_permit'))
 WHERE "deletedAt" IS NULL;
 
 -- For numeric fields
 CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_Participant_cf_age"
-ON "Participant" (CAST("customData"->>'age' AS NUMERIC))
+ON "Participant" (CAST("extras"->>'age' AS NUMERIC))
 WHERE "deletedAt" IS NULL;
 
 -- For boolean fields
 CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_Participant_cf_needs_visa"
-ON "Participant" (CAST("customData"->>'needs_visa' AS BOOLEAN))
+ON "Participant" (CAST("extras"->>'needs_visa' AS BOOLEAN))
 WHERE "deletedAt" IS NULL;
 ```
 
@@ -153,9 +153,9 @@ WHERE "deletedAt" IS NULL;
 - Validate field names against SQL injection patterns before building SQL
 - Log all index operations to AuditLog
 
-### 4. Integration with Custom Field CRUD (P1-02)
+### 4. Integration with Field CRUD (P1-02)
 
-Hook into the custom field service to auto-manage indexes:
+Hook into the field service to auto-manage indexes:
 
 - On create: if `isSearchable || isFilterable`, create index
 - On update: if searchable/filterable changed, create or drop index
@@ -222,13 +222,13 @@ Write tests for:
 
 ## Acceptance Criteria
 
-- [ ] `filterWithCustomFields()` returns correct results for all operators
+- [ ] `filterWithFields()` returns correct results for all operators
 - [ ] Numeric comparisons work correctly (cast to NUMERIC)
 - [ ] Multiple conditions combine with AND logic
 - [ ] Pagination returns correct total count and data page
 - [ ] Expression indexes are created when fields are marked searchable/filterable
 - [ ] Expression indexes are dropped when fields are deleted or unmarked
-- [ ] `reconcileCustomFieldIndexes()` corrects index drift
+- [ ] `reconcileFieldIndexes()` corrects index drift
 - [ ] `CREATE INDEX CONCURRENTLY` is used to avoid table locks
 - [ ] SQL injection is prevented (field names validated, queries parameterized)
 - [ ] The search API route validates conditions against existing field definitions

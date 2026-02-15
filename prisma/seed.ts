@@ -51,10 +51,10 @@ async function main() {
     { resource: "workflow", action: "read" },
     { resource: "workflow", action: "update" },
     { resource: "workflow", action: "delete" },
-    { resource: "dynamic-field", action: "create" },
-    { resource: "dynamic-field", action: "read" },
-    { resource: "dynamic-field", action: "update" },
-    { resource: "dynamic-field", action: "delete" },
+    { resource: "field", action: "create" },
+    { resource: "field", action: "read" },
+    { resource: "field", action: "update" },
+    { resource: "field", action: "delete" },
     { resource: "event", action: "create" },
     { resource: "event", action: "read" },
     { resource: "event", action: "update" },
@@ -106,7 +106,7 @@ async function main() {
     ],
     PRINTER: ["participant:read", "participant:print"],
     DISPATCHER: ["participant:read", "participant:collect"],
-    VIEWER: ["participant:read", "workflow:read", "dynamic-field:read", "event:read"],
+    VIEWER: ["participant:read", "workflow:read", "field:read", "event:read"],
   };
 
   for (const [roleName, permKeys] of Object.entries(rolePermissionAssignments)) {

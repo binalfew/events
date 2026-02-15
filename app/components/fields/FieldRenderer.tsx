@@ -12,7 +12,7 @@ import { Textarea } from "~/components/ui/textarea";
 import { NativeSelect, NativeSelectOption } from "~/components/ui/native-select";
 import { getFieldConfig } from "./types";
 
-interface DynamicFieldRendererProps {
+interface FieldRendererProps {
   fieldDef: FieldDefinition;
   meta: FieldMetadata<unknown>;
 }
@@ -37,7 +37,7 @@ function selectPropsHelper(meta: FieldMetadata<unknown>) {
   return { key, props: rest };
 }
 
-export function DynamicFieldRenderer({ fieldDef, meta }: DynamicFieldRendererProps) {
+export function FieldRenderer({ fieldDef, meta }: FieldRendererProps) {
   const config = getFieldConfig(fieldDef);
 
   switch (fieldDef.dataType) {

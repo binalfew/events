@@ -24,7 +24,7 @@
    - 2.4 [Caching Strategy](#24-caching-strategy)
    - 2.5 [Architecture Decision Records](#25-architecture-decision-records)
 3. [Data Model](#3-data-model)
-   - 3.1 [CustomFieldDef](#31-customfielddef)
+   - 3.1 [FieldDefinition](#31-fielddefinition)
    - 3.2 [FieldDataType Enum](#32-fielddatatype-enum)
    - 3.3 [CustomObjectDef](#33-customobjectdef)
    - 3.4 [ObjectScope Enum](#34-objectscope-enum)
@@ -34,7 +34,7 @@
    - 3.8 [Index Catalog](#38-index-catalog)
    - 3.9 [Migration Safety Considerations](#39-migration-safety-considerations)
 4. [API Specification](#4-api-specification)
-   - 4.1 [Custom Field Endpoints](#41-custom-field-endpoints)
+   - 4.1 [Field Endpoints](#41-field-endpoints)
    - 4.2 [Custom Object Endpoints](#42-custom-object-endpoints)
    - 4.3 [Custom Object Record Endpoints](#43-custom-object-record-endpoints)
    - 4.4 [Field Reordering Endpoint](#44-field-reordering-endpoint)
@@ -44,7 +44,7 @@
 5. [Business Logic](#5-business-logic)
    - 5.1 [Dynamic Zod Schema Builder](#51-dynamic-zod-schema-builder)
    - 5.2 [Dynamic Form Renderer](#52-dynamic-form-renderer)
-   - 5.3 [Query Layer for Custom Fields](#53-query-layer-for-custom-fields)
+   - 5.3 [Query Layer for Custom Fields](#53-query-layer-for-fields)
    - 5.4 [Dynamic Index Management](#54-dynamic-index-management)
    - 5.5 [Formula Field Evaluation Engine](#55-formula-field-evaluation-engine)
    - 5.6 [Field Dependency Graph Resolution](#56-field-dependency-graph-resolution)
@@ -90,7 +90,7 @@
     - 11.2 [Expression Index Impact Analysis](#112-expression-index-impact-analysis)
     - 11.3 [Field Definition Caching](#113-field-definition-caching)
     - 11.4 [Query Plan Analysis](#114-query-plan-analysis)
-    - 11.5 [Pagination with Custom Field Sorting](#115-pagination-with-custom-field-sorting)
+    - 11.5 [Pagination with Field Sorting](#115-pagination-with-field-sorting)
 12. [Open Questions](#12-open-questions)
 
 - [Appendix](#appendix)
@@ -173,7 +173,7 @@ The Dynamic Schema Engine operates through five distinct layers, each with a cle
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    METADATA LAYER                           │
-│  CustomFieldDef records describe fields:                    │
+│  FieldDefinition records describe fields:                    │
 │  "weapon_serial" → TEXT, required, max 20 chars             │
 │  "needs_visa" → BOOLEAN, optional                           │
 ├─────────────────────────────────────────────────────────────┤
@@ -182,7 +182,7 @@ The Dynamic Schema Engine operates through five distinct layers, each with a cle
 │  {"weapon_serial": "AK-2024-001", "needs_visa": true}     │
 ├─────────────────────────────────────────────────────────────┤
 │                    VALIDATION LAYER                          │
-│  Zod schema auto-built from CustomFieldDef metadata         │
+│  Zod schema auto-built from FieldDefinition metadata         │
 ├─────────────────────────────────────────────────────────────┤
 │                    RENDERING LAYER                           │
 │  Dynamic renderer maps dataType → Conform component         │
@@ -196,10 +196,10 @@ The Dynamic Schema Engine operates through five distinct layers, each with a cle
 
 | Layer          | Responsibility                                                    | Key Artifacts                                       |
 | -------------- | ----------------------------------------------------------------- | --------------------------------------------------- |
-| **Metadata**   | Stores field definitions, types, constraints, and rendering hints | `CustomFieldDef`, `CustomObjectDef` Prisma models   |
+| **Metadata**   | Stores field definitions, types, constraints, and rendering hints | `FieldDefinition`, `CustomObjectDef` Prisma models  |
 | **Storage**    | Persists actual field values in JSONB columns on core models      | `Participant.customData`, `CustomObjectRecord.data` |
 | **Validation** | Compiles metadata into runtime Zod schemas for input validation   | `buildCustomDataSchema()` function                  |
-| **Rendering**  | Maps `dataType` values to React/Conform components                | `DynamicFieldRenderer` component                    |
+| **Rendering**  | Maps `dataType` values to React/Conform components                | `FieldRenderer` component                           |
 | **Query**      | Enables filtering, sorting, and searching on JSONB fields         | `filterWithCustomFields()`, expression indexes      |
 
 **Data flow for a registration submission:**
@@ -259,12 +259,12 @@ A custom field moves through the following states during its lifetime:
 // app/services/schema-engine/field-lifecycle.server.ts
 
 import { prisma } from "~/utils/db.server";
-import type { CustomFieldDef } from "@prisma/client";
+import type { FieldDefinition } from "@prisma/client";
 
 export type FieldStatus = "DRAFT" | "ACTIVE" | "DISABLED" | "DEPRECATED" | "ARCHIVED";
 
-export async function activateField(fieldId: string, tenantId: string): Promise<CustomFieldDef> {
-  const field = await prisma.customFieldDef.findFirst({
+export async function activateField(fieldId: string, tenantId: string): Promise<FieldDefinition> {
+  const field = await prisma.fieldDefinition.findFirst({
     where: { id: fieldId, tenantId },
   });
 
@@ -275,7 +275,7 @@ export async function activateField(fieldId: string, tenantId: string): Promise<
   // Create version snapshot before activation
   await createFieldVersion(field, "ACTIVATED");
 
-  return prisma.customFieldDef.update({
+  return prisma.fieldDefinition.update({
     where: { id: fieldId },
     data: { updatedAt: new Date() },
   });
@@ -285,8 +285,8 @@ export async function deprecateField(
   fieldId: string,
   tenantId: string,
   replacedByFieldId?: string,
-): Promise<CustomFieldDef> {
-  const field = await prisma.customFieldDef.findFirst({
+): Promise<FieldDefinition> {
+  const field = await prisma.fieldDefinition.findFirst({
     where: { id: fieldId, tenantId },
   });
 
@@ -296,7 +296,7 @@ export async function deprecateField(
 
   await createFieldVersion(field, "DEPRECATED");
 
-  return prisma.customFieldDef.update({
+  return prisma.fieldDefinition.update({
     where: { id: fieldId },
     data: {
       config: {
@@ -314,7 +314,7 @@ export async function canDeleteField(
   fieldId: string,
   tenantId: string,
 ): Promise<{ canDelete: boolean; reason?: string; recordCount?: number }> {
-  const field = await prisma.customFieldDef.findFirst({
+  const field = await prisma.fieldDefinition.findFirst({
     where: { id: fieldId, tenantId },
   });
 
@@ -344,7 +344,7 @@ export async function canDeleteField(
   return { canDelete: true };
 }
 
-async function createFieldVersion(field: CustomFieldDef, action: string): Promise<void> {
+async function createFieldVersion(field: FieldDefinition, action: string): Promise<void> {
   await prisma.fieldDefVersion.create({
     data: {
       fieldDefId: field.id,
@@ -394,7 +394,7 @@ The schema compilation pipeline transforms metadata into runtime validation:
 import { z } from "zod";
 import { LRUCache } from "lru-cache";
 import { prisma } from "~/utils/db.server";
-import { buildCustomDataSchema } from "~/utils/custom-fields.server";
+import { buildCustomDataSchema } from "~/utils/fields.server";
 import type { FieldDef } from "~/types/schema-engine";
 
 interface CompiledSchema {
@@ -491,7 +491,7 @@ async function fetchFieldDefs(params: {
   }
 
   // Fetch tenant-level fields + event-level fields + type-level fields
-  const fields = await prisma.customFieldDef.findMany({
+  const fields = await prisma.fieldDefinition.findMany({
     where: {
       tenantId: params.tenantId,
       targetModel: params.targetModel ?? undefined,
@@ -634,7 +634,7 @@ Field definitions are accessed on every form render and every API validation, ma
 │ - Pub/sub for cache invalidation                    │
 ├─────────────────────────────────────────────────────┤
 │ L3: PostgreSQL (source of truth)                    │
-│ - CustomFieldDef table                              │
+│ - FieldDefinition table                              │
 │ - Always consistent                                 │
 └─────────────────────────────────────────────────────┘
 ```
@@ -699,12 +699,12 @@ async function publishCacheInvalidation(msg: {
 
 ## 3. Data Model
 
-### 3.1 CustomFieldDef
+### 3.1 FieldDefinition
 
 The central model for defining custom fields. Each record describes a single field's type, constraints, and rendering configuration.
 
 ```prisma
-model CustomFieldDef {
+model FieldDefinition {
   id                String           @id @default(cuid())
   tenantId          String
   tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -905,7 +905,7 @@ model CustomObjectDef {
   detailLayout Json @default("{}")
   formLayout   Json @default("{}")
 
-  fields  CustomFieldDef[]
+  fields  FieldDefinition[]
   records CustomObjectRecord[]
 
   createdAt DateTime @default(now())
@@ -1011,7 +1011,7 @@ Tracks changes to field definitions over time for audit, rollback, and migration
 model FieldDefVersion {
   id         String   @id @default(cuid())
   fieldDefId String
-  fieldDef   CustomFieldDef @relation(fields: [fieldDefId], references: [id], onDelete: Cascade)
+  fieldDef   FieldDefinition @relation(fields: [fieldDefId], references: [id], onDelete: Cascade)
   tenantId   String
   tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -1035,7 +1035,7 @@ model FieldDefVersion {
 ```typescript
 // app/services/schema-engine/field-versioning.server.ts
 
-import type { CustomFieldDef } from "@prisma/client";
+import type { FieldDefinition } from "@prisma/client";
 
 export interface FieldChange {
   property: string;
@@ -1109,7 +1109,7 @@ export async function getFieldHistory(
 
 ```
 ┌─────────────┐       ┌──────────────────────┐       ┌──────────────────────┐
-│   Tenant    │──────<│   CustomFieldDef      │>──────│   CustomObjectDef    │
+│   Tenant    │──────<│   FieldDefinition      │>──────│   CustomObjectDef    │
 │             │  1:N  │                       │  N:1  │                      │
 │ id          │       │ id                    │       │ id                   │
 │ name        │       │ tenantId (FK)         │       │ tenantId (FK)        │
@@ -1152,24 +1152,24 @@ export async function getFieldHistory(
                          │ N:1                          │ N:1
                          │                              │
                 ┌────────┴───────────────────────────────┘
-                │   CustomFieldDef scoping
+                │   FieldDefinition scoping
                 │   (eventId, participantTypeId)
 ```
 
 ### 3.8 Index Catalog
 
-| Index Name                                                                                 | Table                | Columns/Expression                                                             | Purpose                                              |
-| ------------------------------------------------------------------------------------------ | -------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------- |
-| `CustomFieldDef_tenantId_targetModel_customObjectDefId_eventId_participantTypeId_name_key` | `CustomFieldDef`     | `(tenantId, targetModel, customObjectDefId, eventId, participantTypeId, name)` | Ensures unique field names within scope              |
-| `CustomFieldDef_tenantId_targetModel_eventId_idx`                                          | `CustomFieldDef`     | `(tenantId, targetModel, eventId)`                                             | Fast lookup of fields for a specific model and event |
-| `CustomFieldDef_eventId_participantTypeId_sortOrder_idx`                                   | `CustomFieldDef`     | `(eventId, participantTypeId, sortOrder)`                                      | Ordered field retrieval for form rendering           |
-| `CustomObjectDef_tenantId_slug_key`                                                        | `CustomObjectDef`    | `(tenantId, slug)`                                                             | Unique slug per tenant                               |
-| `CustomObjectDef_tenantId_idx`                                                             | `CustomObjectDef`    | `(tenantId)`                                                                   | Tenant-scoped object listing                         |
-| `CustomObjectRecord_tenantId_objectDefId_eventId_idx`                                      | `CustomObjectRecord` | `(tenantId, objectDefId, eventId)`                                             | Record listing by object type and event              |
-| `CustomObjectRecord_deletedAt_idx`                                                         | `CustomObjectRecord` | `(deletedAt)`                                                                  | Soft delete filter                                   |
-| `FieldDefVersion_fieldDefId_version_key`                                                   | `FieldDefVersion`    | `(fieldDefId, version)`                                                        | Unique version per field                             |
-| `FieldDefVersion_tenantId_createdAt_idx`                                                   | `FieldDefVersion`    | `(tenantId, createdAt)`                                                        | Audit trail chronological listing                    |
-| `idx_participant_cf_*` (dynamic)                                                           | `Participant`        | `((customData->>'field_name')::TYPE)`                                          | Expression indexes on searchable custom fields       |
+| Index Name                                                                                  | Table                | Columns/Expression                                                             | Purpose                                              |
+| ------------------------------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------- |
+| `FieldDefinition_tenantId_targetModel_customObjectDefId_eventId_participantTypeId_name_key` | `FieldDefinition`    | `(tenantId, targetModel, customObjectDefId, eventId, participantTypeId, name)` | Ensures unique field names within scope              |
+| `FieldDefinition_tenantId_targetModel_eventId_idx`                                          | `FieldDefinition`    | `(tenantId, targetModel, eventId)`                                             | Fast lookup of fields for a specific model and event |
+| `FieldDefinition_eventId_participantTypeId_sortOrder_idx`                                   | `FieldDefinition`    | `(eventId, participantTypeId, sortOrder)`                                      | Ordered field retrieval for form rendering           |
+| `CustomObjectDef_tenantId_slug_key`                                                         | `CustomObjectDef`    | `(tenantId, slug)`                                                             | Unique slug per tenant                               |
+| `CustomObjectDef_tenantId_idx`                                                              | `CustomObjectDef`    | `(tenantId)`                                                                   | Tenant-scoped object listing                         |
+| `CustomObjectRecord_tenantId_objectDefId_eventId_idx`                                       | `CustomObjectRecord` | `(tenantId, objectDefId, eventId)`                                             | Record listing by object type and event              |
+| `CustomObjectRecord_deletedAt_idx`                                                          | `CustomObjectRecord` | `(deletedAt)`                                                                  | Soft delete filter                                   |
+| `FieldDefVersion_fieldDefId_version_key`                                                    | `FieldDefVersion`    | `(fieldDefId, version)`                                                        | Unique version per field                             |
+| `FieldDefVersion_tenantId_createdAt_idx`                                                    | `FieldDefVersion`    | `(tenantId, createdAt)`                                                        | Audit trail chronological listing                    |
+| `idx_participant_cf_*` (dynamic)                                                            | `Participant`        | `((customData->>'field_name')::TYPE)`                                          | Expression indexes on searchable custom fields       |
 
 ### 3.9 Migration Safety Considerations
 
@@ -1222,7 +1222,7 @@ export async function checkMigrationSafety(
     config: Record<string, any>;
   }>,
 ): Promise<MigrationCheck> {
-  const field = await prisma.customFieldDef.findFirst({
+  const field = await prisma.fieldDefinition.findFirst({
     where: { id: fieldId, tenantId },
   });
 
@@ -1365,12 +1365,12 @@ function buildMigrationPlan(field: any, changes: Record<string, any>): Migration
 
 ## 4. API Specification
 
-### 4.1 Custom Field Endpoints
+### 4.1 Field Endpoints
 
 #### List Custom Fields
 
 ```
-GET /api/v1/tenants/:tenantId/custom-fields
+GET /api/v1/tenants/:tenantId/fields
 ```
 
 **Query parameters:**
@@ -1422,7 +1422,7 @@ GET /api/v1/tenants/:tenantId/custom-fields
 **Implementation:**
 
 ```typescript
-// app/routes/api.v1.tenants.$tenantId.custom-fields.ts
+// app/routes/api.v1.tenants.$tenantId.fields.ts
 
 import { json, type LoaderFunctionArgs } from "@remix-run/node";
 import { requireApiAuth } from "~/utils/api-auth.server";
@@ -1430,7 +1430,7 @@ import { prisma } from "~/utils/db.server";
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
   const { tenantId } = params;
-  await requireApiAuth(request, tenantId!, "custom-fields:read");
+  await requireApiAuth(request, tenantId!, "fields:read");
 
   const url = new URL(request.url);
   const targetModel = url.searchParams.get("targetModel");
@@ -1450,7 +1450,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
   if (isSearchable !== null) where.isSearchable = isSearchable === "true";
   if (isFilterable !== null) where.isFilterable = isFilterable === "true";
 
-  const fields = await prisma.customFieldDef.findMany({
+  const fields = await prisma.fieldDefinition.findMany({
     where,
     orderBy: { sortOrder: "asc" },
   });
@@ -1465,7 +1465,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 #### Create Custom Field
 
 ```
-POST /api/v1/tenants/:tenantId/custom-fields
+POST /api/v1/tenants/:tenantId/fields
 ```
 
 **Request body:**
@@ -1495,7 +1495,7 @@ POST /api/v1/tenants/:tenantId/custom-fields
 **Implementation:**
 
 ```typescript
-// app/routes/api.v1.tenants.$tenantId.custom-fields.ts (continued)
+// app/routes/api.v1.tenants.$tenantId.fields.ts (continued)
 
 import { z } from "zod";
 import { ensureCustomFieldIndex } from "~/utils/custom-query.server";
@@ -1535,14 +1535,14 @@ const CreateFieldSchema = z.object({
 
 export async function action({ request, params }: ActionFunctionArgs) {
   const { tenantId } = params;
-  await requireApiAuth(request, tenantId!, "custom-fields:write");
+  await requireApiAuth(request, tenantId!, "fields:write");
 
   if (request.method === "POST") {
     const body = await request.json();
     const parsed = CreateFieldSchema.parse(body);
 
     // Check field limit per tenant
-    const existingCount = await prisma.customFieldDef.count({
+    const existingCount = await prisma.fieldDefinition.count({
       where: { tenantId },
     });
     const maxFields = await getTenantFieldLimit(tenantId!);
@@ -1553,7 +1553,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
     // Validate config against dataType
     validateFieldConfig(parsed.dataType, parsed.config);
 
-    const field = await prisma.customFieldDef.create({
+    const field = await prisma.fieldDefinition.create({
       data: {
         tenantId: tenantId!,
         ...parsed,
@@ -1591,32 +1591,32 @@ export async function action({ request, params }: ActionFunctionArgs) {
 #### Get Custom Field
 
 ```
-GET /api/v1/tenants/:tenantId/custom-fields/:fieldId
+GET /api/v1/tenants/:tenantId/fields/:fieldId
 ```
 
 #### Update Custom Field
 
 ```
-PUT /api/v1/tenants/:tenantId/custom-fields/:fieldId
+PUT /api/v1/tenants/:tenantId/fields/:fieldId
 ```
 
 **Implementation with migration safety:**
 
 ```typescript
-// app/routes/api.v1.tenants.$tenantId.custom-fields.$fieldId.ts
+// app/routes/api.v1.tenants.$tenantId.fields.$fieldId.ts
 
 import { checkMigrationSafety } from "~/services/schema-engine/migration-safety.server";
 import { computeFieldDiff } from "~/services/schema-engine/field-versioning.server";
 
 export async function action({ request, params }: ActionFunctionArgs) {
   const { tenantId, fieldId } = params;
-  await requireApiAuth(request, tenantId!, "custom-fields:write");
+  await requireApiAuth(request, tenantId!, "fields:write");
 
   if (request.method === "PUT") {
     const body = await request.json();
     const parsed = UpdateFieldSchema.parse(body);
 
-    const existing = await prisma.customFieldDef.findFirst({
+    const existing = await prisma.fieldDefinition.findFirst({
       where: { id: fieldId, tenantId },
     });
     if (!existing) {
@@ -1661,7 +1661,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
     // Compute diff for version tracking
     const changes = computeFieldDiff(existing as any, { ...existing, ...parsed } as any);
 
-    const updated = await prisma.customFieldDef.update({
+    const updated = await prisma.fieldDefinition.update({
       where: { id: fieldId },
       data: parsed,
     });
@@ -1701,7 +1701,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
   }
 
   if (request.method === "DELETE") {
-    const field = await prisma.customFieldDef.findFirst({
+    const field = await prisma.fieldDefinition.findFirst({
       where: { id: fieldId, tenantId },
     });
     if (!field) {
@@ -1718,7 +1718,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
       await removeCustomFieldIndex(field as any);
     }
 
-    await prisma.customFieldDef.delete({ where: { id: fieldId } });
+    await prisma.fieldDefinition.delete({ where: { id: fieldId } });
     await onFieldDefChanged({ type: "DELETED", fieldDef: field });
 
     return json({ success: true });
@@ -1860,7 +1860,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 ### 4.4 Field Reordering Endpoint
 
 ```
-PUT /api/v1/tenants/:tenantId/custom-fields/reorder
+PUT /api/v1/tenants/:tenantId/fields/reorder
 ```
 
 **Request body:**
@@ -1877,11 +1877,11 @@ PUT /api/v1/tenants/:tenantId/custom-fields/reorder
 **Implementation:**
 
 ```typescript
-// app/routes/api.v1.tenants.$tenantId.custom-fields.reorder.ts
+// app/routes/api.v1.tenants.$tenantId.fields.reorder.ts
 
 export async function action({ request, params }: ActionFunctionArgs) {
   const { tenantId } = params;
-  await requireApiAuth(request, tenantId!, "custom-fields:write");
+  await requireApiAuth(request, tenantId!, "fields:write");
 
   const body = await request.json();
   const { fieldOrders } = body;
@@ -1889,7 +1889,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
   // Batch update in a transaction
   await prisma.$transaction(
     fieldOrders.map(({ fieldId, sortOrder }: { fieldId: string; sortOrder: number }) =>
-      prisma.customFieldDef.update({
+      prisma.fieldDefinition.update({
         where: { id: fieldId },
         data: { sortOrder },
       }),
@@ -1909,7 +1909,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 ### 4.5 Field Migration Endpoint
 
 ```
-POST /api/v1/tenants/:tenantId/custom-fields/:fieldId/migrate
+POST /api/v1/tenants/:tenantId/fields/:fieldId/migrate
 ```
 
 **Request body:**
@@ -1951,7 +1951,7 @@ POST /api/v1/tenants/:tenantId/custom-fields/:fieldId/migrate
 #### Bulk Create Fields
 
 ```
-POST /api/v1/tenants/:tenantId/custom-fields/bulk
+POST /api/v1/tenants/:tenantId/fields/bulk
 ```
 
 ```typescript
@@ -1963,7 +1963,7 @@ POST /api/v1/tenants/:tenantId/custom-fields/bulk
 #### Bulk Delete Fields
 
 ```
-DELETE /api/v1/tenants/:tenantId/custom-fields/bulk
+DELETE /api/v1/tenants/:tenantId/fields/bulk
 ```
 
 ```typescript
@@ -1978,7 +1978,7 @@ DELETE /api/v1/tenants/:tenantId/custom-fields/bulk
 #### Export Field Definitions
 
 ```
-GET /api/v1/tenants/:tenantId/custom-fields/export
+GET /api/v1/tenants/:tenantId/fields/export
 ```
 
 Returns a JSON file containing all field definitions for the tenant, suitable for import into another tenant or environment.
@@ -1989,15 +1989,15 @@ Returns a JSON file containing all field definitions for the tenant, suitable fo
   exportVersion: "1.0",
   exportedAt: "2026-02-10T12:00:00Z",
   tenantId: string,
-  fields: Array<CustomFieldDef>,
-  objects: Array<CustomObjectDef & { fields: CustomFieldDef[] }>
+  fields: Array<FieldDefinition>,
+  objects: Array<CustomObjectDef & { fields: FieldDefinition[] }>
 }
 ```
 
 #### Import Field Definitions
 
 ```
-POST /api/v1/tenants/:tenantId/custom-fields/import
+POST /api/v1/tenants/:tenantId/fields/import
 ```
 
 ```typescript
@@ -2024,17 +2024,17 @@ POST /api/v1/tenants/:tenantId/custom-fields/import
 
 | Method   | Endpoint                            | Permission             | Description          |
 | -------- | ----------------------------------- | ---------------------- | -------------------- |
-| `GET`    | `/custom-fields`                    | `custom-fields:read`   | List custom fields   |
-| `POST`   | `/custom-fields`                    | `custom-fields:write`  | Create custom field  |
-| `GET`    | `/custom-fields/:id`                | `custom-fields:read`   | Get field by ID      |
-| `PUT`    | `/custom-fields/:id`                | `custom-fields:write`  | Update field         |
-| `DELETE` | `/custom-fields/:id`                | `custom-fields:write`  | Delete field         |
-| `PUT`    | `/custom-fields/reorder`            | `custom-fields:write`  | Reorder fields       |
-| `POST`   | `/custom-fields/:id/migrate`        | `custom-fields:admin`  | Migrate field type   |
-| `POST`   | `/custom-fields/bulk`               | `custom-fields:write`  | Bulk create fields   |
-| `DELETE` | `/custom-fields/bulk`               | `custom-fields:admin`  | Bulk delete fields   |
-| `GET`    | `/custom-fields/export`             | `custom-fields:read`   | Export definitions   |
-| `POST`   | `/custom-fields/import`             | `custom-fields:admin`  | Import definitions   |
+| `GET`    | `/fields`                           | `fields:read`          | List custom fields   |
+| `POST`   | `/fields`                           | `fields:write`         | Create custom field  |
+| `GET`    | `/fields/:id`                       | `fields:read`          | Get field by ID      |
+| `PUT`    | `/fields/:id`                       | `fields:write`         | Update field         |
+| `DELETE` | `/fields/:id`                       | `fields:write`         | Delete field         |
+| `PUT`    | `/fields/reorder`                   | `fields:write`         | Reorder fields       |
+| `POST`   | `/fields/:id/migrate`               | `fields:admin`         | Migrate field type   |
+| `POST`   | `/fields/bulk`                      | `fields:write`         | Bulk create fields   |
+| `DELETE` | `/fields/bulk`                      | `fields:admin`         | Bulk delete fields   |
+| `GET`    | `/fields/export`                    | `fields:read`          | Export definitions   |
+| `POST`   | `/fields/import`                    | `fields:admin`         | Import definitions   |
 | `GET`    | `/custom-objects`                   | `custom-objects:read`  | List custom objects  |
 | `POST`   | `/custom-objects`                   | `custom-objects:write` | Create custom object |
 | `GET`    | `/custom-objects/:id`               | `custom-objects:read`  | Get object by ID     |
@@ -2055,7 +2055,7 @@ POST /api/v1/tenants/:tenantId/custom-fields/import
 The system generates Zod schemas at runtime from field definitions. This is the core validation mechanism that bridges metadata-defined fields with type-safe input processing.
 
 ```typescript
-// app/utils/custom-fields.server.ts
+// app/utils/fields.server.ts
 
 import { z } from "zod";
 import type { FieldDataType } from "@prisma/client";
@@ -2145,10 +2145,10 @@ export function buildCustomDataSchema(fieldDefs: FieldDef[]) {
 **Extended schema builder with additional field types:**
 
 ```typescript
-// app/utils/custom-fields-extended.server.ts
+// app/utils/fields-extended.server.ts
 
 import { z } from "zod";
-import { buildCustomDataSchema } from "./custom-fields.server";
+import { buildCustomDataSchema } from "./fields.server";
 import type { FieldDef } from "~/types/schema-engine";
 
 /**
@@ -2221,9 +2221,9 @@ function isCountryInRegions(countryCode: string, regions: string[]): boolean {
 Maps `dataType` values to existing Conform components:
 
 ```typescript
-// app/components/dynamic-fields/DynamicFieldRenderer.tsx
+// app/components/fields/FieldRenderer.tsx
 
-export function DynamicFieldRenderer({ fieldDef, meta }: {
+export function FieldRenderer({ fieldDef, meta }: {
   fieldDef: FieldDef
   meta: FieldMetadata<string>
 }) {
@@ -2277,9 +2277,9 @@ export function DynamicFieldRenderer({ fieldDef, meta }: {
 **Extended renderer with additional types:**
 
 ```typescript
-// app/components/dynamic-fields/ExtendedDynamicFieldRenderer.tsx
+// app/components/fields/ExtendedFieldRenderer.tsx
 
-import { DynamicFieldRenderer } from './DynamicFieldRenderer'
+import { FieldRenderer } from './FieldRenderer'
 import { CountryPickerField } from '~/components/ui/country-picker'
 import { UserPickerField } from '~/components/ui/user-picker'
 import { FormulaDisplayField } from '~/components/ui/formula-display'
@@ -2296,7 +2296,7 @@ interface ExtendedFieldRendererProps {
   eventId?: string
 }
 
-export function ExtendedDynamicFieldRenderer({
+export function ExtendedFieldRenderer({
   fieldDef,
   meta,
   formData,
@@ -2354,7 +2354,7 @@ export function ExtendedDynamicFieldRenderer({
       )
 
     default:
-      return <DynamicFieldRenderer fieldDef={fieldDef} meta={meta} />
+      return <FieldRenderer fieldDef={fieldDef} meta={meta} />
   }
 }
 
@@ -2371,13 +2371,13 @@ function mapInputType(dataType: string): string {
 **Dynamic field section renderer:**
 
 ```typescript
-// app/components/dynamic-fields/DynamicFieldSection.tsx
+// app/components/fields/FieldSection.tsx
 
-import { ExtendedDynamicFieldRenderer } from './ExtendedDynamicFieldRenderer'
+import { ExtendedFieldRenderer } from './ExtendedFieldRenderer'
 import type { FieldDef } from '~/types/schema-engine'
 import type { FieldMetadata, FormMetadata } from '@conform-to/react'
 
-interface DynamicFieldSectionProps {
+interface FieldSectionProps {
   title?: string
   description?: string
   fieldDefs: FieldDef[]
@@ -2388,7 +2388,7 @@ interface DynamicFieldSectionProps {
   columns?: 1 | 2
 }
 
-export function DynamicFieldSection({
+export function FieldSection({
   title,
   description,
   fieldDefs,
@@ -2397,7 +2397,7 @@ export function DynamicFieldSection({
   tenantId,
   eventId,
   columns = 2,
-}: DynamicFieldSectionProps) {
+}: FieldSectionProps) {
   // Group fields by section from uiConfig
   const sections = groupFieldsBySection(fieldDefs)
 
@@ -2440,7 +2440,7 @@ export function DynamicFieldSection({
                       {fieldDef.description}
                     </p>
                   )}
-                  <ExtendedDynamicFieldRenderer
+                  <ExtendedFieldRenderer
                     fieldDef={fieldDef}
                     meta={fieldMeta as any}
                     formData={formData}
@@ -2483,16 +2483,16 @@ function groupFieldsBySection(
 export async function filterWithCustomFields({
   request,
   where,
-  customFieldDefs,
+  fieldDefinitions,
 }: {
   request: Request;
   where: Prisma.ParticipantWhereInput;
-  customFieldDefs: FieldDef[];
+  fieldDefinitions: FieldDef[];
 }) {
   const url = new URL(request.url);
   const customFilters: Prisma.Sql[] = [];
 
-  for (const field of customFieldDefs.filter((f) => f.isFilterable)) {
+  for (const field of fieldDefinitions.filter((f) => f.isFilterable)) {
     const value = url.searchParams.get(`cf_${field.name}`);
     if (!value) continue;
 
@@ -2537,7 +2537,7 @@ import type { FieldDef } from "~/types/schema-engine";
 interface CustomQueryOptions {
   request: Request;
   baseWhere: Prisma.ParticipantWhereInput;
-  customFieldDefs: FieldDef[];
+  fieldDefinitions: FieldDef[];
   tenantId: string;
   eventId?: string;
   page?: number;
@@ -2560,7 +2560,7 @@ export async function queryWithCustomFields(
   const {
     request,
     baseWhere,
-    customFieldDefs,
+    fieldDefinitions,
     tenantId,
     page = 1,
     pageSize = 25,
@@ -2572,7 +2572,7 @@ export async function queryWithCustomFields(
   const customFilters: Prisma.Sql[] = [];
 
   // Build custom field filters
-  for (const field of customFieldDefs.filter((f) => f.isFilterable)) {
+  for (const field of fieldDefinitions.filter((f) => f.isFilterable)) {
     const value = url.searchParams.get(`cf_${field.name}`);
     const minValue = url.searchParams.get(`cf_${field.name}_min`);
     const maxValue = url.searchParams.get(`cf_${field.name}_max`);
@@ -2674,7 +2674,7 @@ export async function queryWithCustomFields(
   let orderByClause = Prisma.sql`ORDER BY "createdAt" DESC`;
   if (sortField?.startsWith("cf_")) {
     const fieldName = sortField.replace("cf_", "");
-    const fieldDef = customFieldDefs.find((f) => f.name === fieldName);
+    const fieldDef = fieldDefinitions.find((f) => f.name === fieldName);
     if (fieldDef) {
       const cast = getCastForType(fieldDef.dataType);
       const dir = sortDirection === "desc" ? Prisma.sql`DESC` : Prisma.sql`ASC`;
@@ -3559,7 +3559,7 @@ export async function bulkCreateFields(
   if (toCreate.length > 0) {
     await prisma.$transaction(async (tx) => {
       for (const field of toCreate) {
-        await tx.customFieldDef.create({ data: field });
+        await tx.fieldDefinition.create({ data: field });
       }
     });
 
@@ -3612,7 +3612,7 @@ export async function bulkDeleteFields(
 
   if (toDelete.length > 0) {
     // Remove indexes first
-    const fields = await prisma.customFieldDef.findMany({
+    const fields = await prisma.fieldDefinition.findMany({
       where: { id: { in: toDelete }, tenantId },
     });
 
@@ -3623,7 +3623,7 @@ export async function bulkDeleteFields(
     }
 
     // Batch delete
-    await prisma.customFieldDef.deleteMany({
+    await prisma.fieldDefinition.deleteMany({
       where: { id: { in: toDelete }, tenantId },
     });
 
@@ -4065,7 +4065,7 @@ export async function manageIndexLifecycle(
 // app/services/schema-engine/validation-pipeline.server.ts
 
 import { z } from "zod";
-import { buildCustomDataSchema } from "~/utils/custom-fields.server";
+import { buildCustomDataSchema } from "~/utils/fields.server";
 import { formulaEngine } from "./formula-engine.server";
 import type { FieldDef } from "~/types/schema-engine";
 
@@ -4382,7 +4382,7 @@ export async function resolveInheritedFields(params: {
   const { tenantId, targetModel, eventId, participantTypeId } = params;
 
   // Fetch all applicable field definitions
-  const allFields = await prisma.customFieldDef.findMany({
+  const allFields = await prisma.fieldDefinition.findMany({
     where: {
       tenantId,
       targetModel,
@@ -4704,7 +4704,7 @@ Each field type has a specific configuration panel:
 ### 6.5 Field Reorder Drag-and-Drop
 
 ```typescript
-// app/components/dynamic-fields/FieldReorderList.tsx
+// app/components/fields/FieldReorderList.tsx
 
 import {
   DndContext,
@@ -4760,7 +4760,7 @@ export function FieldReorderList({ fields, tenantId }: FieldReorderListProps) {
       { fieldOrders: JSON.stringify(fieldOrders) },
       {
         method: 'PUT',
-        action: `/api/v1/tenants/${tenantId}/custom-fields/reorder`,
+        action: `/api/v1/tenants/${tenantId}/fields/reorder`,
       }
     )
   }
@@ -4938,7 +4938,7 @@ export async function getFieldsForFormDesigner(params: {
   participantTypeId?: string;
 }): Promise<{
   fixedFields: FixedFieldDef[]; // from Prisma schema
-  customFields: FieldDef[]; // from CustomFieldDef
+  customFields: FieldDef[]; // from FieldDefinition
   customObjects: CustomObjectDef[]; // linkable custom objects
 }> {
   const customFields = await resolveInheritedFields(params);
@@ -4963,7 +4963,7 @@ interface FormSection {
   title: string;
   fields: Array<{
     source: "fixed" | "custom";
-    name: string; // matches CustomFieldDef.name
+    name: string; // matches FieldDefinition.name
     widthOverride?: "full" | "half" | "third";
     labelOverride?: string;
   }>;
@@ -4976,7 +4976,7 @@ interface FormSection {
 | ---------------------------------------------- | ------------------------------------------- |
 | `FieldDef[]` with types, constraints, UI hints | Field palette for drag-and-drop             |
 | `buildCustomDataSchema()` compiled Zod schema  | Server-side validation for form submissions |
-| `DynamicFieldRenderer` component               | Rendering of individual custom fields       |
+| `FieldRenderer` component                      | Rendering of individual custom fields       |
 | `evaluateConditionalRules()`                   | Client-side show/hide logic                 |
 | `CustomObjectDef` with field definitions       | Sub-form sections for linked objects        |
 
@@ -4990,7 +4990,7 @@ Custom field values can drive workflow routing decisions.
 // Workflow step condition that evaluates custom field values
 interface WorkflowCondition {
   type: "CUSTOM_FIELD";
-  fieldName: string; // references CustomFieldDef.name
+  fieldName: string; // references FieldDefinition.name
   operator: "equals" | "notEquals" | "contains" | "greaterThan" | "lessThan" | "isSet" | "isNotSet";
   value?: any;
 }
@@ -5042,7 +5042,7 @@ interface ParticipantApiResponse {
   email: string;
   // ... fixed fields ...
   customData: Record<string, any>; // actual custom field values
-  _customFieldDefs?: FieldDef[]; // optional: include field definitions
+  _fieldDefinitions?: FieldDef[]; // optional: include field definitions
 }
 
 // API Gateway uses schema engine for request validation
@@ -5669,7 +5669,7 @@ export const INDEX_SETTINGS = {
 // tests/unit/schema-engine/build-custom-data-schema.test.ts
 
 import { describe, it, expect } from "vitest";
-import { buildCustomDataSchema } from "~/utils/custom-fields.server";
+import { buildCustomDataSchema } from "~/utils/fields.server";
 import type { FieldDef } from "~/types/schema-engine";
 
 describe("buildCustomDataSchema", () => {
@@ -5986,7 +5986,7 @@ describe("JSONB Query Integration", () => {
     const result = await queryWithCustomFields({
       request,
       baseWhere: { tenantId, eventId },
-      customFieldDefs: [makeFilterableField("clearance", "ENUM")],
+      fieldDefinitions: [makeFilterableField("clearance", "ENUM")],
       tenantId,
     });
 
@@ -5999,7 +5999,7 @@ describe("JSONB Query Integration", () => {
     const result = await queryWithCustomFields({
       request,
       baseWhere: { tenantId, eventId },
-      customFieldDefs: [makeFilterableField("score", "NUMBER")],
+      fieldDefinitions: [makeFilterableField("score", "NUMBER")],
       tenantId,
     });
 
@@ -6011,7 +6011,7 @@ describe("JSONB Query Integration", () => {
     const result = await queryWithCustomFields({
       request,
       baseWhere: { tenantId, eventId },
-      customFieldDefs: [makeFilterableField("country", "COUNTRY")],
+      fieldDefinitions: [makeFilterableField("country", "COUNTRY")],
       tenantId,
     });
 
@@ -6023,7 +6023,7 @@ describe("JSONB Query Integration", () => {
     const result = await queryWithCustomFields({
       request,
       baseWhere: { tenantId, eventId },
-      customFieldDefs: [
+      fieldDefinitions: [
         makeFilterableField("clearance", "ENUM"),
         makeFilterableField("score", "NUMBER"),
       ],
@@ -6038,7 +6038,7 @@ describe("JSONB Query Integration", () => {
     const result = await queryWithCustomFields({
       request,
       baseWhere: { tenantId, eventId },
-      customFieldDefs: [],
+      fieldDefinitions: [],
       tenantId,
       page: 1,
       pageSize: 2,
@@ -6054,7 +6054,7 @@ describe("JSONB Query Integration", () => {
     const result = await queryWithCustomFields({
       request,
       baseWhere: { tenantId, eventId },
-      customFieldDefs: [makeFilterableField("score", "NUMBER")],
+      fieldDefinitions: [makeFilterableField("score", "NUMBER")],
       tenantId,
       sortField: "cf_score",
       sortDirection: "desc",
@@ -6338,7 +6338,7 @@ describe("Field Type Migration", () => {
   });
 
   it("should check migration safety before applying", async () => {
-    const field = await prisma.customFieldDef.create({
+    const field = await prisma.fieldDefinition.create({
       data: {
         tenantId,
         targetModel: "Participant",
@@ -6358,7 +6358,7 @@ describe("Field Type Migration", () => {
   });
 
   it("should allow safe migrations (TEXT to LONG_TEXT)", async () => {
-    const field = await prisma.customFieldDef.create({
+    const field = await prisma.fieldDefinition.create({
       data: {
         tenantId,
         targetModel: "Participant",
@@ -6389,7 +6389,7 @@ All JSONB queries MUST use parameterized queries. Raw string interpolation into 
 
 ```typescript
 // CORRECT: Parameterized JSONB queries
-// The field name comes from a validated CustomFieldDef record (trusted metadata)
+// The field name comes from a validated FieldDefinition record (trusted metadata)
 // The value comes from user input and MUST be parameterized
 
 // Safe: value is parameterized via Prisma.sql tagged template
@@ -6415,7 +6415,7 @@ const safeNumeric = Prisma.sql`
 // app/utils/field-name-sanitizer.server.ts
 
 /**
- * Field names are stored in CustomFieldDef and used in JSONB path expressions.
+ * Field names are stored in FieldDefinition and used in JSONB path expressions.
  * They must be strictly validated to prevent injection through field name manipulation.
  */
 
@@ -6664,7 +6664,7 @@ export function enforceTenantIsolation(requestedTenantId: string, userTenantIds:
  * Prevents IDOR attacks on field IDs.
  */
 export async function verifyFieldOwnership(fieldId: string, tenantId: string): Promise<void> {
-  const field = await prisma.customFieldDef.findFirst({
+  const field = await prisma.fieldDefinition.findFirst({
     where: { id: fieldId },
     select: { tenantId: true },
   });
@@ -6975,7 +6975,7 @@ function findIndexInPlan(node: any): string | undefined {
 }
 ```
 
-### 11.5 Pagination with Custom Field Sorting
+### 11.5 Pagination with Field Sorting
 
 ```typescript
 // app/services/schema-engine/pagination.server.ts
@@ -6996,7 +6996,7 @@ interface PaginationOptions {
  */
 export function buildOffsetPagination(
   options: PaginationOptions,
-  customFieldDefs: FieldDef[],
+  fieldDefinitions: FieldDef[],
 ): {
   orderBy: Prisma.Sql;
   limit: Prisma.Sql;
@@ -7007,7 +7007,7 @@ export function buildOffsetPagination(
   let orderBy: Prisma.Sql;
   if (sortField?.startsWith("cf_")) {
     const fieldName = sortField.replace("cf_", "");
-    const fieldDef = customFieldDefs.find((f) => f.name === fieldName);
+    const fieldDef = fieldDefinitions.find((f) => f.name === fieldName);
     if (fieldDef) {
       const cast = getCastForSorting(fieldDef.dataType);
       const dir = sortDirection === "desc" ? Prisma.sql`DESC` : Prisma.sql`ASC`;
@@ -7035,7 +7035,7 @@ export function buildOffsetPagination(
  */
 export function buildKeysetPagination(
   options: PaginationOptions & { cursor?: string },
-  customFieldDefs: FieldDef[],
+  fieldDefinitions: FieldDef[],
 ): {
   whereClause: Prisma.Sql;
   orderBy: Prisma.Sql;
@@ -7048,7 +7048,7 @@ export function buildKeysetPagination(
 
   if (cursor && sortField?.startsWith("cf_")) {
     const fieldName = sortField.replace("cf_", "");
-    const fieldDef = customFieldDefs.find((f) => f.name === fieldName);
+    const fieldDef = fieldDefinitions.find((f) => f.name === fieldName);
     if (fieldDef) {
       const cast = getCastForSorting(fieldDef.dataType);
       const op = sortDirection === "asc" ? ">" : "<";
@@ -7126,12 +7126,12 @@ export function encodeCursor(id: string, value: any): string {
 
 | Term                     | Definition                                                                                                                                                                 |
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Custom Field**         | A tenant-defined data field stored in a JSONB column rather than as a dedicated database column. Defined by a `CustomFieldDef` metadata record.                            |
-| **Custom Object**        | An entirely new entity type defined by a tenant (e.g., Vehicle Registry). Defined by a `CustomObjectDef` with associated `CustomFieldDef` records.                         |
+| **Custom Field**         | A tenant-defined data field stored in a JSONB column rather than as a dedicated database column. Defined by a `FieldDefinition` metadata record.                           |
+| **Custom Object**        | An entirely new entity type defined by a tenant (e.g., Vehicle Registry). Defined by a `CustomObjectDef` with associated `FieldDefinition` records.                        |
 | **Custom Object Record** | An actual data row in a custom object. Stores field values in a `data` JSONB column.                                                                                       |
 | **Expression Index**     | A PostgreSQL index on a computed expression, e.g., `CREATE INDEX ON "Participant" ((("customData"->>'score')::NUMERIC))`. Enables efficient queries on JSONB field values. |
 | **Field Data Type**      | The type of data a custom field holds (TEXT, NUMBER, BOOLEAN, DATE, ENUM, etc.). Determines validation, rendering, and query casting.                                      |
-| **Field Definition**     | A `CustomFieldDef` record that describes a custom field's name, type, constraints, and rendering configuration.                                                            |
+| **Field Definition**     | A `FieldDefinition` record that describes a custom field's name, type, constraints, and rendering configuration.                                                           |
 | **Field Inheritance**    | The mechanism by which field definitions at the tenant level can be overridden at the event or participant-type level.                                                     |
 | **Formula Field**        | A computed field whose value is derived from other fields using an expression (e.g., `{price} * {quantity}`).                                                              |
 | **GIN Index**            | Generalized Inverted Index in PostgreSQL. Used for JSONB containment queries (`@>`) and full-text search.                                                                  |
@@ -7140,8 +7140,8 @@ export function encodeCursor(id: string, value: any): string {
 | **LRU Cache**            | Least Recently Used cache. Evicts the least recently accessed entries when the cache is full. Used for compiled schema caching.                                            |
 | **Object Scope**         | Whether a custom object is available across all events (TENANT) or scoped to a specific event (EVENT).                                                                     |
 | **PII**                  | Personally Identifiable Information. Custom fields can be marked as PII for encryption and audit logging.                                                                  |
-| **Schema Compilation**   | The process of transforming `CustomFieldDef` metadata records into a runtime Zod validation schema.                                                                        |
-| **Sort Order**           | An integer field on `CustomFieldDef` that determines the display order of fields in forms and lists.                                                                       |
+| **Schema Compilation**   | The process of transforming `FieldDefinition` metadata records into a runtime Zod validation schema.                                                                       |
+| **Sort Order**           | An integer field on `FieldDefinition` that determines the display order of fields in forms and lists.                                                                      |
 | **Target Model**         | The built-in Prisma model that a custom field applies to (e.g., "Participant", "Event"). Null for custom object fields.                                                    |
 | **Tenant Isolation**     | The guarantee that one tenant's field definitions and data are never accessible to another tenant.                                                                         |
 | **Zod**                  | A TypeScript-first schema validation library used to build runtime validation schemas from field metadata.                                                                 |

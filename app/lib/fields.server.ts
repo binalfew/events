@@ -1,9 +1,9 @@
 import { z } from "zod/v4";
 import type { FieldDefinition } from "~/generated/prisma/client";
-import { buildDynamicDataSchema } from "./dynamic-fields";
+import { buildFieldSchema } from "./fields";
 
 // Re-export shared function so existing server imports continue to work
-export { buildDynamicDataSchema } from "./dynamic-fields";
+export { buildFieldSchema } from "./fields";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -64,7 +64,7 @@ function getConfig(field: FieldDefinition): FieldConfig {
  * Parse raw form data into typed values based on field definitions.
  * HTML forms submit everything as strings — this coerces to the correct types.
  */
-export function parseDynamicFormData(
+export function parseFieldFormData(
   formData: FormData,
   fieldDefs: FieldDefinition[],
 ): Record<string, unknown> {
@@ -139,7 +139,7 @@ export function getCachedSchema(
     return cached.schema;
   }
 
-  const schema = buildDynamicDataSchema(fieldDefs);
+  const schema = buildFieldSchema(fieldDefs);
 
   // LRU eviction: delete oldest entry if at capacity
   evictOldest();

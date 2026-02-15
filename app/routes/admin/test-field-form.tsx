@@ -3,12 +3,12 @@ import { parseWithZod } from "@conform-to/zod/v4";
 import { data, Form, useActionData, useLoaderData } from "react-router";
 import { requireAuth } from "~/lib/require-auth.server";
 import { prisma } from "~/lib/db.server";
-import { listDynamicFields } from "~/services/dynamic-fields.server";
-import { parseDynamicFormData } from "~/lib/dynamic-fields.server";
-import { buildDynamicDataSchema } from "~/lib/dynamic-fields";
-import { DynamicFieldSection } from "~/components/dynamic-fields";
+import { listFields } from "~/services/fields.server";
+import { parseFieldFormData } from "~/lib/fields.server";
+import { buildFieldSchema } from "~/lib/fields";
+import { FieldSection } from "~/components/fields";
 import { Button } from "~/components/ui/button";
-import type { Route } from "./+types/test-dynamic-form";
+import type { Route } from "./+types/test-field-form";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const { user } = await requireAuth(request);
@@ -28,7 +28,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     return { fieldDefs: [], eventId: null, eventName: null };
   }
 
-  const fieldDefs = await listDynamicFields(tenantId, {
+  const fieldDefs = await listFields(tenantId, {
     eventId: event.id,
   });
 
@@ -52,14 +52,14 @@ export async function action({ request }: Route.ActionArgs) {
     return data({ success: false, errors: ["No event found"] }, { status: 400 });
   }
 
-  const fieldDefs = await listDynamicFields(tenantId, {
+  const fieldDefs = await listFields(tenantId, {
     eventId: event.id,
   });
 
   const formData = await request.formData();
-  const parsed = parseDynamicFormData(formData, fieldDefs);
+  const parsed = parseFieldFormData(formData, fieldDefs);
 
-  const schema = buildDynamicDataSchema(fieldDefs);
+  const schema = buildFieldSchema(fieldDefs);
   const submission = parseWithZod(createFormDataFromParsed(parsed, fieldDefs), { schema });
 
   if (submission.status !== "success") {
@@ -71,7 +71,7 @@ export async function action({ request }: Route.ActionArgs) {
 
 /**
  * Re-create FormData from parsed values so parseWithZod can process it.
- * This bridges parseDynamicFormData's type coercion with Conform's validation.
+ * This bridges parseFieldFormData's type coercion with Conform's validation.
  */
 function createFormDataFromParsed(
   parsed: Record<string, unknown>,
@@ -93,10 +93,10 @@ function createFormDataFromParsed(
   return fd;
 }
 
-export default function TestDynamicFormPage({ loaderData, actionData }: Route.ComponentProps) {
+export default function TestFieldFormPage({ loaderData, actionData }: Route.ComponentProps) {
   const { fieldDefs, eventName } = loaderData;
 
-  const schema = fieldDefs.length > 0 ? buildDynamicDataSchema(fieldDefs) : undefined;
+  const schema = fieldDefs.length > 0 ? buildFieldSchema(fieldDefs) : undefined;
 
   const [form] = useForm({
     lastResult: actionData && "status" in actionData ? actionData : undefined,
@@ -109,11 +109,11 @@ export default function TestDynamicFormPage({ loaderData, actionData }: Route.Co
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-foreground">Dynamic Form Test</h2>
+        <h2 className="text-2xl font-bold text-foreground">Field Form Test</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {eventName
-            ? `Showing dynamic fields for "${eventName}"`
-            : "No event found. Create an event and add dynamic fields first."}
+            ? `Showing fields for "${eventName}"`
+            : "No event found. Create an event and add fields first."}
         </p>
       </div>
 
@@ -137,8 +137,7 @@ export default function TestDynamicFormPage({ loaderData, actionData }: Route.Co
       {fieldDefs.length === 0 ? (
         <div className="rounded-lg bg-card p-8 shadow text-center">
           <p className="text-muted-foreground">
-            No dynamic fields defined yet. Use the Dynamic Fields API to create some fields, then
-            refresh this page.
+            No fields defined yet. Use the Fields API to create some fields, then refresh this page.
           </p>
         </div>
       ) : (
@@ -153,7 +152,7 @@ export default function TestDynamicFormPage({ loaderData, actionData }: Route.Co
             </div>
           )}
 
-          <DynamicFieldSection fieldDefs={fieldDefs} form={form} />
+          <FieldSection fieldDefs={fieldDefs} form={form} />
 
           <Button type="submit" className="w-full">
             Submit

@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import type { FieldDefinition } from "~/generated/prisma/client";
 import {
-  buildDynamicDataSchema,
-  parseDynamicFormData,
+  buildFieldSchema,
+  parseFieldFormData,
   getCachedSchema,
   buildConformConstraints,
   schemaCache,
-} from "../dynamic-fields.server";
+} from "../fields.server";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -41,18 +41,18 @@ function makeField(
   } as FieldDefinition;
 }
 
-// ── buildDynamicDataSchema ────────────────────────────────────────────────────
+// ── buildFieldSchema ────────────────────────────────────────────────────
 
-describe("buildDynamicDataSchema", () => {
+describe("buildFieldSchema", () => {
   describe("type mapping", () => {
     it("TEXT produces a string validator", () => {
-      const schema = buildDynamicDataSchema([makeField({ name: "title", dataType: "TEXT" })]);
+      const schema = buildFieldSchema([makeField({ name: "title", dataType: "TEXT" })]);
       expect(schema.safeParse({ title: "hello" }).success).toBe(true);
       expect(schema.safeParse({ title: 123 }).success).toBe(false);
     });
 
     it("TEXT with config constraints", () => {
-      const schema = buildDynamicDataSchema([
+      const schema = buildFieldSchema([
         makeField({
           name: "code",
           dataType: "TEXT",
@@ -67,7 +67,7 @@ describe("buildDynamicDataSchema", () => {
     });
 
     it("LONG_TEXT produces a string validator with maxLength", () => {
-      const schema = buildDynamicDataSchema([
+      const schema = buildFieldSchema([
         makeField({ name: "bio", dataType: "LONG_TEXT", config: { maxLength: 10 } }),
       ]);
       expect(schema.safeParse({ bio: "short" }).success).toBe(true);
@@ -75,13 +75,13 @@ describe("buildDynamicDataSchema", () => {
     });
 
     it("NUMBER produces a number validator", () => {
-      const schema = buildDynamicDataSchema([makeField({ name: "age", dataType: "NUMBER" })]);
+      const schema = buildFieldSchema([makeField({ name: "age", dataType: "NUMBER" })]);
       expect(schema.safeParse({ age: 25 }).success).toBe(true);
       expect(schema.safeParse({ age: "25" }).success).toBe(false);
     });
 
     it("NUMBER with min/max config", () => {
-      const schema = buildDynamicDataSchema([
+      const schema = buildFieldSchema([
         makeField({ name: "score", dataType: "NUMBER", config: { min: 0, max: 100 } }),
       ]);
       expect(schema.safeParse({ score: 50 }).success).toBe(true);
@@ -90,26 +90,26 @@ describe("buildDynamicDataSchema", () => {
     });
 
     it("BOOLEAN produces a boolean validator", () => {
-      const schema = buildDynamicDataSchema([makeField({ name: "active", dataType: "BOOLEAN" })]);
+      const schema = buildFieldSchema([makeField({ name: "active", dataType: "BOOLEAN" })]);
       expect(schema.safeParse({ active: true }).success).toBe(true);
       expect(schema.safeParse({ active: false }).success).toBe(true);
       expect(schema.safeParse({ active: "yes" }).success).toBe(false);
     });
 
     it("DATE produces a date string validator", () => {
-      const schema = buildDynamicDataSchema([makeField({ name: "birth_date", dataType: "DATE" })]);
+      const schema = buildFieldSchema([makeField({ name: "birth_date", dataType: "DATE" })]);
       expect(schema.safeParse({ birth_date: "2026-01-15" }).success).toBe(true);
       expect(schema.safeParse({ birth_date: "not-a-date" }).success).toBe(false);
     });
 
     it("DATETIME produces a datetime string validator", () => {
-      const schema = buildDynamicDataSchema([makeField({ name: "arrival", dataType: "DATETIME" })]);
+      const schema = buildFieldSchema([makeField({ name: "arrival", dataType: "DATETIME" })]);
       expect(schema.safeParse({ arrival: "2026-01-15T10:00:00Z" }).success).toBe(true);
       expect(schema.safeParse({ arrival: "2026-01-15" }).success).toBe(false);
     });
 
     it("ENUM validates against allowed options", () => {
-      const schema = buildDynamicDataSchema([
+      const schema = buildFieldSchema([
         makeField({
           name: "priority",
           dataType: "ENUM",
@@ -127,14 +127,14 @@ describe("buildDynamicDataSchema", () => {
     });
 
     it("ENUM with no options falls back to string", () => {
-      const schema = buildDynamicDataSchema([
+      const schema = buildFieldSchema([
         makeField({ name: "fallback", dataType: "ENUM", config: {} }),
       ]);
       expect(schema.safeParse({ fallback: "anything" }).success).toBe(true);
     });
 
     it("MULTI_ENUM validates array of allowed options", () => {
-      const schema = buildDynamicDataSchema([
+      const schema = buildFieldSchema([
         makeField({
           name: "tags",
           dataType: "MULTI_ENUM",
@@ -153,52 +153,48 @@ describe("buildDynamicDataSchema", () => {
     });
 
     it("EMAIL validates email format", () => {
-      const schema = buildDynamicDataSchema([
-        makeField({ name: "contact_email", dataType: "EMAIL" }),
-      ]);
+      const schema = buildFieldSchema([makeField({ name: "contact_email", dataType: "EMAIL" })]);
       expect(schema.safeParse({ contact_email: "test@example.com" }).success).toBe(true);
       expect(schema.safeParse({ contact_email: "not-email" }).success).toBe(false);
     });
 
     it("URL validates URL format", () => {
-      const schema = buildDynamicDataSchema([makeField({ name: "website", dataType: "URL" })]);
+      const schema = buildFieldSchema([makeField({ name: "website", dataType: "URL" })]);
       expect(schema.safeParse({ website: "https://example.com" }).success).toBe(true);
       expect(schema.safeParse({ website: "not a url" }).success).toBe(false);
     });
 
     it("PHONE validates string length 7–20", () => {
-      const schema = buildDynamicDataSchema([makeField({ name: "phone", dataType: "PHONE" })]);
+      const schema = buildFieldSchema([makeField({ name: "phone", dataType: "PHONE" })]);
       expect(schema.safeParse({ phone: "+1234567" }).success).toBe(true);
       expect(schema.safeParse({ phone: "123" }).success).toBe(false);
       expect(schema.safeParse({ phone: "1".repeat(21) }).success).toBe(false);
     });
 
     it("FILE produces a string validator", () => {
-      const schema = buildDynamicDataSchema([
-        makeField({ name: "passport_scan", dataType: "FILE" }),
-      ]);
+      const schema = buildFieldSchema([makeField({ name: "passport_scan", dataType: "FILE" })]);
       expect(schema.safeParse({ passport_scan: "uploads/file.pdf" }).success).toBe(true);
     });
 
     it("IMAGE produces a string validator", () => {
-      const schema = buildDynamicDataSchema([makeField({ name: "photo", dataType: "IMAGE" })]);
+      const schema = buildFieldSchema([makeField({ name: "photo", dataType: "IMAGE" })]);
       expect(schema.safeParse({ photo: "uploads/photo.jpg" }).success).toBe(true);
     });
 
     it("REFERENCE produces a string validator", () => {
-      const schema = buildDynamicDataSchema([makeField({ name: "org_id", dataType: "REFERENCE" })]);
+      const schema = buildFieldSchema([makeField({ name: "org_id", dataType: "REFERENCE" })]);
       expect(schema.safeParse({ org_id: "clxxxxxxxxxxxxxxxxx" }).success).toBe(true);
     });
 
     it("FORMULA produces z.any()", () => {
-      const schema = buildDynamicDataSchema([makeField({ name: "total", dataType: "FORMULA" })]);
+      const schema = buildFieldSchema([makeField({ name: "total", dataType: "FORMULA" })]);
       expect(schema.safeParse({ total: 42 }).success).toBe(true);
       expect(schema.safeParse({ total: "anything" }).success).toBe(true);
       expect(schema.safeParse({}).success).toBe(true);
     });
 
     it("JSON produces z.unknown()", () => {
-      const schema = buildDynamicDataSchema([makeField({ name: "metadata", dataType: "JSON" })]);
+      const schema = buildFieldSchema([makeField({ name: "metadata", dataType: "JSON" })]);
       expect(schema.safeParse({ metadata: { foo: "bar" } }).success).toBe(true);
       expect(schema.safeParse({ metadata: [1, 2, 3] }).success).toBe(true);
     });
@@ -206,7 +202,7 @@ describe("buildDynamicDataSchema", () => {
 
   describe("required vs optional", () => {
     it("required field rejects undefined/missing", () => {
-      const schema = buildDynamicDataSchema([
+      const schema = buildFieldSchema([
         makeField({ name: "full_name", dataType: "TEXT", isRequired: true }),
       ]);
       expect(schema.safeParse({}).success).toBe(false);
@@ -215,7 +211,7 @@ describe("buildDynamicDataSchema", () => {
     });
 
     it("optional field accepts undefined", () => {
-      const schema = buildDynamicDataSchema([
+      const schema = buildFieldSchema([
         makeField({ name: "nickname", dataType: "TEXT", isRequired: false }),
       ]);
       expect(schema.safeParse({}).success).toBe(true);
@@ -226,7 +222,7 @@ describe("buildDynamicDataSchema", () => {
 
   describe("custom validation rules", () => {
     it("applies regex validation rule from field.validation", () => {
-      const schema = buildDynamicDataSchema([
+      const schema = buildFieldSchema([
         makeField({
           name: "passport_number",
           dataType: "TEXT",
@@ -241,7 +237,7 @@ describe("buildDynamicDataSchema", () => {
     });
 
     it("applies min validation rule", () => {
-      const schema = buildDynamicDataSchema([
+      const schema = buildFieldSchema([
         makeField({
           name: "quantity",
           dataType: "NUMBER",
@@ -254,7 +250,7 @@ describe("buildDynamicDataSchema", () => {
     });
 
     it("applies max validation rule", () => {
-      const schema = buildDynamicDataSchema([
+      const schema = buildFieldSchema([
         makeField({
           name: "weight",
           dataType: "NUMBER",
@@ -269,19 +265,19 @@ describe("buildDynamicDataSchema", () => {
 
   describe("edge cases", () => {
     it("empty field defs produces empty schema", () => {
-      const schema = buildDynamicDataSchema([]);
+      const schema = buildFieldSchema([]);
       expect(schema.safeParse({}).success).toBe(true);
     });
 
     it("field with no config works (uses defaults)", () => {
-      const schema = buildDynamicDataSchema([
+      const schema = buildFieldSchema([
         makeField({ name: "simple", dataType: "TEXT", config: {} }),
       ]);
       expect(schema.safeParse({ simple: "anything" }).success).toBe(true);
     });
 
     it("error messages include field label", () => {
-      const schema = buildDynamicDataSchema([
+      const schema = buildFieldSchema([
         makeField({
           name: "code",
           dataType: "TEXT",
@@ -300,14 +296,14 @@ describe("buildDynamicDataSchema", () => {
   });
 });
 
-// ── parseDynamicFormData ──────────────────────────────────────────────────────
+// ── parseFieldFormData ──────────────────────────────────────────────────────
 
-describe("parseDynamicFormData", () => {
+describe("parseFieldFormData", () => {
   it("coerces NUMBER string to number", () => {
     const fields = [makeField({ name: "age", dataType: "NUMBER" })];
     const formData = new FormData();
     formData.set("age", "25");
-    const result = parseDynamicFormData(formData, fields);
+    const result = parseFieldFormData(formData, fields);
     expect(result.age).toBe(25);
   });
 
@@ -315,7 +311,7 @@ describe("parseDynamicFormData", () => {
     const fields = [makeField({ name: "age", dataType: "NUMBER" })];
     const formData = new FormData();
     formData.set("age", "");
-    const result = parseDynamicFormData(formData, fields);
+    const result = parseFieldFormData(formData, fields);
     expect(result.age).toBeUndefined();
   });
 
@@ -323,7 +319,7 @@ describe("parseDynamicFormData", () => {
     const fields = [makeField({ name: "age", dataType: "NUMBER" })];
     const formData = new FormData();
     formData.set("age", "abc");
-    const result = parseDynamicFormData(formData, fields);
+    const result = parseFieldFormData(formData, fields);
     expect(result.age).toBeUndefined();
   });
 
@@ -331,7 +327,7 @@ describe("parseDynamicFormData", () => {
     const fields = [makeField({ name: "active", dataType: "BOOLEAN" })];
     const formData = new FormData();
     formData.set("active", "on");
-    const result = parseDynamicFormData(formData, fields);
+    const result = parseFieldFormData(formData, fields);
     expect(result.active).toBe(true);
   });
 
@@ -339,7 +335,7 @@ describe("parseDynamicFormData", () => {
     const fields = [makeField({ name: "active", dataType: "BOOLEAN" })];
     const formData = new FormData();
     formData.set("active", "true");
-    const result = parseDynamicFormData(formData, fields);
+    const result = parseFieldFormData(formData, fields);
     expect(result.active).toBe(true);
   });
 
@@ -347,14 +343,14 @@ describe("parseDynamicFormData", () => {
     const fields = [makeField({ name: "active", dataType: "BOOLEAN" })];
     const formData = new FormData();
     formData.set("active", "1");
-    const result = parseDynamicFormData(formData, fields);
+    const result = parseFieldFormData(formData, fields);
     expect(result.active).toBe(true);
   });
 
   it("coerces missing BOOLEAN to false", () => {
     const fields = [makeField({ name: "active", dataType: "BOOLEAN" })];
     const formData = new FormData();
-    const result = parseDynamicFormData(formData, fields);
+    const result = parseFieldFormData(formData, fields);
     expect(result.active).toBe(false);
   });
 
@@ -374,7 +370,7 @@ describe("parseDynamicFormData", () => {
     const formData = new FormData();
     formData.append("tags", "a");
     formData.append("tags", "b");
-    const result = parseDynamicFormData(formData, fields);
+    const result = parseFieldFormData(formData, fields);
     expect(result.tags).toEqual(["a", "b"]);
   });
 
@@ -383,7 +379,7 @@ describe("parseDynamicFormData", () => {
     const formData = new FormData();
     formData.append("tags", "a");
     formData.append("tags", "");
-    const result = parseDynamicFormData(formData, fields);
+    const result = parseFieldFormData(formData, fields);
     expect(result.tags).toEqual(["a"]);
   });
 
@@ -391,7 +387,7 @@ describe("parseDynamicFormData", () => {
     const fields = [makeField({ name: "metadata", dataType: "JSON" })];
     const formData = new FormData();
     formData.set("metadata", '{"key":"value"}');
-    const result = parseDynamicFormData(formData, fields);
+    const result = parseFieldFormData(formData, fields);
     expect(result.metadata).toEqual({ key: "value" });
   });
 
@@ -399,7 +395,7 @@ describe("parseDynamicFormData", () => {
     const fields = [makeField({ name: "metadata", dataType: "JSON" })];
     const formData = new FormData();
     formData.set("metadata", "not-json");
-    const result = parseDynamicFormData(formData, fields);
+    const result = parseFieldFormData(formData, fields);
     expect(result.metadata).toBe("not-json");
   });
 
@@ -407,7 +403,7 @@ describe("parseDynamicFormData", () => {
     const fields = [makeField({ name: "notes", dataType: "TEXT" })];
     const formData = new FormData();
     formData.set("notes", "");
-    const result = parseDynamicFormData(formData, fields);
+    const result = parseFieldFormData(formData, fields);
     expect(result.notes).toBeUndefined();
   });
 
@@ -415,7 +411,7 @@ describe("parseDynamicFormData", () => {
     const fields = [makeField({ name: "total", dataType: "FORMULA" })];
     const formData = new FormData();
     formData.set("total", "42");
-    const result = parseDynamicFormData(formData, fields);
+    const result = parseFieldFormData(formData, fields);
     expect(result.total).toBeUndefined();
   });
 
@@ -423,7 +419,7 @@ describe("parseDynamicFormData", () => {
     const fields = [makeField({ name: "start_date", dataType: "DATE" })];
     const formData = new FormData();
     formData.set("start_date", "2026-07-01");
-    const result = parseDynamicFormData(formData, fields);
+    const result = parseFieldFormData(formData, fields);
     expect(result.start_date).toBe("2026-07-01");
   });
 
@@ -431,7 +427,7 @@ describe("parseDynamicFormData", () => {
     const fields = [makeField({ name: "status", dataType: "ENUM" })];
     const formData = new FormData();
     formData.set("status", "active");
-    const result = parseDynamicFormData(formData, fields);
+    const result = parseFieldFormData(formData, fields);
     expect(result.status).toBe("active");
   });
 
@@ -439,7 +435,7 @@ describe("parseDynamicFormData", () => {
     const fields = [makeField({ name: "status", dataType: "ENUM" })];
     const formData = new FormData();
     formData.set("status", "");
-    const result = parseDynamicFormData(formData, fields);
+    const result = parseFieldFormData(formData, fields);
     expect(result.status).toBeUndefined();
   });
 });

@@ -40,7 +40,7 @@ Audit every model in the Prisma schema. For each foreign key column, verify a co
 | `Template`             | `tenantId`, `eventId`               |
 | `Attachment`           | `templateId`                        |
 | `FormTemplate`         | `tenantId`, `eventId`               |
-| `CustomFieldDef`       | `tenantId`, `eventId`               |
+| `FieldDefinition`      | `tenantId`, `eventId`               |
 | `CustomObjectDef`      | `tenantId`                          |
 | `CustomObjectRecord`   | `objectDefId`, `tenantId`           |
 | `UserEventAccess`      | `userId`, `eventId`                 |

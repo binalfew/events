@@ -51,22 +51,22 @@ const ctx = {
   userAgent: "test-agent",
 };
 
-describe("dynamic-fields.server", () => {
+describe("fields.server", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuditCreate.mockResolvedValue({});
   });
 
-  describe("listDynamicFields", () => {
+  describe("listFields", () => {
     it("returns fields for a tenant ordered by sortOrder", async () => {
-      const { listDynamicFields } = await import("../dynamic-fields.server");
+      const { listFields } = await import("../fields.server");
       const mockFields = [
         { id: "f1", name: "field_a", sortOrder: 0 },
         { id: "f2", name: "field_b", sortOrder: 1 },
       ];
       mockFindMany.mockResolvedValue(mockFields);
 
-      const result = await listDynamicFields("tenant-1");
+      const result = await listFields("tenant-1");
 
       expect(result).toEqual(mockFields);
       expect(mockFindMany).toHaveBeenCalledWith({
@@ -76,10 +76,10 @@ describe("dynamic-fields.server", () => {
     });
 
     it("applies filters when provided", async () => {
-      const { listDynamicFields } = await import("../dynamic-fields.server");
+      const { listFields } = await import("../fields.server");
       mockFindMany.mockResolvedValue([]);
 
-      await listDynamicFields("tenant-1", {
+      await listFields("tenant-1", {
         eventId: "event-1",
         entityType: "Participant",
         dataType: "TEXT",
@@ -97,10 +97,10 @@ describe("dynamic-fields.server", () => {
     });
 
     it("applies search filter across name and label", async () => {
-      const { listDynamicFields } = await import("../dynamic-fields.server");
+      const { listFields } = await import("../fields.server");
       mockFindMany.mockResolvedValue([]);
 
-      await listDynamicFields("tenant-1", { search: "country" });
+      await listFields("tenant-1", { search: "country" });
 
       expect(mockFindMany).toHaveBeenCalledWith({
         where: {
@@ -115,7 +115,7 @@ describe("dynamic-fields.server", () => {
     });
   });
 
-  describe("createDynamicField", () => {
+  describe("createField", () => {
     const validInput = {
       eventId: "event-1",
       entityType: "Participant" as const,
@@ -131,14 +131,14 @@ describe("dynamic-fields.server", () => {
     };
 
     it("creates a field and returns it", async () => {
-      const { createDynamicField } = await import("../dynamic-fields.server");
+      const { createField } = await import("../fields.server");
       mockEventFindFirst.mockResolvedValue({ id: "event-1", tenantId: "tenant-1" });
       mockCount.mockResolvedValue(0);
       mockFindFirst.mockResolvedValue(null);
       const createdField = { id: "f1", ...validInput, tenantId: "tenant-1", sortOrder: 0 };
       mockCreate.mockResolvedValue(createdField);
 
-      const result = await createDynamicField(validInput, ctx);
+      const result = await createField(validInput, ctx);
 
       expect(result).toEqual(createdField);
       expect(mockCreate).toHaveBeenCalledWith({
@@ -153,57 +153,57 @@ describe("dynamic-fields.server", () => {
     });
 
     it("throws 404 when event not found", async () => {
-      const { createDynamicField, DynamicFieldError } = await import("../dynamic-fields.server");
+      const { createField, FieldError } = await import("../fields.server");
       mockEventFindFirst.mockResolvedValue(null);
 
-      await expect(createDynamicField(validInput, ctx)).rejects.toThrow(DynamicFieldError);
-      await expect(createDynamicField(validInput, ctx)).rejects.toMatchObject({ status: 404 });
+      await expect(createField(validInput, ctx)).rejects.toThrow(FieldError);
+      await expect(createField(validInput, ctx)).rejects.toMatchObject({ status: 404 });
     });
 
     it("throws 404 when participantType not found", async () => {
-      const { createDynamicField, DynamicFieldError } = await import("../dynamic-fields.server");
+      const { createField, FieldError } = await import("../fields.server");
       mockEventFindFirst.mockResolvedValue({ id: "event-1", tenantId: "tenant-1" });
       mockPtFindFirst.mockResolvedValue(null);
 
       const inputWithPt = { ...validInput, participantTypeId: "pt-1" };
-      await expect(createDynamicField(inputWithPt, ctx)).rejects.toThrow(DynamicFieldError);
-      await expect(createDynamicField(inputWithPt, ctx)).rejects.toMatchObject({ status: 404 });
+      await expect(createField(inputWithPt, ctx)).rejects.toThrow(FieldError);
+      await expect(createField(inputWithPt, ctx)).rejects.toMatchObject({ status: 404 });
     });
 
     it("enforces tenant-wide limit", async () => {
-      const { createDynamicField } = await import("../dynamic-fields.server");
+      const { createField } = await import("../fields.server");
       mockEventFindFirst.mockResolvedValue({ id: "event-1", tenantId: "tenant-1" });
       mockCount.mockResolvedValue(500);
 
-      await expect(createDynamicField(validInput, ctx)).rejects.toMatchObject({ status: 422 });
+      await expect(createField(validInput, ctx)).rejects.toMatchObject({ status: 422 });
     });
 
     it("enforces per-event limit", async () => {
-      const { createDynamicField } = await import("../dynamic-fields.server");
+      const { createField } = await import("../fields.server");
       mockEventFindFirst.mockResolvedValue({ id: "event-1", tenantId: "tenant-1" });
       mockCount.mockResolvedValueOnce(10).mockResolvedValueOnce(100);
 
-      await expect(createDynamicField(validInput, ctx)).rejects.toMatchObject({ status: 422 });
+      await expect(createField(validInput, ctx)).rejects.toMatchObject({ status: 422 });
     });
 
     it("throws 409 on unique constraint violation", async () => {
-      const { createDynamicField } = await import("../dynamic-fields.server");
+      const { createField } = await import("../fields.server");
       mockEventFindFirst.mockResolvedValue({ id: "event-1", tenantId: "tenant-1" });
       mockCount.mockResolvedValue(0);
       mockFindFirst.mockResolvedValue(null);
       mockCreate.mockRejectedValue({ code: "P2002" });
 
-      await expect(createDynamicField(validInput, ctx)).rejects.toMatchObject({ status: 409 });
+      await expect(createField(validInput, ctx)).rejects.toMatchObject({ status: 409 });
     });
 
     it("auto-sets sortOrder based on existing max", async () => {
-      const { createDynamicField } = await import("../dynamic-fields.server");
+      const { createField } = await import("../fields.server");
       mockEventFindFirst.mockResolvedValue({ id: "event-1", tenantId: "tenant-1" });
       mockCount.mockResolvedValue(0);
       mockFindFirst.mockResolvedValue({ sortOrder: 5 });
       mockCreate.mockResolvedValue({ id: "f1", sortOrder: 6 });
 
-      await createDynamicField(validInput, ctx);
+      await createField(validInput, ctx);
 
       expect(mockCreate).toHaveBeenCalledWith({
         data: expect.objectContaining({ sortOrder: 6 }),
@@ -211,9 +211,9 @@ describe("dynamic-fields.server", () => {
     });
   });
 
-  describe("updateDynamicField", () => {
+  describe("updateField", () => {
     it("updates an existing field", async () => {
-      const { updateDynamicField } = await import("../dynamic-fields.server");
+      const { updateField } = await import("../fields.server");
       const existing = {
         id: "f1",
         tenantId: "tenant-1",
@@ -225,22 +225,22 @@ describe("dynamic-fields.server", () => {
       const updated = { ...existing, label: "New Label" };
       mockUpdate.mockResolvedValue(updated);
 
-      const result = await updateDynamicField("f1", { label: "New Label" }, ctx);
+      const result = await updateField("f1", { label: "New Label" }, ctx);
 
       expect(result).toEqual(updated);
     });
 
     it("throws 404 when field not found", async () => {
-      const { updateDynamicField } = await import("../dynamic-fields.server");
+      const { updateField } = await import("../fields.server");
       mockFindFirst.mockResolvedValue(null);
 
-      await expect(updateDynamicField("f1", { label: "New" }, ctx)).rejects.toMatchObject({
+      await expect(updateField("f1", { label: "New" }, ctx)).rejects.toMatchObject({
         status: 404,
       });
     });
 
     it("throws 409 on unique constraint violation", async () => {
-      const { updateDynamicField } = await import("../dynamic-fields.server");
+      const { updateField } = await import("../fields.server");
       mockFindFirst.mockResolvedValue({
         id: "f1",
         tenantId: "tenant-1",
@@ -250,17 +250,15 @@ describe("dynamic-fields.server", () => {
       });
       mockUpdate.mockRejectedValue({ code: "P2002" });
 
-      await expect(updateDynamicField("f1", { name: "duplicate_name" }, ctx)).rejects.toMatchObject(
-        {
-          status: 409,
-        },
-      );
+      await expect(updateField("f1", { name: "duplicate_name" }, ctx)).rejects.toMatchObject({
+        status: 409,
+      });
     });
   });
 
-  describe("deleteDynamicField", () => {
+  describe("deleteField", () => {
     it("deletes a field when no data exists", async () => {
-      const { deleteDynamicField } = await import("../dynamic-fields.server");
+      const { deleteField } = await import("../fields.server");
       mockFindFirst.mockResolvedValue({
         id: "f1",
         tenantId: "tenant-1",
@@ -272,21 +270,21 @@ describe("dynamic-fields.server", () => {
       mockQueryRawUnsafe.mockResolvedValue([{ count: BigInt(0) }]);
       mockDelete.mockResolvedValue({});
 
-      const result = await deleteDynamicField("f1", ctx);
+      const result = await deleteField("f1", ctx);
 
       expect(result).toEqual({ success: true });
       expect(mockDelete).toHaveBeenCalledWith({ where: { id: "f1" } });
     });
 
     it("throws 404 when field not found", async () => {
-      const { deleteDynamicField } = await import("../dynamic-fields.server");
+      const { deleteField } = await import("../fields.server");
       mockFindFirst.mockResolvedValue(null);
 
-      await expect(deleteDynamicField("f1", ctx)).rejects.toMatchObject({ status: 404 });
+      await expect(deleteField("f1", ctx)).rejects.toMatchObject({ status: 404 });
     });
 
     it("throws 422 when data exists and force is not set", async () => {
-      const { deleteDynamicField } = await import("../dynamic-fields.server");
+      const { deleteField } = await import("../fields.server");
       mockFindFirst.mockResolvedValue({
         id: "f1",
         tenantId: "tenant-1",
@@ -297,11 +295,11 @@ describe("dynamic-fields.server", () => {
       });
       mockQueryRawUnsafe.mockResolvedValue([{ count: BigInt(5) }]);
 
-      await expect(deleteDynamicField("f1", ctx)).rejects.toMatchObject({ status: 422 });
+      await expect(deleteField("f1", ctx)).rejects.toMatchObject({ status: 422 });
     });
 
     it("deletes even with data when force is true", async () => {
-      const { deleteDynamicField } = await import("../dynamic-fields.server");
+      const { deleteField } = await import("../fields.server");
       mockFindFirst.mockResolvedValue({
         id: "f1",
         tenantId: "tenant-1",
@@ -312,21 +310,21 @@ describe("dynamic-fields.server", () => {
       });
       mockDelete.mockResolvedValue({});
 
-      const result = await deleteDynamicField("f1", ctx, { force: true });
+      const result = await deleteField("f1", ctx, { force: true });
 
       expect(result).toEqual({ success: true });
       expect(mockQueryRawUnsafe).not.toHaveBeenCalled();
     });
   });
 
-  describe("reorderDynamicFields", () => {
+  describe("reorderFields", () => {
     it("reorders fields within a transaction", async () => {
-      const { reorderDynamicFields } = await import("../dynamic-fields.server");
+      const { reorderFields } = await import("../fields.server");
       const fieldIds = ["f1", "f2", "f3"];
       mockFindMany.mockResolvedValue(fieldIds.map((id) => ({ id })));
       mockTransaction.mockResolvedValue([]);
 
-      const result = await reorderDynamicFields({ fieldIds }, ctx);
+      const result = await reorderFields({ fieldIds }, ctx);
 
       expect(result).toEqual({ success: true });
       expect(mockTransaction).toHaveBeenCalledWith(
@@ -335,10 +333,10 @@ describe("dynamic-fields.server", () => {
     });
 
     it("throws 404 when some fields not found", async () => {
-      const { reorderDynamicFields } = await import("../dynamic-fields.server");
+      const { reorderFields } = await import("../fields.server");
       mockFindMany.mockResolvedValue([{ id: "f1" }]);
 
-      await expect(reorderDynamicFields({ fieldIds: ["f1", "f2"] }, ctx)).rejects.toMatchObject({
+      await expect(reorderFields({ fieldIds: ["f1", "f2"] }, ctx)).rejects.toMatchObject({
         status: 404,
       });
     });

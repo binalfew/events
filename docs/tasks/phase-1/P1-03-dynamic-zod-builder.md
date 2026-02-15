@@ -1,4 +1,4 @@
-# P1-03: Dynamic Zod Schema Builder
+# P1-03: Zod Schema Builder
 
 | Field                  | Value                                                                       |
 | ---------------------- | --------------------------------------------------------------------------- |
@@ -7,7 +7,7 @@
 | **Category**           | Dynamic Schema                                                              |
 | **Suggested Assignee** | Senior Backend Engineer                                                     |
 | **Depends On**         | P1-02                                                                       |
-| **Blocks**             | P1-04 (Dynamic Form Renderer)                                               |
+| **Blocks**             | P1-04 (Form Renderer)                                                       |
 | **Estimated Effort**   | 2 days                                                                      |
 | **Module References**  | [Module 02 §Validation Pipeline](../../modules/02-DYNAMIC-SCHEMA-ENGINE.md) |
 
@@ -15,13 +15,13 @@
 
 ## Implementation Reconciliation Note
 
-> **Implemented:** 2026-02-15 | **Tests:** 53 pass | **Files:** `app/lib/dynamic-fields.server.ts`, `app/lib/__tests__/dynamic-fields.server.test.ts`
+> **Implemented:** 2026-02-15 | **Tests:** 53 pass | **Files:** `app/lib/fields.server.ts`, `app/lib/__tests__/fields.server.test.ts`
 
 The following divergences from this task doc were resolved during implementation:
 
 | Task Doc                                  | Actual Codebase                                    | Decision                                                                             |
 | ----------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `CustomFieldDef` type                     | `FieldDefinition` from `~/generated/prisma/client` | Used `FieldDefinition`                                                               |
+| `FieldDefinition` type                    | `FieldDefinition` from `~/generated/prisma/client` | Used `FieldDefinition`                                                               |
 | `import { z } from "zod"`                 | Codebase uses `import { z } from "zod/v4"`         | Used `zod/v4` (Zod v4 classic API)                                                   |
 | `COUNTRY` data type                       | Not in `FieldDataType` enum                        | Omitted — only mapped the 16 existing types                                          |
 | `USER` data type                          | Not in `FieldDataType` enum                        | Omitted — only mapped the 16 existing types                                          |
@@ -33,30 +33,30 @@ The following divergences from this task doc were resolved during implementation
 
 ## Context
 
-The dynamic schema engine stores field definitions as database records (CustomFieldDef). At runtime, these definitions must be converted into Zod validation schemas that work with Conform for server-side form validation. This task builds the `buildCustomDataSchema()` utility that bridges the gap between metadata and runtime validation.
+The schema engine stores field definitions as database records (FieldDefinition). At runtime, these definitions must be converted into Zod validation schemas that work with Conform for server-side form validation. This task builds the `buildFieldSchema()` utility that bridges the gap between metadata and runtime validation.
 
 This is the critical link in the pipeline:
 
 ```
-CustomFieldDef (DB) → Zod Schema (runtime) → Conform (form binding) → Server Validation
+FieldDefinition (DB) → Zod Schema (runtime) → Conform (form binding) → Server Validation
 ```
 
 ---
 
 ## Deliverables
 
-### 1. Zod Schema Builder (`app/lib/dynamic-fields.server.ts`)
+### 1. Zod Schema Builder (`app/lib/fields.server.ts`)
 
 ```typescript
 import { z } from "zod";
-import type { CustomFieldDef } from "~/generated/prisma/client";
+import type { FieldDefinition } from "~/generated/prisma/client";
 
 /**
- * Build a Zod schema from an array of CustomFieldDef records.
+ * Build a Zod schema from an array of FieldDefinition records.
  * Each field definition maps to a Zod validator based on its dataType and config.
  */
-export function buildCustomDataSchema(
-  fieldDefs: CustomFieldDef[],
+export function buildFieldSchema(
+  fieldDefs: FieldDefinition[],
 ): z.ZodObject<Record<string, z.ZodTypeAny>>;
 ```
 
@@ -99,7 +99,7 @@ for (const rule of field.validation || []) {
 }
 ```
 
-### 2. Form Data Parser (`app/lib/dynamic-fields.server.ts`)
+### 2. Form Data Parser (`app/lib/fields.server.ts`)
 
 Utility to parse and coerce form data into the correct types before Zod validation:
 
@@ -108,9 +108,9 @@ Utility to parse and coerce form data into the correct types before Zod validati
  * Parse raw form data into typed values based on field definitions.
  * HTML forms submit everything as strings — this coerces to the correct types.
  */
-export function parseCustomFormData(
+export function parseFieldFormData(
   formData: FormData,
-  fieldDefs: CustomFieldDef[],
+  fieldDefs: FieldDefinition[],
 ): Record<string, unknown>;
 ```
 
@@ -122,7 +122,7 @@ export function parseCustomFormData(
 - DATE/DATETIME → keep as string (ISO format)
 - All others → `String(value)` or `undefined` if empty
 
-### 3. Schema Cache (`app/lib/dynamic-fields.server.ts`)
+### 3. Schema Cache (`app/lib/fields.server.ts`)
 
 Cache compiled Zod schemas to avoid rebuilding on every request:
 
@@ -137,14 +137,14 @@ export function getCachedSchema(
   tenantId: string,
   eventId: string,
   participantTypeId: string | null,
-  fieldDefs: CustomFieldDef[],
+  fieldDefs: FieldDefinition[],
 ): z.ZodObject<Record<string, z.ZodTypeAny>>;
 ```
 
 - Cache invalidates when field definitions change (compare hash of field IDs + updatedAt)
 - Maximum cache size: 1000 entries (LRU eviction)
 
-### 4. Conform Integration Helper (`app/lib/dynamic-fields.server.ts`)
+### 4. Conform Integration Helper (`app/lib/fields.server.ts`)
 
 Utility to create Conform-compatible form metadata from field definitions:
 
@@ -153,7 +153,7 @@ Utility to create Conform-compatible form metadata from field definitions:
  * Build Conform field metadata for use with useForm().
  * Returns the constraint object that Conform uses for client-side hints.
  */
-export function buildConformConstraints(fieldDefs: CustomFieldDef[]): Record<
+export function buildConformConstraints(fieldDefs: FieldDefinition[]): Record<
   string,
   {
     required?: boolean;
@@ -184,14 +184,14 @@ Write comprehensive tests for:
 
 ## Acceptance Criteria
 
-- [ ] `buildCustomDataSchema([...fieldDefs])` produces a Zod schema that validates custom data
+- [ ] `buildFieldSchema([...fieldDefs])` produces a Zod schema that validates field data
 - [ ] All 16 field data types produce correct Zod validators
 - [ ] Required fields cause validation errors when missing
 - [ ] Optional fields accept `null` and `undefined`
 - [ ] Config constraints (maxLength, min, max, pattern) are enforced
 - [ ] ENUM fields reject values not in the options list
 - [ ] Custom validation rules (regex) produce correct error messages
-- [ ] `parseCustomFormData()` correctly coerces form data to typed values
+- [ ] `parseFieldFormData()` correctly coerces form data to typed values
 - [ ] Schema cache prevents redundant rebuilds
 - [ ] Conform constraint builder produces valid constraint objects
 - [ ] All edge cases have test coverage

@@ -1,4 +1,4 @@
-export const DYNAMIC_FIELD_LIMITS = {
+export const FIELD_LIMITS = {
   maxPerTenant: 500,
   maxPerEvent: 100,
   maxNameLength: 64,

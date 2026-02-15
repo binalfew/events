@@ -11,8 +11,8 @@ import {
   TableHeader,
   TableRow,
 } from "~/components/ui/table";
-import { formatDataType } from "~/components/dynamic-fields/+utils";
-import { DeleteFieldDialog } from "~/components/dynamic-fields/DeleteFieldDialog";
+import { formatDataType } from "~/components/fields/+utils";
+import { DeleteFieldDialog } from "~/components/fields/DeleteFieldDialog";
 
 interface FieldTableProps {
   fields: FieldDefinition[];
@@ -45,7 +45,7 @@ export function FieldTable({ fields, dataCounts, eventId }: FieldTableProps) {
           {fields.length === 0 ? (
             <TableRow>
               <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
-                No dynamic fields defined yet.
+                No fields defined yet.
               </TableCell>
             </TableRow>
           ) : (

@@ -15,7 +15,7 @@
 
 ## Context
 
-Tenant admins need a self-service interface to define, edit, reorder, and delete fields for their events. This is the UI counterpart to the CRUD API (P1-02). The admin can configure what data each event collects without developer involvement — the core "configuration over code" principle.
+Tenant admins need a self-service interface to define, edit, reorder, and delete fields for their events. This is the UI counterpart to the CRUD API (P1-02). The admin can configure what fields each event collects without developer involvement — the core "configuration over code" principle.
 
 ---
 
@@ -46,7 +46,7 @@ A table/list view showing all fields for an event:
 - Bulk delete (checkbox selection + "Delete Selected" button)
 - Empty state with helpful onboarding message
 
-### 2. Create/Edit Field Form (`app/components/dynamic-fields/FieldForm.tsx`)
+### 2. Create/Edit Field Form (`app/components/fields/FieldForm.tsx`)
 
 A form (modal dialog or full page) for creating/editing a field definition:
 
@@ -100,7 +100,7 @@ A form (modal dialog or full page) for creating/editing a field definition:
 - Section name (for grouping in forms)
 - Column span (1-12 for grid layout)
 
-### 3. Enum Options Editor (`app/components/dynamic-fields/EnumOptionsEditor.tsx`)
+### 3. Enum Options Editor (`app/components/fields/EnumOptionsEditor.tsx`)
 
 A sub-component for managing ENUM/MULTI_ENUM options:
 
@@ -110,11 +110,11 @@ A sub-component for managing ENUM/MULTI_ENUM options:
 - Auto-generate value from label (kebab-case)
 - Color picker for category-style enums
 
-### 4. Field Preview (`app/components/dynamic-fields/FieldPreview.tsx`)
+### 4. Field Preview (`app/components/fields/FieldPreview.tsx`)
 
 Live preview of the field as it will appear in a form:
 
-- Renders using `DynamicFieldRenderer` from P1-04
+- Renders using `FieldRenderer` from P1-04
 - Updates in real-time as the admin edits config
 - Shows placeholder, label, description, required indicator
 
