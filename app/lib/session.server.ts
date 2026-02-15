@@ -2,7 +2,7 @@ import { createCookieSessionStorage, redirect } from "react-router";
 import { env } from "~/lib/env.server";
 import { prisma } from "~/lib/db.server";
 
-const sessionStorage = createCookieSessionStorage({
+export const sessionStorage = createCookieSessionStorage({
   cookie: {
     name: "__session",
     httpOnly: true,
@@ -14,7 +14,7 @@ const sessionStorage = createCookieSessionStorage({
   },
 });
 
-function getSession(request: Request) {
+export function getSession(request: Request) {
   const cookie = request.headers.get("Cookie");
   return sessionStorage.getSession(cookie);
 }

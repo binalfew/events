@@ -1,6 +1,7 @@
 import "react-router";
 import { createRequestHandler } from "@react-router/express";
 import express from "express";
+import { getSession } from "~/lib/session.server";
 import {
   nonceMiddleware,
   helmetMiddleware,
@@ -8,8 +9,13 @@ import {
   generalLimiter,
   mutationLimiter,
   authLimiter,
+  fieldsLimiter,
+  searchLimiter,
+  reorderLimiter,
+  uploadLimiter,
   suspiciousRequestBlocker,
   permissionsPolicy,
+  extractSessionUser,
 } from "./security.js";
 
 declare module "react-router" {
@@ -36,9 +42,23 @@ app.use(corsMiddleware);
 // 5. Block suspicious requests before they hit rate limiter or app
 app.use(suspiciousRequestBlocker);
 
+// 6. Extract session user for user-aware rate limiting
+app.use(extractSessionUser(getSession));
+
 // ─── Rate limiting ─────────────────────────────────────────
+// 7. General limiter (all routes)
 app.use(generalLimiter);
+
+// 8. Route-specific limiters
+app.use("/admin/:id/fields", fieldsLimiter);
+app.use("/api/:id/search", searchLimiter);
+app.use("/api/:id/reorder", reorderLimiter);
+app.use("/api/:id/files", uploadLimiter);
+
+// 9. Mutation limiter (non-GET on /api)
 app.use("/api", mutationLimiter);
+
+// 10. Auth limiter
 app.use("/auth", authLimiter);
 
 // ─── React Router handler ──────────────────────────────────

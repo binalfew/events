@@ -109,6 +109,7 @@ enum AuditAction {
   CONFIGURE
   ASSIGN
   SLA_BREACH
+  RATE_LIMIT
 }
 
 // ─── Identity & Access Domain ────────────────────────────
