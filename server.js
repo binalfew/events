@@ -6,6 +6,7 @@ import express from "express";
 import { logger } from "./server/logger.js";
 import { correlationMiddleware, getCorrelationId } from "./server/correlation.js";
 import { requestLogger } from "./server/request-logger.js";
+import { startSLACheckJob, stopSLACheckJob } from "./server/sla-job.js";
 
 // Fail fast if required environment variables are missing
 const required = ["DATABASE_URL", "SESSION_SECRET"];
@@ -21,6 +22,8 @@ for (const name of required) {
 
 // Short-circuit the type-checking of the built output.
 const BUILD_PATH = "./build/server/index.js";
+const SLA_CHECKER_DEV = "./app/services/workflow-engine/sla-checker.server.ts";
+const SLA_CHECKER_PROD = "./build/server/services/workflow-engine/sla-checker.server.js";
 const DEVELOPMENT = process.env.NODE_ENV === "development";
 const PORT = Number.parseInt(process.env.PORT || "3000");
 
@@ -65,4 +68,14 @@ if (DEVELOPMENT) {
 
 app.listen(PORT, () => {
   logger.info({ port: PORT }, `Server is running on http://localhost:${PORT}`);
+
+  // Start SLA background job
+  startSLACheckJob(() => import(DEVELOPMENT ? SLA_CHECKER_DEV : SLA_CHECKER_PROD));
+
+  const shutdown = () => {
+    stopSLACheckJob();
+    process.exit(0);
+  };
+  process.on("SIGTERM", shutdown);
+  process.on("SIGINT", shutdown);
 });

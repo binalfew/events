@@ -108,6 +108,7 @@ enum AuditAction {
   IMPORT
   CONFIGURE
   ASSIGN
+  SLA_BREACH
 }
 
 // ─── Identity & Access Domain ────────────────────────────
