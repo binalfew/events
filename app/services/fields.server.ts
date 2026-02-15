@@ -1,6 +1,7 @@
 import { prisma } from "~/lib/db.server";
 import { logger } from "~/lib/logger.server";
 import { FIELD_LIMITS } from "~/config/fields";
+import { ensureFieldIndex, dropFieldIndex } from "~/services/field-query.server";
 import type { CreateFieldInput, UpdateFieldInput, ReorderFieldsInput } from "~/lib/schemas/field";
 
 interface ServiceContext {
@@ -128,6 +129,12 @@ export async function createField(input: CreateFieldInput, ctx: ServiceContext) 
       },
     });
 
+    if (field.isSearchable || field.isFilterable) {
+      ensureFieldIndex(field, ctx).catch((err) =>
+        logger.error({ err, fieldId: field.id }, "Index creation failed after field create"),
+      );
+    }
+
     return field;
   } catch (error: unknown) {
     if (isPrismaUniqueConstraintError(error)) {
@@ -189,6 +196,15 @@ export async function updateField(id: string, input: UpdateFieldInput, ctx: Serv
       },
     });
 
+    const searchabilityChanged =
+      existing.isSearchable !== field.isSearchable || existing.isFilterable !== field.isFilterable;
+    if (searchabilityChanged) {
+      const indexFn = field.isSearchable || field.isFilterable ? ensureFieldIndex : dropFieldIndex;
+      indexFn(field, ctx).catch((err) =>
+        logger.error({ err, fieldId: field.id }, "Index update failed after field update"),
+      );
+    }
+
     return field;
   } catch (error: unknown) {
     if (isPrismaUniqueConstraintError(error)) {
@@ -246,6 +262,12 @@ export async function deleteField(
       metadata: { name: existing.name, dataType: existing.dataType },
     },
   });
+
+  if (existing.isSearchable || existing.isFilterable) {
+    dropFieldIndex(existing, ctx).catch((err) =>
+      logger.error({ err, fieldId: id }, "Index drop failed after field delete"),
+    );
+  }
 
   return { success: true };
 }
