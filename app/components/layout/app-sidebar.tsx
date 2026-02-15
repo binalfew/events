@@ -22,7 +22,7 @@ export function AppSidebar({ user, roles, groupState, ...props }: AppSidebarProp
 
   return (
     <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader>
+      <SidebarHeader className="h-12 justify-center">
         <TenantSwitcher />
       </SidebarHeader>
       <SidebarContent>

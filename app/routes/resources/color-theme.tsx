@@ -48,7 +48,7 @@ export function useColorTheme(): ColorTheme {
 
 const THEME_COLORS: Record<Exclude<ColorTheme, "default">, string> = {
   blue: "bg-blue-500",
-  green: "bg-green-500",
+  green: "bg-[#3F734B]",
   rose: "bg-rose-500",
   orange: "bg-orange-500",
   violet: "bg-violet-500",
