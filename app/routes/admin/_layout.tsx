@@ -30,18 +30,18 @@ export default function DashboardLayout() {
           <span className="text-lg font-semibold text-sidebar-foreground">Accreditation</span>
         </div>
         <nav className="flex-1 space-y-1 px-2 py-4">
-          <NavLink to="/dashboard" end className={navLinkClass}>
+          <NavLink to="/admin" end className={navLinkClass}>
             Dashboard
           </NavLink>
           {isAdmin && (
             <>
-              <NavLink to="/dashboard/events" className={navLinkClass}>
+              <NavLink to="/admin/events" className={navLinkClass}>
                 Events
               </NavLink>
-              <NavLink to="/dashboard/users" className={navLinkClass}>
+              <NavLink to="/admin/users" className={navLinkClass}>
                 Users
               </NavLink>
-              <NavLink to="/dashboard/settings" className={navLinkClass}>
+              <NavLink to="/admin/settings" className={navLinkClass}>
                 Settings
               </NavLink>
             </>

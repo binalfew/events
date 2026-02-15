@@ -1,11 +1,11 @@
 import { prisma } from "~/lib/db.server";
 import { logger } from "~/lib/logger.server";
-import { CUSTOM_FIELD_LIMITS } from "~/config/custom-fields";
+import { DYNAMIC_FIELD_LIMITS } from "~/config/dynamic-fields";
 import type {
-  CreateCustomFieldInput,
-  UpdateCustomFieldInput,
+  CreateDynamicFieldInput,
+  UpdateDynamicFieldInput,
   ReorderFieldsInput,
-} from "~/lib/schemas/custom-field";
+} from "~/lib/schemas/dynamic-field";
 
 interface ServiceContext {
   userId: string;
@@ -14,7 +14,7 @@ interface ServiceContext {
   userAgent?: string;
 }
 
-export async function listCustomFields(
+export async function listDynamicFields(
   tenantId: string,
   filters: {
     eventId?: string;
@@ -45,13 +45,13 @@ export async function listCustomFields(
   return fields;
 }
 
-export async function createCustomField(input: CreateCustomFieldInput, ctx: ServiceContext) {
+export async function createDynamicField(input: CreateDynamicFieldInput, ctx: ServiceContext) {
   // Verify event belongs to tenant
   const event = await prisma.event.findFirst({
     where: { id: input.eventId, tenantId: ctx.tenantId },
   });
   if (!event) {
-    throw new CustomFieldError("Event not found or does not belong to your organization", 404);
+    throw new DynamicFieldError("Event not found or does not belong to your organization", 404);
   }
 
   // Verify participantType belongs to event (if provided)
@@ -60,7 +60,7 @@ export async function createCustomField(input: CreateCustomFieldInput, ctx: Serv
       where: { id: input.participantTypeId, eventId: input.eventId, tenantId: ctx.tenantId },
     });
     if (!pt) {
-      throw new CustomFieldError(
+      throw new DynamicFieldError(
         "Participant type not found or does not belong to this event",
         404,
       );
@@ -71,9 +71,9 @@ export async function createCustomField(input: CreateCustomFieldInput, ctx: Serv
   const tenantCount = await prisma.fieldDefinition.count({
     where: { tenantId: ctx.tenantId },
   });
-  if (tenantCount >= CUSTOM_FIELD_LIMITS.maxPerTenant) {
-    throw new CustomFieldError(
-      `Tenant limit reached: maximum ${CUSTOM_FIELD_LIMITS.maxPerTenant} custom fields per organization`,
+  if (tenantCount >= DYNAMIC_FIELD_LIMITS.maxPerTenant) {
+    throw new DynamicFieldError(
+      `Tenant limit reached: maximum ${DYNAMIC_FIELD_LIMITS.maxPerTenant} dynamic fields per organization`,
       422,
     );
   }
@@ -82,9 +82,9 @@ export async function createCustomField(input: CreateCustomFieldInput, ctx: Serv
   const eventCount = await prisma.fieldDefinition.count({
     where: { tenantId: ctx.tenantId, eventId: input.eventId },
   });
-  if (eventCount >= CUSTOM_FIELD_LIMITS.maxPerEvent) {
-    throw new CustomFieldError(
-      `Event limit reached: maximum ${CUSTOM_FIELD_LIMITS.maxPerEvent} custom fields per event`,
+  if (eventCount >= DYNAMIC_FIELD_LIMITS.maxPerEvent) {
+    throw new DynamicFieldError(
+      `Event limit reached: maximum ${DYNAMIC_FIELD_LIMITS.maxPerEvent} dynamic fields per event`,
       422,
     );
   }
@@ -119,7 +119,7 @@ export async function createCustomField(input: CreateCustomFieldInput, ctx: Serv
       },
     });
 
-    logger.info({ fieldId: field.id, tenantId: ctx.tenantId }, "Custom field created");
+    logger.info({ fieldId: field.id, tenantId: ctx.tenantId }, "Dynamic field created");
 
     await prisma.auditLog.create({
       data: {
@@ -128,7 +128,7 @@ export async function createCustomField(input: CreateCustomFieldInput, ctx: Serv
         action: "CREATE",
         entityType: "FieldDefinition",
         entityId: field.id,
-        description: `Created custom field "${input.label}" (${input.name})`,
+        description: `Created dynamic field "${input.label}" (${input.name})`,
         ipAddress: ctx.ipAddress,
         userAgent: ctx.userAgent,
         metadata: { name: input.name, dataType: input.dataType, entityType: input.entityType },
@@ -138,7 +138,7 @@ export async function createCustomField(input: CreateCustomFieldInput, ctx: Serv
     return field;
   } catch (error: unknown) {
     if (isPrismaUniqueConstraintError(error)) {
-      throw new CustomFieldError(
+      throw new DynamicFieldError(
         `A field with name "${input.name}" already exists for this event and entity type`,
         409,
       );
@@ -147,16 +147,16 @@ export async function createCustomField(input: CreateCustomFieldInput, ctx: Serv
   }
 }
 
-export async function updateCustomField(
+export async function updateDynamicField(
   id: string,
-  input: UpdateCustomFieldInput,
+  input: UpdateDynamicFieldInput,
   ctx: ServiceContext,
 ) {
   const existing = await prisma.fieldDefinition.findFirst({
     where: { id, tenantId: ctx.tenantId },
   });
   if (!existing) {
-    throw new CustomFieldError("Custom field not found", 404);
+    throw new DynamicFieldError("Dynamic field not found", 404);
   }
 
   try {
@@ -181,7 +181,7 @@ export async function updateCustomField(
       },
     });
 
-    logger.info({ fieldId: id, tenantId: ctx.tenantId }, "Custom field updated");
+    logger.info({ fieldId: id, tenantId: ctx.tenantId }, "Dynamic field updated");
 
     await prisma.auditLog.create({
       data: {
@@ -190,7 +190,7 @@ export async function updateCustomField(
         action: "UPDATE",
         entityType: "FieldDefinition",
         entityId: id,
-        description: `Updated custom field "${field.label}" (${field.name})`,
+        description: `Updated dynamic field "${field.label}" (${field.name})`,
         ipAddress: ctx.ipAddress,
         userAgent: ctx.userAgent,
         metadata: {
@@ -203,7 +203,7 @@ export async function updateCustomField(
     return field;
   } catch (error: unknown) {
     if (isPrismaUniqueConstraintError(error)) {
-      throw new CustomFieldError(
+      throw new DynamicFieldError(
         `A field with name "${input.name}" already exists for this event and entity type`,
         409,
       );
@@ -212,7 +212,7 @@ export async function updateCustomField(
   }
 }
 
-export async function deleteCustomField(
+export async function deleteDynamicField(
   id: string,
   ctx: ServiceContext,
   options: { force?: boolean } = {},
@@ -221,7 +221,7 @@ export async function deleteCustomField(
     where: { id, tenantId: ctx.tenantId },
   });
   if (!existing) {
-    throw new CustomFieldError("Custom field not found", 404);
+    throw new DynamicFieldError("Dynamic field not found", 404);
   }
 
   // Check if any participant has data for this field (unless force)
@@ -233,7 +233,7 @@ export async function deleteCustomField(
       existing.name,
     );
     if (hasData[0] && Number(hasData[0].count) > 0) {
-      throw new CustomFieldError(
+      throw new DynamicFieldError(
         `Cannot delete: ${Number(hasData[0].count)} record(s) have data for this field. Use force=true to delete anyway.`,
         422,
       );
@@ -242,7 +242,7 @@ export async function deleteCustomField(
 
   await prisma.fieldDefinition.delete({ where: { id } });
 
-  logger.info({ fieldId: id, tenantId: ctx.tenantId }, "Custom field deleted");
+  logger.info({ fieldId: id, tenantId: ctx.tenantId }, "Dynamic field deleted");
 
   await prisma.auditLog.create({
     data: {
@@ -251,7 +251,7 @@ export async function deleteCustomField(
       action: "DELETE",
       entityType: "FieldDefinition",
       entityId: id,
-      description: `Deleted custom field "${existing.label}" (${existing.name})`,
+      description: `Deleted dynamic field "${existing.label}" (${existing.name})`,
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
       metadata: { name: existing.name, dataType: existing.dataType },
@@ -261,7 +261,7 @@ export async function deleteCustomField(
   return { success: true };
 }
 
-export async function reorderCustomFields(input: ReorderFieldsInput, ctx: ServiceContext) {
+export async function reorderDynamicFields(input: ReorderFieldsInput, ctx: ServiceContext) {
   // Verify all fields belong to this tenant
   const fields = await prisma.fieldDefinition.findMany({
     where: { id: { in: input.fieldIds }, tenantId: ctx.tenantId },
@@ -271,7 +271,7 @@ export async function reorderCustomFields(input: ReorderFieldsInput, ctx: Servic
   const foundIds = new Set(fields.map((f) => f.id));
   const missing = input.fieldIds.filter((id) => !foundIds.has(id));
   if (missing.length > 0) {
-    throw new CustomFieldError(`Fields not found or not accessible: ${missing.join(", ")}`, 404);
+    throw new DynamicFieldError(`Fields not found or not accessible: ${missing.join(", ")}`, 404);
   }
 
   await prisma.$transaction(
@@ -283,7 +283,7 @@ export async function reorderCustomFields(input: ReorderFieldsInput, ctx: Servic
     ),
   );
 
-  logger.info({ tenantId: ctx.tenantId, count: input.fieldIds.length }, "Custom fields reordered");
+  logger.info({ tenantId: ctx.tenantId, count: input.fieldIds.length }, "Dynamic fields reordered");
 
   await prisma.auditLog.create({
     data: {
@@ -291,7 +291,7 @@ export async function reorderCustomFields(input: ReorderFieldsInput, ctx: Servic
       userId: ctx.userId,
       action: "UPDATE",
       entityType: "FieldDefinition",
-      description: `Reordered ${input.fieldIds.length} custom fields`,
+      description: `Reordered ${input.fieldIds.length} dynamic fields`,
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
       metadata: { fieldIds: input.fieldIds },
@@ -301,14 +301,30 @@ export async function reorderCustomFields(input: ReorderFieldsInput, ctx: Servic
   return { success: true };
 }
 
+export async function getFieldDataCount(fieldId: string, tenantId: string): Promise<number> {
+  const field = await prisma.fieldDefinition.findFirst({
+    where: { id: fieldId, tenantId },
+    select: { name: true, entityType: true },
+  });
+  if (!field) return 0;
+
+  const entityTable = field.entityType === "Event" ? "Event" : "Participant";
+  const result = await prisma.$queryRawUnsafe<{ count: bigint }[]>(
+    `SELECT COUNT(*) as count FROM "${entityTable}" WHERE "tenantId" = $1 AND extras ? $2`,
+    tenantId,
+    field.name,
+  );
+  return result[0] ? Number(result[0].count) : 0;
+}
+
 // Error class for service-layer errors with HTTP status codes
-export class CustomFieldError extends Error {
+export class DynamicFieldError extends Error {
   constructor(
     message: string,
     public status: number,
   ) {
     super(message);
-    this.name = "CustomFieldError";
+    this.name = "DynamicFieldError";
   }
 }
 

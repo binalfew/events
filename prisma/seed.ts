@@ -51,10 +51,10 @@ async function main() {
     { resource: "workflow", action: "read" },
     { resource: "workflow", action: "update" },
     { resource: "workflow", action: "delete" },
-    { resource: "custom-field", action: "create" },
-    { resource: "custom-field", action: "read" },
-    { resource: "custom-field", action: "update" },
-    { resource: "custom-field", action: "delete" },
+    { resource: "dynamic-field", action: "create" },
+    { resource: "dynamic-field", action: "read" },
+    { resource: "dynamic-field", action: "update" },
+    { resource: "dynamic-field", action: "delete" },
     { resource: "event", action: "create" },
     { resource: "event", action: "read" },
     { resource: "event", action: "update" },
@@ -106,7 +106,7 @@ async function main() {
     ],
     PRINTER: ["participant:read", "participant:print"],
     DISPATCHER: ["participant:read", "participant:collect"],
-    VIEWER: ["participant:read", "workflow:read", "custom-field:read", "event:read"],
+    VIEWER: ["participant:read", "workflow:read", "dynamic-field:read", "event:read"],
   };
 
   for (const [roleName, permKeys] of Object.entries(rolePermissionAssignments)) {
@@ -233,6 +233,117 @@ async function main() {
   console.log(
     `Seeded 3 workflow steps: ${reviewStep.name} → ${approvalStep.name} → ${printStep.name}`,
   );
+
+  // ─── Field Definitions (for dynamic form testing) ───
+  const fieldDefs = [
+    {
+      name: "passport_number",
+      label: "Passport Number",
+      dataType: "TEXT" as const,
+      isRequired: true,
+      sortOrder: 1,
+      config: { placeholder: "e.g. AB1234567", maxLength: 20 },
+    },
+    {
+      name: "date_of_birth",
+      label: "Date of Birth",
+      dataType: "DATE" as const,
+      isRequired: true,
+      sortOrder: 2,
+    },
+    {
+      name: "dietary_requirements",
+      label: "Dietary Requirements",
+      dataType: "ENUM" as const,
+      isRequired: false,
+      sortOrder: 3,
+      config: {
+        options: [
+          { value: "none", label: "None" },
+          { value: "vegetarian", label: "Vegetarian" },
+          { value: "vegan", label: "Vegan" },
+          { value: "halal", label: "Halal" },
+          { value: "kosher", label: "Kosher" },
+          { value: "gluten_free", label: "Gluten Free" },
+        ],
+      },
+    },
+    {
+      name: "bio",
+      label: "Short Biography",
+      dataType: "LONG_TEXT" as const,
+      isRequired: false,
+      sortOrder: 4,
+      config: { maxLength: 500, rows: 4 },
+    },
+    {
+      name: "vip",
+      label: "VIP Access Required",
+      dataType: "BOOLEAN" as const,
+      isRequired: false,
+      sortOrder: 5,
+    },
+    {
+      name: "delegation_size",
+      label: "Delegation Size",
+      dataType: "NUMBER" as const,
+      isRequired: false,
+      sortOrder: 6,
+      config: { min: 1, max: 100, placeholder: "Number of delegates" },
+    },
+    {
+      name: "contact_email",
+      label: "Contact Email",
+      dataType: "EMAIL" as const,
+      isRequired: true,
+      sortOrder: 7,
+      config: { placeholder: "delegate@example.org" },
+    },
+    {
+      name: "languages_spoken",
+      label: "Languages Spoken",
+      dataType: "MULTI_ENUM" as const,
+      isRequired: false,
+      sortOrder: 8,
+      config: {
+        options: [
+          { value: "en", label: "English" },
+          { value: "fr", label: "French" },
+          { value: "ar", label: "Arabic" },
+          { value: "pt", label: "Portuguese" },
+          { value: "sw", label: "Swahili" },
+        ],
+      },
+    },
+  ];
+
+  for (const fd of fieldDefs) {
+    await prisma.fieldDefinition.upsert({
+      where: {
+        tenantId_eventId_participantTypeId_entityType_name: {
+          tenantId: tenant.id,
+          eventId: event.id,
+          participantTypeId: participantType.id,
+          entityType: "Participant",
+          name: fd.name,
+        },
+      },
+      update: {},
+      create: {
+        tenantId: tenant.id,
+        eventId: event.id,
+        participantTypeId: participantType.id,
+        entityType: "Participant",
+        name: fd.name,
+        label: fd.label,
+        dataType: fd.dataType,
+        isRequired: fd.isRequired,
+        sortOrder: fd.sortOrder,
+        config: fd.config ?? {},
+      },
+    });
+  }
+  console.log(`Seeded ${fieldDefs.length} field definitions`);
 }
 
 main()

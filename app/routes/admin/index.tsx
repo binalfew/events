@@ -1,7 +1,7 @@
 import { useRouteLoaderData } from "react-router";
 
 export default function DashboardIndex() {
-  const data = useRouteLoaderData("routes/dashboard/_layout") as
+  const data = useRouteLoaderData("routes/admin/_layout") as
     | { user: { id: string; name: string | null; email: string }; roles: string[] }
     | undefined;
 

@@ -24,7 +24,7 @@ describe("session.server", () => {
   describe("getUserId", () => {
     it("should return null when no session cookie is present", async () => {
       const { getUserId } = await import("../session.server");
-      const request = new Request("http://localhost:3000/dashboard");
+      const request = new Request("http://localhost:3000/admin");
       const userId = await getUserId(request);
       expect(userId).toBeNull();
     });
@@ -33,7 +33,7 @@ describe("session.server", () => {
   describe("requireUserId", () => {
     it("should throw a redirect to /auth/login when no session", async () => {
       const { requireUserId } = await import("../session.server");
-      const request = new Request("http://localhost:3000/dashboard");
+      const request = new Request("http://localhost:3000/admin");
 
       try {
         await requireUserId(request);
@@ -44,13 +44,13 @@ describe("session.server", () => {
         expect(res.status).toBe(302);
         const location = res.headers.get("Location");
         expect(location).toContain("/auth/login");
-        expect(location).toContain("redirectTo=%2Fdashboard");
+        expect(location).toContain("redirectTo=%2Fadmin");
       }
     });
 
     it("should preserve custom redirectTo path", async () => {
       const { requireUserId } = await import("../session.server");
-      const request = new Request("http://localhost:3000/dashboard/events");
+      const request = new Request("http://localhost:3000/admin/events");
 
       try {
         await requireUserId(request, "/custom-path");

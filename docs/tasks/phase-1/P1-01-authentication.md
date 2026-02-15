@@ -62,7 +62,7 @@ export async function logout(request: Request): Promise<Response>;
 
 - **GET**: Render login form (email + password)
 - **POST (action)**: Validate credentials, check account lockout, create session
-- Redirect authenticated users to `/dashboard`
+- Redirect authenticated users to `/admin`
 - Progressive enhancement: works without JavaScript
 
 **Login flow:**
@@ -157,8 +157,8 @@ Write tests for:
 
 ## Acceptance Criteria
 
-- [ ] Navigating to `/dashboard` without a session redirects to `/auth/login`
-- [ ] Logging in with valid credentials creates a session and redirects to `/dashboard`
+- [ ] Navigating to `/admin` without a session redirects to `/auth/login`
+- [ ] Logging in with valid credentials creates a session and redirects to `/admin`
 - [ ] Logging in with invalid credentials shows an error message
 - [ ] After 5 failed login attempts, the account is locked
 - [ ] Locked accounts show a "locked" message and cannot log in

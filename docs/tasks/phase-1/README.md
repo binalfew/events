@@ -16,9 +16,9 @@
 
 All of the following must be true before Phase 2 begins:
 
-- Admin can create, edit, reorder, and delete custom field definitions
-- Custom fields render dynamically on registration forms
-- JSONB queries support filtering by custom field values with expression indexes
+- Admin can create, edit, reorder, and delete field definitions
+- Fields render dynamically on registration forms
+- JSONB queries support filtering by field values with expression indexes
 - Workflow versioning snapshots active version when participant enters workflow
 - SLA overdue detection runs as background job every 5 minutes
 - Optimistic locking prevents concurrent approve/reject on same participant
@@ -36,7 +36,7 @@ All of the following must be true before Phase 2 begins:
 | P1-02   | Custom Field Definition CRUD           | Senior Backend     | P1-00        | 3d   |
 | P1-03   | Dynamic Zod Schema Builder             | Senior Backend     | P1-02        | 2d   |
 | P1-04   | Dynamic Form Renderer                  | Frontend           | P1-03        | 3d   |
-| P1-05   | Custom Field Admin UI                  | Frontend           | P1-01, P1-04 | 4d   |
+| P1-05   | Field Admin UI                         | Frontend           | P1-01, P1-04 | 4d   |
 | P1-06   | JSONB Query Layer & Expression Indexes | Senior Backend     | P1-00        | 3d   |
 | P1-07   | Workflow Versioning                    | Senior Backend     | P1-00        | 3d   |
 | P1-08   | SLA Enforcement                        | Senior Backend     | P1-07        | 3d   |

@@ -20,7 +20,7 @@ const loginSchema = z.object({
 
 export async function loader({ request }: Route.LoaderArgs) {
   const userId = await getUserId(request);
-  if (userId) throw redirect("/dashboard");
+  if (userId) throw redirect("/admin");
   return {};
 }
 
@@ -177,7 +177,7 @@ export async function action({ request }: Route.ActionArgs) {
     },
   });
 
-  return createUserSession(user.id, redirectTo || "/dashboard");
+  return createUserSession(user.id, redirectTo || "/admin");
 }
 
 export default function LoginPage({ actionData }: Route.ComponentProps) {

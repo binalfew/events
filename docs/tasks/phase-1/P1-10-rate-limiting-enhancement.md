@@ -49,14 +49,14 @@ function createKeyGenerator() {
 
 Add targeted rate limits for API endpoints that are sensitive or expensive:
 
-| Route Pattern                        | Limit      | Window | Rationale                                |
-| ------------------------------------ | ---------- | ------ | ---------------------------------------- |
-| `POST /api/v1/custom-fields`         | 30 req/min | 60s    | Field creation is admin-only, infrequent |
-| `POST /api/v1/participants/search`   | 60 req/min | 60s    | Search can be expensive with JSONB       |
-| `POST /api/v1/custom-fields/reorder` | 20 req/min | 60s    | Bulk operation, infrequent               |
-| `POST /auth/login`                   | 10 req/min | 60s    | Brute force prevention (existing)        |
-| `PUT /api/v1/participants/*`         | 60 req/min | 60s    | Workflow actions (approve/reject)        |
-| `POST /api/v1/files`                 | 10 req/min | 60s    | File upload (resource-intensive)         |
+| Route Pattern                         | Limit      | Window | Rationale                                |
+| ------------------------------------- | ---------- | ------ | ---------------------------------------- |
+| `POST /api/v1/dynamic-fields`         | 30 req/min | 60s    | Field creation is admin-only, infrequent |
+| `POST /api/v1/participants/search`    | 60 req/min | 60s    | Search can be expensive with JSONB       |
+| `POST /api/v1/dynamic-fields/reorder` | 20 req/min | 60s    | Bulk operation, infrequent               |
+| `POST /auth/login`                    | 10 req/min | 60s    | Brute force prevention (existing)        |
+| `PUT /api/v1/participants/*`          | 60 req/min | 60s    | Workflow actions (approve/reject)        |
+| `POST /api/v1/files`                  | 10 req/min | 60s    | File upload (resource-intensive)         |
 
 ### 3. Rate Limit Headers
 

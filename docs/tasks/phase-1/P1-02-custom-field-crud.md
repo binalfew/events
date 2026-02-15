@@ -39,7 +39,7 @@ The FieldDefinition model (created in P1-00) stores metadata about each dynamic 
 
 ## Deliverables
 
-### 1. Validation Schemas (`app/lib/schemas/custom-field.ts`)
+### 1. Validation Schemas (`app/lib/schemas/dynamic-field.ts`)
 
 Zod schemas for validating custom field definition payloads:
 
@@ -105,7 +105,7 @@ export const reorderFieldsSchema = z.object({
 });
 ```
 
-### 2. Custom Field Service (`app/services/custom-fields.server.ts`)
+### 2. Dynamic Field Service (`app/services/dynamic-fields.server.ts`)
 
 Business logic layer that enforces constraints:
 
@@ -151,19 +151,19 @@ export async function reorderCustomFields(tenantId: string, fieldIds: string[]):
 // - Use a transaction for atomicity
 ```
 
-### 3. API Route (`app/routes/api.v1.custom-fields.tsx`)
+### 3. API Routes (`app/routes/api/v1/dynamic-fields/`)
 
-React Router resource route for CRUD operations:
+React Router resource routes for CRUD operations:
 
 **Endpoints:**
 
-| Method | Path                                          | Description                 |
-| ------ | --------------------------------------------- | --------------------------- |
-| GET    | `/api/v1/custom-fields?tenantId=&eventId=...` | List fields with filters    |
-| POST   | `/api/v1/custom-fields`                       | Create a new field          |
-| PUT    | `/api/v1/custom-fields/:id`                   | Update an existing field    |
-| DELETE | `/api/v1/custom-fields/:id`                   | Delete a field              |
-| POST   | `/api/v1/custom-fields/reorder`               | Reorder fields within scope |
+| Method | Path                                           | Description                 |
+| ------ | ---------------------------------------------- | --------------------------- |
+| GET    | `/api/v1/dynamic-fields?tenantId=&eventId=...` | List fields with filters    |
+| POST   | `/api/v1/dynamic-fields`                       | Create a new field          |
+| PUT    | `/api/v1/dynamic-fields/:id`                   | Update an existing field    |
+| DELETE | `/api/v1/dynamic-fields/:id`                   | Delete a field              |
+| POST   | `/api/v1/dynamic-fields/reorder`               | Reorder fields within scope |
 
 **GET Response (200):**
 
@@ -199,7 +199,7 @@ React Router resource route for CRUD operations:
 - `409` — Duplicate field name within scope
 - `422` — Limit exceeded (max fields per tenant/event)
 
-### 4. Config Constants (`app/config/custom-fields.ts`)
+### 4. Config Constants (`app/config/dynamic-fields.ts`)
 
 ```typescript
 export const CUSTOM_FIELD_LIMITS = {
@@ -228,12 +228,12 @@ Write tests for:
 
 ## Acceptance Criteria
 
-- [ ] GET `/api/v1/custom-fields` returns fields filtered by tenantId, eventId, participantTypeId
-- [ ] POST `/api/v1/custom-fields` creates a field with all supported data types
+- [ ] GET `/api/v1/dynamic-fields` returns fields filtered by tenantId, eventId, participantTypeId
+- [ ] POST `/api/v1/dynamic-fields` creates a field with all supported data types
 - [ ] Duplicate field names within the same scope return 409 Conflict
-- [ ] PUT `/api/v1/custom-fields/:id` updates field properties and logs changes
-- [ ] DELETE `/api/v1/custom-fields/:id` removes the field and its indexes
-- [ ] POST `/api/v1/custom-fields/reorder` updates sortOrder atomically
+- [ ] PUT `/api/v1/dynamic-fields/:id` updates field properties and logs changes
+- [ ] DELETE `/api/v1/dynamic-fields/:id` removes the field and its indexes
+- [ ] POST `/api/v1/dynamic-fields/reorder` updates sortOrder atomically
 - [ ] Field name is validated as snake_case starting with a letter
 - [ ] Max field limits (500 per tenant, 100 per event) are enforced
 - [ ] All operations log to AuditLog with before/after diffs

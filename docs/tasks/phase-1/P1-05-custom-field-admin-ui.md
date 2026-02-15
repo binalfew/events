@@ -1,4 +1,4 @@
-# P1-05: Custom Field Admin UI
+# P1-05: Field Admin UI
 
 | Field                  | Value                                                            |
 | ---------------------- | ---------------------------------------------------------------- |
@@ -15,15 +15,15 @@
 
 ## Context
 
-Tenant admins need a self-service interface to define, edit, reorder, and delete custom fields for their events. This is the UI counterpart to the CRUD API (P1-02). The admin can configure what data each event collects without developer involvement — the core "configuration over code" principle.
+Tenant admins need a self-service interface to define, edit, reorder, and delete fields for their events. This is the UI counterpart to the CRUD API (P1-02). The admin can configure what data each event collects without developer involvement — the core "configuration over code" principle.
 
 ---
 
 ## Deliverables
 
-### 1. Custom Fields List Page (`app/routes/_dashboard.events.$eventId.custom-fields.tsx`)
+### 1. Fields List Page (`app/routes/admin/events/$eventId/fields/index.tsx`)
 
-A table/list view showing all custom fields for an event:
+A table/list view showing all fields for an event:
 
 **Columns:**
 | Column | Source | Notes |
@@ -46,7 +46,7 @@ A table/list view showing all custom fields for an event:
 - Bulk delete (checkbox selection + "Delete Selected" button)
 - Empty state with helpful onboarding message
 
-### 2. Create/Edit Field Dialog (`app/components/custom-fields/CustomFieldForm.tsx`)
+### 2. Create/Edit Field Form (`app/components/dynamic-fields/FieldForm.tsx`)
 
 A form (modal dialog or full page) for creating/editing a field definition:
 
@@ -100,7 +100,7 @@ A form (modal dialog or full page) for creating/editing a field definition:
 - Section name (for grouping in forms)
 - Column span (1-12 for grid layout)
 
-### 3. Enum Options Editor (`app/components/custom-fields/EnumOptionsEditor.tsx`)
+### 3. Enum Options Editor (`app/components/dynamic-fields/EnumOptionsEditor.tsx`)
 
 A sub-component for managing ENUM/MULTI_ENUM options:
 
@@ -110,7 +110,7 @@ A sub-component for managing ENUM/MULTI_ENUM options:
 - Auto-generate value from label (kebab-case)
 - Color picker for category-style enums
 
-### 4. Field Preview (`app/components/custom-fields/FieldPreview.tsx`)
+### 4. Field Preview (`app/components/dynamic-fields/FieldPreview.tsx`)
 
 Live preview of the field as it will appear in a form:
 
@@ -129,11 +129,11 @@ When deleting a field:
 
 ### 6. Routes
 
-| Route                                                   | Purpose                   |
-| ------------------------------------------------------- | ------------------------- |
-| `_dashboard.events.$eventId.custom-fields.tsx`          | List all fields for event |
-| `_dashboard.events.$eventId.custom-fields.new.tsx`      | Create new field          |
-| `_dashboard.events.$eventId.custom-fields.$fieldId.tsx` | Edit existing field       |
+| Route                                       | Purpose                   |
+| ------------------------------------------- | ------------------------- |
+| `admin/events/$eventId/fields/index.tsx`    | List all fields for event |
+| `admin/events/$eventId/fields/new.tsx`      | Create new field          |
+| `admin/events/$eventId/fields/$fieldId.tsx` | Edit existing field       |
 
 ### 7. Tests
 
@@ -152,7 +152,7 @@ Write tests for:
 
 ## Acceptance Criteria
 
-- [ ] Admin can view all custom fields for an event in a sortable table
+- [ ] Admin can view all fields for an event in a sortable table
 - [ ] Admin can create a new field with all supported data types
 - [ ] Field name auto-generates from label in snake_case
 - [ ] Type-specific config panel changes when data type is selected

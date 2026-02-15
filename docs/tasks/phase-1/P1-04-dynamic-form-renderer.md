@@ -7,7 +7,7 @@
 | **Category**           | Dynamic Schema / Frontend                                             |
 | **Suggested Assignee** | Frontend Developer                                                    |
 | **Depends On**         | P1-03                                                                 |
-| **Blocks**             | P1-05 (Custom Field Admin UI)                                         |
+| **Blocks**             | P1-05 (Field Admin UI)                                                |
 | **Estimated Effort**   | 3 days                                                                |
 | **Module References**  | [Module 02 §Form Renderer](../../modules/02-DYNAMIC-SCHEMA-ENGINE.md) |
 
@@ -121,7 +121,7 @@ export const countries = [
 Demonstrate the full pipeline in a sample route (can be a test route removed later):
 
 ```typescript
-// app/routes/_dashboard.test-dynamic-form.tsx
+// app/routes/admin/test-dynamic-form.tsx
 export async function loader({ request }: LoaderFunctionArgs) {
   const { user } = await requireAuth(request);
   const fieldDefs = await listCustomFields({
@@ -179,3 +179,25 @@ Write tests for:
 - [ ] The renderer works with progressive enhancement (no JavaScript needed)
 - [ ] All components pass accessibility checks (labels, aria attributes)
 - [ ] `npm run typecheck` passes with zero errors
+
+---
+
+## Implementation Reconciliation Note
+
+**Completed:** 2026-02-15
+
+The implementation diverged from the task doc in several areas to match the actual codebase:
+
+| Task Doc                                  | Actual                                             | Decision                                                                                |
+| ----------------------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `CustomFieldDef` type                     | `FieldDefinition` from `~/generated/prisma/client` | Used `FieldDefinition`                                                                  |
+| `COUNTRY`, `USER` data types              | Not in `FieldDataType` enum                        | Skipped — only mapped 16 existing types                                                 |
+| Country data file `app/data/countries.ts` | No COUNTRY type exists                             | Skipped entirely                                                                        |
+| Radix `Select` for ENUM                   | shadcn/ui adopted                                  | Used shadcn `NativeSelect` (progressive enhancement, Conform-compatible)                |
+| 8 separate base input component files     | shadcn/ui components installed                     | shadcn `Input`/`Textarea`/`NativeSelect` + ConformField wrapper in DynamicFieldRenderer |
+| `uiConfig.section` grouping               | No `uiConfig` field on FieldDefinition             | Flat rendering (no section grouping)                                                    |
+| React Testing Library for component tests | Not installed                                      | Tested extracted pure logic functions only (25 tests)                                   |
+
+**Post-implementation refactor:** Adopted shadcn/ui as the project component library. Replaced raw HTML inputs with shadcn `Input`, `Textarea`, `NativeSelect`, `Button`, and `Label` components. Replaced `FieldWrapper` with `ConformField` (uses shadcn `Label` + semantic tokens like `text-destructive`, `text-muted-foreground`). Refactored `auth.login.tsx` and dashboard routes for consistency.
+
+**Verification:** `npm run typecheck` zero errors, `npx vitest run` 142/142 tests pass.

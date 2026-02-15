@@ -86,9 +86,9 @@ export function buildFieldDefinition(overrides?: Record<string, unknown>) {
   const n = unique();
   return {
     entityType: "Participant",
-    name: `custom_field_${n}`,
-    label: `Custom Field ${n}`,
-    description: `Description for custom field ${n}`,
+    name: `dynamic_field_${n}`,
+    label: `Dynamic Field ${n}`,
+    description: `Description for dynamic field ${n}`,
     dataType: "TEXT" as const,
     sortOrder: n,
     isRequired: false,

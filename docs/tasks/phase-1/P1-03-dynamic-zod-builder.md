@@ -13,6 +13,24 @@
 
 ---
 
+## Implementation Reconciliation Note
+
+> **Implemented:** 2026-02-15 | **Tests:** 53 pass | **Files:** `app/lib/dynamic-fields.server.ts`, `app/lib/__tests__/dynamic-fields.server.test.ts`
+
+The following divergences from this task doc were resolved during implementation:
+
+| Task Doc                                  | Actual Codebase                                    | Decision                                                                             |
+| ----------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `CustomFieldDef` type                     | `FieldDefinition` from `~/generated/prisma/client` | Used `FieldDefinition`                                                               |
+| `import { z } from "zod"`                 | Codebase uses `import { z } from "zod/v4"`         | Used `zod/v4` (Zod v4 classic API)                                                   |
+| `COUNTRY` data type                       | Not in `FieldDataType` enum                        | Omitted — only mapped the 16 existing types                                          |
+| `USER` data type                          | Not in `FieldDataType` enum                        | Omitted — only mapped the 16 existing types                                          |
+| `z.record(z.unknown())`                   | Zod v4 requires explicit key type                  | Used `z.record(z.string(), z.unknown())`                                             |
+| `FORMULA` field                           | Computed at read-time                              | Returns `z.any()` — not validated on user input                                      |
+| `.optional().nullable()` for non-required | Zod v4 `.optional()` suffices                      | Used `.optional()` only — nullable adds complexity without benefit for JSONB storage |
+
+---
+
 ## Context
 
 The dynamic schema engine stores field definitions as database records (CustomFieldDef). At runtime, these definitions must be converted into Zod validation schemas that work with Conform for server-side form validation. This task builds the `buildCustomDataSchema()` utility that bridges the gap between metadata and runtime validation.
@@ -27,7 +45,7 @@ CustomFieldDef (DB) → Zod Schema (runtime) → Conform (form binding) → Serv
 
 ## Deliverables
 
-### 1. Zod Schema Builder (`app/utils/custom-fields.server.ts`)
+### 1. Zod Schema Builder (`app/lib/dynamic-fields.server.ts`)
 
 ```typescript
 import { z } from "zod";
@@ -81,7 +99,7 @@ for (const rule of field.validation || []) {
 }
 ```
 
-### 2. Form Data Parser (`app/utils/custom-fields.server.ts`)
+### 2. Form Data Parser (`app/lib/dynamic-fields.server.ts`)
 
 Utility to parse and coerce form data into the correct types before Zod validation:
 
@@ -104,7 +122,7 @@ export function parseCustomFormData(
 - DATE/DATETIME → keep as string (ISO format)
 - All others → `String(value)` or `undefined` if empty
 
-### 3. Schema Cache (`app/utils/custom-fields.server.ts`)
+### 3. Schema Cache (`app/lib/dynamic-fields.server.ts`)
 
 Cache compiled Zod schemas to avoid rebuilding on every request:
 
@@ -126,7 +144,7 @@ export function getCachedSchema(
 - Cache invalidates when field definitions change (compare hash of field IDs + updatedAt)
 - Maximum cache size: 1000 entries (LRU eviction)
 
-### 4. Conform Integration Helper (`app/utils/custom-fields.server.ts`)
+### 4. Conform Integration Helper (`app/lib/dynamic-fields.server.ts`)
 
 Utility to create Conform-compatible form metadata from field definitions:
 
@@ -135,9 +153,7 @@ Utility to create Conform-compatible form metadata from field definitions:
  * Build Conform field metadata for use with useForm().
  * Returns the constraint object that Conform uses for client-side hints.
  */
-export function buildConformConstraints(
-  fieldDefs: CustomFieldDef[],
-): Record<
+export function buildConformConstraints(fieldDefs: CustomFieldDef[]): Record<
   string,
   {
     required?: boolean;
