@@ -356,20 +356,24 @@ model WorkflowVersion {
   createdBy         String
   createdAt         DateTime @default(now())
 
+  participants Participant[]
+
   @@unique([workflowId, version])
   @@index([workflowId])
 }
 
 model Participant {
-  id                String          @id @default(cuid())
+  id                String           @id @default(cuid())
   tenantId          String
-  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   eventId           String
-  event             Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event             Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
   participantTypeId String
-  participantType   ParticipantType @relation(fields: [participantTypeId], references: [id])
+  participantType   ParticipantType  @relation(fields: [participantTypeId], references: [id])
   workflowId        String
-  workflow          Workflow        @relation(fields: [workflowId], references: [id])
+  workflow          Workflow         @relation(fields: [workflowId], references: [id])
+  workflowVersionId String?
+  workflowVersion   WorkflowVersion? @relation(fields: [workflowVersionId], references: [id])
   currentStepId     String?
   // Fixed identity fields
   registrationCode  String
@@ -379,11 +383,11 @@ model Participant {
   organization      String?
   jobTitle          String?
   nationality       String?
-  status            RequestStatus   @default(PENDING)
+  status            RequestStatus    @default(PENDING)
   // Dynamic fields
-  extras            Json            @default("{}")
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  extras            Json             @default("{}")
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
   deletedAt         DateTime?
 
   approvals Approval[]
@@ -393,6 +397,7 @@ model Participant {
   @@index([eventId, status])
   @@index([participantTypeId])
   @@index([workflowId])
+  @@index([workflowVersionId])
   @@index([currentStepId])
   @@index([deletedAt])
 }
