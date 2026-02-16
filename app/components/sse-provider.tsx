@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { useRevalidator } from "react-router";
 import { useSSE } from "~/hooks/use-sse";
 import { toast } from "~/hooks/use-toast";
 import type { SSEChannel, SSEEventType } from "~/types/sse-events";
@@ -11,6 +12,8 @@ interface SSEProviderProps {
 }
 
 export function SSEProvider({ enabled, children }: SSEProviderProps) {
+  const revalidator = useRevalidator();
+
   const handleEvent = useCallback(
     (event: { type: SSEEventType; data: Record<string, unknown> }) => {
       const { type, data } = event;
@@ -53,10 +56,12 @@ export function SSEProvider({ enabled, children }: SSEProviderProps) {
             title: String(data.title || "Notification"),
             description: String(data.message || ""),
           });
+          // Revalidate layout to update bell badge and dropdown
+          revalidator.revalidate();
           break;
       }
     },
-    [],
+    [revalidator],
   );
 
   useSSE({

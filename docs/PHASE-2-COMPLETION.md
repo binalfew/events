@@ -1,7 +1,7 @@
 # Phase 2: Dynamic UI & Real-Time — Completion Report
 
 > **Started:** 2026-02-16
-> **Tasks completed:** P2-00, P2-01, P2-02, P2-03, P2-04, P2-05, P2-06, P2-07, P2-08, P2-09
+> **Tasks completed:** P2-00, P2-01, P2-02, P2-03, P2-04, P2-05, P2-06, P2-07, P2-08, P2-09, P2-10
 
 ---
 
@@ -18,6 +18,7 @@
 9. [P2-07 — Section Templates](#9-p2-07--section-templates)
 10. [P2-08 — Skeleton Loading States](#10-p2-08--skeleton-loading-states)
 11. [P2-09 — SSE Real-Time Updates](#11-p2-09--sse-real-time-updates)
+12. [P2-10 — Notification System](#12-p2-10--notification-system)
 
 ---
 
@@ -901,3 +902,48 @@ Added Server-Sent Events (SSE) infrastructure for real-time push notifications. 
 | ------------------- | --------------------- |
 | `npm run typecheck` | Zero errors           |
 | `npm run test`      | 398/398 tests passing |
+
+---
+
+## 12. P2-10 — Notification System
+
+### Summary
+
+Implemented a full notification system with persistent storage, bell icon with unread count badge, popover dropdown, notification center page, and SSE real-time push. The system is feature-gated behind the existing `FF_NOTIFICATIONS` flag.
+
+### Files Created
+
+| File                                   | Purpose                                                              |
+| -------------------------------------- | -------------------------------------------------------------------- |
+| `app/services/notifications.server.ts` | CRUD service: create, list, count, markAsRead, markAllAsRead, delete |
+| `app/components/notification-bell.tsx` | Bell icon with unread badge + popover dropdown                       |
+| `app/routes/admin/notifications.tsx`   | Notification center page with filters + pagination                   |
+| `app/routes/api/notifications.ts`      | Resource route for mark-read/delete actions via fetcher              |
+
+### Files Modified
+
+| File                                   | Change                                                                      |
+| -------------------------------------- | --------------------------------------------------------------------------- |
+| `prisma/schema.prisma`                 | Added `Notification` model + relations on User/Tenant                       |
+| `app/components/layout/top-navbar.tsx` | Replaced bell placeholder with `NotificationBell` component                 |
+| `app/routes/admin/_layout.tsx`         | Added `notificationsEnabled`, `unreadCount`, recent notifications to loader |
+| `app/config/navigation.ts`             | Added Notifications nav item under Main group                               |
+| `app/components/sse-provider.tsx`      | Enhanced `notification:new` to revalidate layout (updates bell)             |
+| `app/types/sse-events.ts`              | Added `notificationId` to `NotificationNewEvent`                            |
+
+### Key Design Decisions
+
+1. **Feature-gated** — Entire system controlled by `FF_NOTIFICATIONS` flag; disabled state falls back to static bell icon
+2. **Popover-based dropdown** — Uses Radix UI Popover for rich notification list without page navigation
+3. **Fetcher-based actions** — Mark-read, mark-all-read, and delete via `useFetcher()` to `/api/notifications` (no page reloads)
+4. **SSE revalidation** — `notification:new` events trigger `useRevalidator()` to refresh the admin layout loader, updating bell badge count in real time
+5. **Date serialization** — Loader maps Prisma `Date` objects to ISO strings for type-safe client rendering
+6. **Fire-and-forget SSE** — Notification creation publishes to event bus in try/catch; SSE failure never breaks DB persistence
+
+### Verification Results
+
+| Check                | Result                      |
+| -------------------- | --------------------------- |
+| `npx prisma db push` | Schema pushed without error |
+| `npm run typecheck`  | Zero errors                 |
+| `npm run test`       | 398/398 tests passing       |

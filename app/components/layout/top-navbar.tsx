@@ -1,5 +1,5 @@
 import { Form, Link, useMatches } from "react-router";
-import { Bell, LogOut, Search, User } from "lucide-react";
+import { LogOut, Search, User } from "lucide-react";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -20,15 +20,28 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
+import { NotificationBell } from "~/components/notification-bell";
 import { ThemeSwitch } from "~/routes/resources/theme-switch";
 import { ColorThemeSelector } from "~/routes/resources/color-theme";
 import type { Theme } from "~/lib/theme.server";
 import type { ColorTheme } from "~/lib/color-theme";
 
+interface NotificationItem {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: string;
+}
+
 type TopNavbarProps = {
   user: { id: string; name: string | null; email: string };
   theme?: Theme | null;
   colorTheme?: ColorTheme;
+  notificationsEnabled?: boolean;
+  unreadCount?: number;
+  notifications?: NotificationItem[];
 };
 
 type BreadcrumbEntry = {
@@ -65,7 +78,14 @@ function getUserInitials(name: string | null, email: string): string {
   return email[0].toUpperCase();
 }
 
-export function TopNavbar({ user, theme, colorTheme }: TopNavbarProps) {
+export function TopNavbar({
+  user,
+  theme,
+  colorTheme,
+  notificationsEnabled = false,
+  unreadCount = 0,
+  notifications = [],
+}: TopNavbarProps) {
   const breadcrumbs = useBreadcrumbs();
 
   return (
@@ -110,11 +130,12 @@ export function TopNavbar({ user, theme, colorTheme }: TopNavbarProps) {
         {/* Color theme selector */}
         <ColorThemeSelector currentTheme={colorTheme} />
 
-        {/* Notifications placeholder */}
-        <Button variant="ghost" size="icon" className="relative size-8">
-          <Bell className="size-4" />
-          <span className="sr-only">Notifications</span>
-        </Button>
+        {/* Notifications */}
+        <NotificationBell
+          unreadCount={unreadCount}
+          notifications={notifications}
+          enabled={notificationsEnabled}
+        />
 
         {/* User menu */}
         <DropdownMenu>

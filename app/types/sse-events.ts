@@ -37,6 +37,7 @@ export interface SLABreachedEvent {
 
 export interface NotificationNewEvent {
   type: "notification:new";
+  notificationId: string;
   title: string;
   message: string;
 }
