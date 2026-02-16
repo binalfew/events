@@ -1,4 +1,4 @@
-import { Outlet, useLoaderData } from "react-router";
+import { Outlet, useLoaderData, useNavigation } from "react-router";
 import { requireAuth } from "~/lib/require-auth.server";
 import { getSidebarState, getSidebarGroupState } from "~/lib/sidebar.server";
 import { getTheme } from "~/lib/theme.server";
@@ -23,11 +23,18 @@ export async function loader({ request }: Route.LoaderArgs) {
 export default function DashboardLayout() {
   const { user, roles, sidebarOpen, sidebarGroups, theme, colorTheme } =
     useLoaderData<typeof loader>();
+  const navigation = useNavigation();
+  const isNavigating = navigation.state === "loading";
 
   return (
     <SidebarProvider defaultOpen={sidebarOpen}>
       <AppSidebar roles={roles} groupState={sidebarGroups} />
       <SidebarInset>
+        {isNavigating && (
+          <div className="fixed inset-x-0 top-0 z-50 h-0.5 overflow-hidden bg-primary/20">
+            <div className="h-full w-1/3 animate-[progress_1s_ease-in-out_infinite] bg-primary" />
+          </div>
+        )}
         <TopNavbar user={user} theme={theme} colorTheme={colorTheme} />
         <div className="flex-1 p-4 md:p-6">
           <Outlet />

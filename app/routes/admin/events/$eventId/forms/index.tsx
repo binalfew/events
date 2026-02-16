@@ -1,5 +1,5 @@
 import { data, Form, Link, redirect, useLoaderData } from "react-router";
-import { Plus, Copy, Trash2, Pencil } from "lucide-react";
+import { Plus, Copy, Trash2, Pencil, FileText } from "lucide-react";
 import { requirePermission } from "~/lib/require-auth.server";
 import { isFeatureEnabled, FEATURE_FLAG_KEYS } from "~/lib/feature-flags.server";
 import { prisma } from "~/lib/db.server";
@@ -13,6 +13,7 @@ import {
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Separator } from "~/components/ui/separator";
+import { EmptyState } from "~/components/ui/empty-state";
 import type { Route } from "./+types/index";
 
 export const handle = { breadcrumb: "Forms" };
@@ -163,12 +164,11 @@ export default function FormsListPage() {
       <Separator />
 
       {templates.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-12 text-center">
-          <p className="text-muted-foreground">No forms created yet.</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Create your first form to start designing the registration experience.
-          </p>
-        </div>
+        <EmptyState
+          icon={FileText}
+          title="No forms created yet"
+          description="Create your first form to start designing the registration experience."
+        />
       ) : (
         <div className="rounded-lg border bg-card">
           <table className="w-full">

@@ -1,7 +1,7 @@
 # Phase 2: Dynamic UI & Real-Time — Completion Report
 
 > **Started:** 2026-02-16
-> **Tasks completed:** P2-00, P2-01, P2-02, P2-03, P2-04, P2-05, P2-06, P2-07
+> **Tasks completed:** P2-00, P2-01, P2-02, P2-03, P2-04, P2-05, P2-06, P2-07, P2-08
 
 ---
 
@@ -16,6 +16,7 @@
 7. [P2-05 — Conditional Visibility Rules](#7-p2-05--conditional-visibility-rules)
 8. [P2-06 — Preview Mode](#8-p2-06--preview-mode)
 9. [P2-07 — Section Templates](#9-p2-07--section-templates)
+10. [P2-08 — Skeleton Loading States](#10-p2-08--skeleton-loading-states)
 
 ---
 
@@ -771,6 +772,72 @@ Adds reusable section templates that admins can save and reuse across form desig
 - **Deep copy semantics**: Templates are stored as JSON snapshots. When inserted, all IDs are regenerated with `crypto.randomUUID()`, making the copy fully independent
 - **Missing field warnings**: Template tab checks each template's `fieldDefinitionId` references against the current event's field definitions and shows an amber warning icon for unresolvable references
 - **Client-side optimistic update**: After saving a template via `fetch()`, the new template is prepended to the local `sectionTemplates` state array, appearing immediately in the Templates tab without requiring a page reload
+
+### Verification Results
+
+| Check               | Result                |
+| ------------------- | --------------------- |
+| `npm run typecheck` | Zero errors           |
+| `npm run test`      | 398/398 tests passing |
+
+---
+
+## 10. P2-08 — Skeleton Loading States
+
+### What This Task Does
+
+Adds skeleton loading states, a status button component, an empty state component, and a navigation progress bar to give users immediate visual feedback during page transitions and data loading.
+
+### Architecture
+
+**UI Components:**
+
+- `StatusButton` — extends Button with loading (spinner), success (check), and error (X) states. Auto-resets after 2s (success) or 3s (error)
+- `EmptyState` — reusable icon + title + description + optional action for zero-result states
+- `Skeleton` — already existed (shadcn pattern with `animate-pulse`)
+
+**Page-Level Skeletons (`app/components/skeletons/`):**
+
+- `TableSkeleton` — configurable columns/rows, matches table layout
+- `CardGridSkeleton` — 3-column responsive grid matching event cards
+- `FormSkeleton` — form sections with field/toggle placeholders matching field edit page
+- `DesignerSkeleton` — three-panel layout matching form designer
+- `DashboardSkeleton` — stat cards placeholder
+
+**Navigation Progress Bar:**
+
+- Thin animated bar at top of viewport during client-side route transitions
+- Uses `useNavigation().state === "loading"` in admin layout
+- CSS keyframe animation (`progress`) for smooth sliding effect
+
+**Empty State Integration:**
+
+- Events list: `CalendarDays` icon with contextual message
+- Forms list: `FileText` icon with contextual message
+- Cross-event forms: `FileText` icon with contextual message
+
+### Files Created
+
+| File                                              | Purpose                                  |
+| ------------------------------------------------- | ---------------------------------------- |
+| `app/components/ui/status-button.tsx`             | Button with loading/success/error states |
+| `app/components/ui/empty-state.tsx`               | Reusable empty state component           |
+| `app/components/skeletons/table-skeleton.tsx`     | Table skeleton with configurable columns |
+| `app/components/skeletons/card-grid-skeleton.tsx` | Card grid skeleton                       |
+| `app/components/skeletons/form-skeleton.tsx`      | Form field skeleton                      |
+| `app/components/skeletons/designer-skeleton.tsx`  | Three-panel designer skeleton            |
+| `app/components/skeletons/dashboard-skeleton.tsx` | Dashboard stat cards skeleton            |
+| `app/components/skeletons/index.ts`               | Barrel export                            |
+
+### Files Modified
+
+| File                                               | Change                                                  |
+| -------------------------------------------------- | ------------------------------------------------------- |
+| `app/routes/admin/_layout.tsx`                     | Added navigation progress bar with `useNavigation`      |
+| `app/routes/admin/events/index.tsx`                | Replaced inline empty state with `EmptyState` component |
+| `app/routes/admin/events/$eventId/forms/index.tsx` | Replaced inline empty state with `EmptyState` component |
+| `app/routes/admin/events/forms.tsx`                | Replaced inline empty state with `EmptyState` component |
+| `app/app.css`                                      | Added `@keyframes progress` animation                   |
 
 ### Verification Results
 

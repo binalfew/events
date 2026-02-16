@@ -1,8 +1,12 @@
 import { data, Link, useLoaderData } from "react-router";
+import { CalendarDays } from "lucide-react";
 
 export const handle = { breadcrumb: "Events" };
 import { requirePermission } from "~/lib/require-auth.server";
 import { prisma } from "~/lib/db.server";
+import { EmptyState } from "~/components/ui/empty-state";
+import { CardGridSkeleton } from "~/components/skeletons";
+import { Skeleton } from "~/components/ui/skeleton";
 import type { Route } from "./+types/index";
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -42,9 +46,11 @@ export default function EventsListPage() {
       </div>
 
       {events.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-12 text-center">
-          <p className="text-muted-foreground">No events found.</p>
-        </div>
+        <EmptyState
+          icon={CalendarDays}
+          title="No events found"
+          description="Events will appear here once they are created."
+        />
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {events.map((event) => (

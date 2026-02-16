@@ -1,8 +1,10 @@
 import { data, Link, useLoaderData } from "react-router";
+import { FileText } from "lucide-react";
 import { requirePermission } from "~/lib/require-auth.server";
 import { isFeatureEnabled, FEATURE_FLAG_KEYS } from "~/lib/feature-flags.server";
 import { listFormTemplates } from "~/services/form-templates.server";
 import { Badge } from "~/components/ui/badge";
+import { EmptyState } from "~/components/ui/empty-state";
 import type { Route } from "./+types/forms";
 
 export const handle = { breadcrumb: "Forms" };
@@ -42,12 +44,11 @@ export default function CrossEventFormsPage() {
       </div>
 
       {templates.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-12 text-center">
-          <p className="text-muted-foreground">No forms created yet.</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Navigate to an event to create your first form template.
-          </p>
-        </div>
+        <EmptyState
+          icon={FileText}
+          title="No forms created yet"
+          description="Navigate to an event to create your first form template."
+        />
       ) : (
         <div className="rounded-lg border bg-card">
           <table className="w-full">
