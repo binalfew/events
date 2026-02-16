@@ -83,3 +83,12 @@ The `docs/modules/` directory contains 19 modular specifications (the authoritat
 - **18** Implementation Roadmap (7 phases)
 
 Modules declare dependency chains in their headers (`Requires`, `Required By`, `Integrates With`).
+
+## Task Completion Workflow
+
+After completing each implementation task (e.g., P2-00, P2-01), update the phase completion document at `docs/PHASE-{N}-COMPLETION.md`. If the file does not yet exist, create it. Each entry should include:
+
+- Task ID and title
+- Summary of what was implemented (files created/modified)
+- Verification results (typecheck, tests, seed, migration)
+- Any notable decisions or deviations from the plan

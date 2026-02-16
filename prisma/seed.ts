@@ -59,6 +59,7 @@ async function main() {
     { resource: "event", action: "read" },
     { resource: "event", action: "update" },
     { resource: "settings", action: "manage" },
+    { resource: "feature-flag", action: "manage" },
   ];
 
   const permissions = await Promise.all(
@@ -344,6 +345,28 @@ async function main() {
     });
   }
   console.log(`Seeded ${fieldDefs.length} field definitions`);
+
+  // ─── Feature Flags ──────────────────────────────────────
+  const defaultFlags = [
+    { key: "FF_VISUAL_FORM_DESIGNER", description: "Enable visual form designer UI" },
+    { key: "FF_SSE_UPDATES", description: "Real-time SSE updates to queues" },
+    { key: "FF_KEYBOARD_SHORTCUTS", description: "Keyboard shortcut support" },
+    { key: "FF_NOTIFICATIONS", description: "Notification system" },
+    { key: "FF_GLOBAL_SEARCH", description: "Cross-event participant search" },
+  ];
+
+  for (const flag of defaultFlags) {
+    await prisma.featureFlag.upsert({
+      where: { key: flag.key },
+      update: {},
+      create: {
+        key: flag.key,
+        description: flag.description,
+        enabled: false,
+      },
+    });
+  }
+  console.log(`Seeded ${defaultFlags.length} feature flags`);
 }
 
 main()

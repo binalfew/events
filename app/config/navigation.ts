@@ -120,6 +120,7 @@ export const navigationGroups: NavGroup[] = [
         roles: ["ADMIN"],
         children: [
           { title: "General", url: "/admin/settings", end: true },
+          { title: "Feature Flags", url: "/admin/settings/feature-flags" },
           { title: "Security", url: "/admin/settings/security" },
           { title: "Integrations", url: "/admin/settings/integrations" },
         ],
