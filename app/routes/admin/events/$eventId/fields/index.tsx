@@ -144,14 +144,7 @@ export default function FieldsListPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Link to="/admin/events" className="hover:text-foreground">
-              Events
-            </Link>
-            <span>/</span>
-            <span>{event.name}</span>
-          </div>
-          <h2 className="mt-1 text-2xl font-bold text-foreground">Fields</h2>
+          <h2 className="text-2xl font-bold text-foreground">Fields</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Define the fields for this event. {fields.length} field
             {fields.length !== 1 ? "s" : ""} defined.

@@ -1,4 +1,4 @@
-import { data, Link, redirect, useActionData, useLoaderData } from "react-router";
+import { data, redirect, useActionData, useLoaderData } from "react-router";
 
 export const handle = { breadcrumb: "New Field" };
 
@@ -120,20 +120,7 @@ export default function NewFieldPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Link to="/admin/events" className="hover:text-foreground">
-            Events
-          </Link>
-          <span>/</span>
-          <Link to={`/admin/events/${event.id}/fields`} className="hover:text-foreground">
-            {event.name}
-          </Link>
-          <span>/</span>
-          <span>New Field</span>
-        </div>
-        <h2 className="mt-1 text-2xl font-bold text-foreground">Add Field</h2>
-      </div>
+      <h2 className="text-2xl font-bold text-foreground">Add Field</h2>
 
       <FieldForm
         eventId={event.id}
