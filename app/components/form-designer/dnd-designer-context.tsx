@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useId, useMemo } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -128,6 +128,7 @@ export function DndDesignerContext({
   onAddFieldFromPalette,
   children,
 }: DndDesignerContextProps) {
+  const dndContextId = useId();
   const [activeDrag, setActiveDrag] = useState<ActiveDragInfo | null>(null);
   const [overId, setOverId] = useState<UniqueIdentifier | null>(null);
 
@@ -306,6 +307,7 @@ export function DndDesignerContext({
 
   return (
     <DndContext
+      id={dndContextId}
       sensors={sensors}
       collisionDetection={customCollisionDetection}
       onDragStart={handleDragStart}

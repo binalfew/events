@@ -29,7 +29,15 @@ const PORT = Number.parseInt(process.env.PORT || "3000");
 
 const app = express();
 
-app.use(compression());
+app.use(
+  compression({
+    filter: (req, res) => {
+      // SSE must not be compressed — buffering breaks the event stream
+      if (req.path === "/api/sse") return false;
+      return compression.filter(req, res);
+    },
+  }),
+);
 app.disable("x-powered-by");
 
 // Correlation ID and structured request logging for all requests

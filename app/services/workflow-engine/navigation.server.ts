@@ -1,5 +1,6 @@
 import { prisma } from "~/lib/db.server";
 import { logger } from "~/lib/logger.server";
+import { eventBus } from "~/lib/event-bus.server";
 import { ConflictError, isPrismaNotFoundError } from "~/services/optimistic-lock.server";
 import { deserializeWorkflow, WorkflowError } from "./serializer.server";
 import type { ApprovalAction } from "../../generated/prisma/client.js";
@@ -147,6 +148,25 @@ export async function processWorkflowAction(
       },
     },
   });
+
+  // Fire-and-forget SSE event publishing
+  try {
+    if (action === "APPROVE" || action === "BYPASS") {
+      eventBus.publish("validation", participant.tenantId, "participant:approved", {
+        participantId,
+        participantName: `${participant.firstName} ${participant.lastName}`,
+        stepName: currentStep.name,
+      });
+    } else if (action === "REJECT") {
+      eventBus.publish("validation", participant.tenantId, "participant:rejected", {
+        participantId,
+        participantName: `${participant.firstName} ${participant.lastName}`,
+        stepName: currentStep.name,
+      });
+    }
+  } catch {
+    // SSE failures must never break core workflow
+  }
 
   logger.info(
     { participantId, action, previousStepId, nextStepId, isComplete },

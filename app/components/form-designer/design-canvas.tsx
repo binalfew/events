@@ -212,12 +212,20 @@ export function DesignCanvas({
                     {activePageId === page.id && (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button
-                            className="ml-0.5 hidden rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground group-data-[state=active]/tab:inline-flex"
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            className="ml-0.5 hidden cursor-pointer rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground group-data-[state=active]/tab:inline-flex"
                             onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                e.currentTarget.click();
+                              }
+                            }}
                           >
                             <MoreHorizontal className="size-3" />
-                          </button>
+                          </span>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start" className="w-44">
                           <DropdownMenuItem onClick={() => startRename(page)}>

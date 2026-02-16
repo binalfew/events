@@ -1,5 +1,6 @@
 import { prisma } from "~/lib/db.server";
 import { logger } from "~/lib/logger.server";
+import { eventBus } from "~/lib/event-bus.server";
 
 interface SLAParticipantInfo {
   id: string;
@@ -45,6 +46,18 @@ export async function sendSLAWarningNotification(
       },
     },
   });
+
+  // Fire-and-forget SSE event
+  try {
+    eventBus.publish("dashboard", participant.tenantId, "sla:warning", {
+      participantId: participant.id,
+      participantName: `${participant.firstName} ${participant.lastName}`,
+      stepName: step.name,
+      remainingMinutes,
+    });
+  } catch {
+    // SSE failures must never break SLA notifications
+  }
 }
 
 export async function sendSLABreachNotification(
@@ -78,4 +91,16 @@ export async function sendSLABreachNotification(
       },
     },
   });
+
+  // Fire-and-forget SSE event
+  try {
+    eventBus.publish("dashboard", participant.tenantId, "sla:breached", {
+      participantId: participant.id,
+      participantName: `${participant.firstName} ${participant.lastName}`,
+      stepName: step.name,
+      overdueMinutes,
+    });
+  } catch {
+    // SSE failures must never break SLA notifications
+  }
 }

@@ -17,6 +17,8 @@ import {
   permissionsPolicy,
   extractSessionUser,
 } from "./security.js";
+import { createSSERouter } from "./sse.js";
+import { createSSETestRouter } from "./sse-test.js";
 
 declare module "react-router" {
   interface AppLoadContext {
@@ -44,6 +46,42 @@ app.use(suspiciousRequestBlocker);
 
 // 6. Extract session user for user-aware rate limiting
 app.use(extractSessionUser(getSession));
+
+// 6b. SSE endpoint (before rate limiter — long-lived connections)
+app.use(
+  createSSERouter(
+    getSession,
+    async (key, context) => {
+      const { isFeatureEnabled } = await import("~/lib/feature-flags.server");
+      return isFeatureEnabled(key, context);
+    },
+    async (userId) => {
+      const { prisma } = await import("~/lib/db.server");
+      const user = await prisma.user.findFirst({
+        where: { id: userId },
+        include: { userRoles: { include: { role: true } } },
+      });
+      if (!user || !user.tenantId) return null;
+      return {
+        tenantId: user.tenantId,
+        roles: user.userRoles.map((ur) => ur.role.name),
+      };
+    },
+  ),
+);
+
+// 6c. SSE test route (dev only — publishes fake events for testing)
+if (process.env.NODE_ENV === "development") {
+  app.use(
+    createSSETestRouter(getSession, async (userId) => {
+      const { prisma } = await import("~/lib/db.server");
+      const user = await prisma.user.findFirst({
+        where: { id: userId },
+      });
+      return user?.tenantId ?? null;
+    }),
+  );
+}
 
 // ─── Rate limiting ─────────────────────────────────────────
 // 7. General limiter (all routes)

@@ -1,7 +1,7 @@
 # Phase 2: Dynamic UI & Real-Time — Completion Report
 
 > **Started:** 2026-02-16
-> **Tasks completed:** P2-00, P2-01, P2-02, P2-03, P2-04, P2-05, P2-06, P2-07, P2-08
+> **Tasks completed:** P2-00, P2-01, P2-02, P2-03, P2-04, P2-05, P2-06, P2-07, P2-08, P2-09
 
 ---
 
@@ -17,6 +17,7 @@
 8. [P2-06 — Preview Mode](#8-p2-06--preview-mode)
 9. [P2-07 — Section Templates](#9-p2-07--section-templates)
 10. [P2-08 — Skeleton Loading States](#10-p2-08--skeleton-loading-states)
+11. [P2-09 — SSE Real-Time Updates](#11-p2-09--sse-real-time-updates)
 
 ---
 
@@ -838,6 +839,61 @@ Adds skeleton loading states, a status button component, an empty state componen
 | `app/routes/admin/events/$eventId/forms/index.tsx` | Replaced inline empty state with `EmptyState` component |
 | `app/routes/admin/events/forms.tsx`                | Replaced inline empty state with `EmptyState` component |
 | `app/app.css`                                      | Added `@keyframes progress` animation                   |
+
+### Verification Results
+
+| Check               | Result                |
+| ------------------- | --------------------- |
+| `npm run typecheck` | Zero errors           |
+| `npm run test`      | 398/398 tests passing |
+
+---
+
+## 11. P2-09 — SSE Real-Time Updates
+
+### Summary
+
+Added Server-Sent Events (SSE) infrastructure for real-time push notifications. Includes an in-memory event bus, Express SSE endpoint with tenant isolation, client-side reconnection with exponential backoff, and a Radix-based toast notification system. Workflow actions and SLA events now publish to connected dashboards in real time.
+
+### Architecture
+
+- **Event Bus** (`server/event-bus.ts`): Singleton `EventEmitter` wrapper with publish/subscribe, monotonic event IDs, and dev-mode global persistence
+- **SSE Route** (`server/sse.ts`): Express router with dependency injection for auth, feature flags, and user lookup. Supports per-tenant filtering, connection limits (5/user, 1000 total), 30s heartbeat, and nginx buffering compatibility (`X-Accel-Buffering: no`)
+- **Client Hook** (`app/hooks/use-sse.ts`): `EventSource`-based hook with exponential backoff reconnect (1s → 30s max), callback refs to prevent unnecessary reconnects, and proper cleanup
+- **SSE Provider** (`app/components/sse-provider.tsx`): Maps SSE event types to toast variants (success, destructive, default)
+- **Toast System**: Standard shadcn/Radix toast with module-level store (no React context needed), 3 variants (default, destructive, success), max 5 visible, 5s auto-dismiss
+- **Feature Gated**: Controlled by `FF_SSE_UPDATES` feature flag + `ENABLE_SSE` env var
+
+### Files Created
+
+| File                              | Purpose                                                  |
+| --------------------------------- | -------------------------------------------------------- |
+| `app/types/sse-events.ts`         | Shared SSE event types, channels, and connection state   |
+| `server/event-bus.ts`             | In-memory pub/sub singleton using Node EventEmitter      |
+| `app/lib/event-bus.server.ts`     | Re-export bridge for `~/` alias in app services          |
+| `server/sse.ts`                   | Express SSE route with auth, tenant isolation, heartbeat |
+| `app/components/ui/toast.tsx`     | Radix Toast primitives with CVA variants                 |
+| `app/hooks/use-toast.ts`          | Module-level toast store with reducer pattern            |
+| `app/components/ui/toaster.tsx`   | Toast viewport/renderer                                  |
+| `app/hooks/use-sse.ts`            | Client SSE hook with auto-reconnect                      |
+| `app/components/sse-provider.tsx` | Maps SSE events to toast notifications                   |
+
+### Files Modified
+
+| File                                                       | Change                                                                           |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `server/app.ts`                                            | Registered SSE router between session extraction and rate limiter                |
+| `app/routes/admin/_layout.tsx`                             | Added `sseEnabled` loader, SSEProvider wrapping Outlet, Toaster                  |
+| `app/services/workflow-engine/navigation.server.ts`        | Publishes `participant:approved`/`participant:rejected` events (fire-and-forget) |
+| `app/services/workflow-engine/sla-notifications.server.ts` | Publishes `sla:warning`/`sla:breached` events (fire-and-forget)                  |
+
+### Key Design Decisions
+
+1. **Express route, not React Router** — SSE requires long-lived `res.write()` connections
+2. **Dependency injection** — SSE router receives getSession/isFeatureEnabled/getUser via params to avoid circular imports between server/ and app/ code
+3. **Tenant isolation at listener level** — Event bus is tenant-agnostic; per-connection filter prevents cross-tenant data leaks
+4. **Fire-and-forget publishing** — SSE failures never break core business logic (try/catch with empty catch)
+5. **Module-level toast store** — `useToast()` works without React context, enabling `toast()` calls from outside components
 
 ### Verification Results
 
