@@ -45,6 +45,7 @@ export const navigationGroups: NavGroup[] = [
         roles: ["ADMIN"],
         children: [
           { title: "All Events", url: "/admin/events", end: true },
+          { title: "Forms", url: "/admin/events/forms" },
           { title: "Categories", url: "/admin/events/categories" },
           { title: "Templates", url: "/admin/events/templates" },
         ],

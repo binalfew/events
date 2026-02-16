@@ -1,0 +1,633 @@
+import { useState, useRef, useEffect, useCallback } from "react";
+import {
+  Plus,
+  Layers,
+  LayoutGrid,
+  Trash2,
+  MoreHorizontal,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  Pencil,
+  Copy,
+  ArrowLeft,
+  ArrowRight,
+} from "lucide-react";
+import { Button } from "~/components/ui/button";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "~/components/ui/collapsible";
+import { ConfirmDialog } from "./confirm-dialog";
+import { cn } from "~/lib/utils";
+import { getFieldTypeIcon } from "./field-type-icons";
+import type {
+  FormDefinition,
+  FormPage,
+  FormSection,
+  FormFieldPlacement,
+} from "~/types/form-designer";
+import type { SelectedElementType } from "~/types/designer-state";
+
+interface FieldDefinitionLookup {
+  id: string;
+  label: string;
+  dataType: string;
+  name: string;
+}
+
+interface DesignCanvasProps {
+  definition: FormDefinition;
+  activePageId: string | null;
+  selectedElementId: string | null;
+  selectedElementType: SelectedElementType;
+  fieldDefinitions: FieldDefinitionLookup[];
+  onSelectElement: (id: string | null, type: SelectedElementType) => void;
+  onSetActivePage: (pageId: string) => void;
+  onAddPage: () => void;
+  onRemovePage: (pageId: string) => void;
+  onUpdatePage: (pageId: string, updates: Partial<Omit<FormPage, "id" | "sections">>) => void;
+  onDuplicatePage: (pageId: string) => void;
+  onReorderPages: (fromIndex: number, toIndex: number) => void;
+  onAddSection: (pageId: string) => void;
+  onRemoveSection: (pageId: string, sectionId: string) => void;
+  onUpdateSection: (
+    pageId: string,
+    sectionId: string,
+    updates: Partial<Omit<FormSection, "id" | "fields">>,
+  ) => void;
+  onReorderSections: (pageId: string, fromIndex: number, toIndex: number) => void;
+  onRemoveField: (pageId: string, sectionId: string, fieldId: string) => void;
+}
+
+export function DesignCanvas({
+  definition,
+  activePageId,
+  selectedElementId,
+  selectedElementType,
+  fieldDefinitions,
+  onSelectElement,
+  onSetActivePage,
+  onAddPage,
+  onRemovePage,
+  onUpdatePage,
+  onDuplicatePage,
+  onReorderPages,
+  onAddSection,
+  onRemoveSection,
+  onUpdateSection,
+  onReorderSections,
+  onRemoveField,
+}: DesignCanvasProps) {
+  const fdMap = new Map(fieldDefinitions.map((fd) => [fd.id, fd]));
+  const activePage = definition.pages.find((p) => p.id === activePageId);
+
+  // ─── Inline rename state ────────────────────────────
+  const [editingPageId, setEditingPageId] = useState<string | null>(null);
+  const [editingPageTitle, setEditingPageTitle] = useState("");
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  // ─── Delete confirmation state ──────────────────────
+  const [confirmDelete, setConfirmDelete] = useState<{
+    type: "page" | "section";
+    pageId: string;
+    sectionId?: string;
+    title: string;
+    fieldCount: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (editingPageId && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [editingPageId]);
+
+  const commitRename = useCallback(() => {
+    if (editingPageId && editingPageTitle.trim()) {
+      onUpdatePage(editingPageId, { title: editingPageTitle.trim() });
+    }
+    setEditingPageId(null);
+  }, [editingPageId, editingPageTitle, onUpdatePage]);
+
+  const startRename = useCallback((page: FormPage) => {
+    setEditingPageId(page.id);
+    setEditingPageTitle(page.title);
+  }, []);
+
+  // ─── Page deletion helpers ──────────────────────────
+  const handleDeletePage = useCallback(
+    (pageId: string) => {
+      const page = definition.pages.find((p) => p.id === pageId);
+      if (!page) return;
+      const fieldCount = page.sections.reduce((acc, s) => acc + s.fields.length, 0);
+      if (fieldCount > 0) {
+        setConfirmDelete({ type: "page", pageId, title: page.title, fieldCount });
+      } else {
+        onRemovePage(pageId);
+      }
+    },
+    [definition.pages, onRemovePage],
+  );
+
+  const handleDeleteSection = useCallback(
+    (pageId: string, sectionId: string) => {
+      const page = definition.pages.find((p) => p.id === pageId);
+      const section = page?.sections.find((s) => s.id === sectionId);
+      if (!section) return;
+      if (section.fields.length > 0) {
+        setConfirmDelete({
+          type: "section",
+          pageId,
+          sectionId,
+          title: section.title,
+          fieldCount: section.fields.length,
+        });
+      } else {
+        onRemoveSection(pageId, sectionId);
+      }
+    },
+    [definition.pages, onRemoveSection],
+  );
+
+  const confirmDeleteAction = useCallback(() => {
+    if (!confirmDelete) return;
+    if (confirmDelete.type === "page") {
+      onRemovePage(confirmDelete.pageId);
+    } else if (confirmDelete.sectionId) {
+      onRemoveSection(confirmDelete.pageId, confirmDelete.sectionId);
+    }
+    setConfirmDelete(null);
+  }, [confirmDelete, onRemovePage, onRemoveSection]);
+
+  if (definition.pages.length === 0) {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <div className="text-center">
+          <Layers className="mx-auto mb-3 size-10 text-muted-foreground/40" />
+          <p className="text-sm text-muted-foreground">No pages yet</p>
+          <Button variant="outline" size="sm" className="mt-3" onClick={onAddPage}>
+            <Plus className="size-3.5" />
+            Add First Page
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-1 flex-col overflow-hidden">
+      {/* Page tabs */}
+      <Tabs
+        value={activePageId ?? undefined}
+        onValueChange={onSetActivePage}
+        className="flex flex-col overflow-hidden"
+      >
+        <div className="flex items-center border-b bg-muted/30 px-3">
+          <TabsList className="h-8 bg-transparent p-0">
+            {definition.pages.map((page, pageIndex) => (
+              <TabsTrigger
+                key={page.id}
+                value={page.id}
+                className="group/tab relative h-8 rounded-none border-b-2 border-transparent px-3 text-xs data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                onDoubleClick={() => startRename(page)}
+              >
+                {editingPageId === page.id ? (
+                  <input
+                    ref={renameInputRef}
+                    value={editingPageTitle}
+                    onChange={(e) => setEditingPageTitle(e.target.value)}
+                    onBlur={commitRename}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") commitRename();
+                      if (e.key === "Escape") setEditingPageId(null);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="h-5 w-24 rounded border bg-background px-1 text-xs outline-none focus:ring-1 focus:ring-primary"
+                  />
+                ) : (
+                  <span className="flex items-center gap-1">
+                    {page.title}
+                    {/* Context menu trigger on active tab */}
+                    {activePageId === page.id && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            className="ml-0.5 hidden rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground group-data-[state=active]/tab:inline-flex"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <MoreHorizontal className="size-3" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-44">
+                          <DropdownMenuItem onClick={() => startRename(page)}>
+                            <Pencil className="size-3.5" />
+                            Rename
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onDuplicatePage(page.id)}>
+                            <Copy className="size-3.5" />
+                            Duplicate
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            disabled={pageIndex === 0}
+                            onClick={() => onReorderPages(pageIndex, pageIndex - 1)}
+                          >
+                            <ArrowLeft className="size-3.5" />
+                            Move Left
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={pageIndex === definition.pages.length - 1}
+                            onClick={() => onReorderPages(pageIndex, pageIndex + 1)}
+                          >
+                            <ArrowRight className="size-3.5" />
+                            Move Right
+                          </DropdownMenuItem>
+                          {definition.pages.length > 1 && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                variant="destructive"
+                                onClick={() => handleDeletePage(page.id)}
+                              >
+                                <Trash2 className="size-3.5" />
+                                Delete
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </span>
+                )}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="ml-1"
+            onClick={onAddPage}
+            title="Add page"
+          >
+            <Plus className="size-3" />
+          </Button>
+        </div>
+
+        {definition.pages.map((page) => (
+          <TabsContent key={page.id} value={page.id} className="flex-1 overflow-y-auto p-4">
+            <PageContent
+              page={page}
+              fdMap={fdMap}
+              selectedElementId={selectedElementId}
+              selectedElementType={selectedElementType}
+              onSelectElement={onSelectElement}
+              onAddSection={() => onAddSection(page.id)}
+              onRemoveSection={(sectionId) => handleDeleteSection(page.id, sectionId)}
+              onUpdateSection={(sectionId, updates) => onUpdateSection(page.id, sectionId, updates)}
+              onReorderSections={(fromIndex, toIndex) =>
+                onReorderSections(page.id, fromIndex, toIndex)
+              }
+              onRemoveField={(sectionId, fieldId) => onRemoveField(page.id, sectionId, fieldId)}
+            />
+          </TabsContent>
+        ))}
+      </Tabs>
+
+      {/* Delete confirmation dialog */}
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmDelete(null);
+        }}
+        title={`Delete ${confirmDelete?.type === "page" ? "page" : "section"}?`}
+        description={
+          confirmDelete
+            ? `"${confirmDelete.title}" contains ${confirmDelete.fieldCount} field${confirmDelete.fieldCount === 1 ? "" : "s"}. This action cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={confirmDeleteAction}
+      />
+    </div>
+  );
+}
+
+// ─── Page Content ────────────────────────────────────────
+
+interface PageContentProps {
+  page: FormPage;
+  fdMap: Map<string, FieldDefinitionLookup>;
+  selectedElementId: string | null;
+  selectedElementType: SelectedElementType;
+  onSelectElement: (id: string | null, type: SelectedElementType) => void;
+  onAddSection: () => void;
+  onRemoveSection: (sectionId: string) => void;
+  onUpdateSection: (
+    sectionId: string,
+    updates: Partial<Omit<FormSection, "id" | "fields">>,
+  ) => void;
+  onReorderSections: (fromIndex: number, toIndex: number) => void;
+  onRemoveField: (sectionId: string, fieldId: string) => void;
+}
+
+function PageContent({
+  page,
+  fdMap,
+  selectedElementId,
+  selectedElementType,
+  onSelectElement,
+  onAddSection,
+  onRemoveSection,
+  onUpdateSection,
+  onReorderSections,
+  onRemoveField,
+}: PageContentProps) {
+  if (page.sections.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="text-center">
+          <LayoutGrid className="mx-auto mb-3 size-8 text-muted-foreground/40" />
+          <p className="text-sm text-muted-foreground">No sections in this page</p>
+          <Button variant="outline" size="sm" className="mt-3" onClick={onAddSection}>
+            <Plus className="size-3.5" />
+            Add Section
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const sorted = [...page.sections].sort((a, b) => a.order - b.order);
+
+  return (
+    <div className="space-y-4">
+      {sorted.map((section, index) => (
+        <SectionCard
+          key={section.id}
+          section={section}
+          sectionIndex={index}
+          totalSections={sorted.length}
+          fdMap={fdMap}
+          isSelected={selectedElementId === section.id && selectedElementType === "section"}
+          selectedFieldId={selectedElementType === "field" ? selectedElementId : null}
+          onSelectSection={() => onSelectElement(section.id, "section")}
+          onSelectField={(fieldId) => onSelectElement(fieldId, "field")}
+          onRemoveSection={() => onRemoveSection(section.id)}
+          onUpdateSection={(updates) => onUpdateSection(section.id, updates)}
+          onMoveUp={() => onReorderSections(index, index - 1)}
+          onMoveDown={() => onReorderSections(index, index + 1)}
+          onRemoveField={(fieldId) => onRemoveField(section.id, fieldId)}
+        />
+      ))}
+      <div className="flex justify-center pt-2">
+        <Button variant="outline" size="sm" onClick={onAddSection}>
+          <Plus className="size-3.5" />
+          Add Section
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Section Card ────────────────────────────────────────
+
+interface SectionCardProps {
+  section: FormSection;
+  sectionIndex: number;
+  totalSections: number;
+  fdMap: Map<string, FieldDefinitionLookup>;
+  isSelected: boolean;
+  selectedFieldId: string | null;
+  onSelectSection: () => void;
+  onSelectField: (fieldId: string) => void;
+  onRemoveSection: () => void;
+  onUpdateSection: (updates: Partial<Omit<FormSection, "id" | "fields">>) => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onRemoveField: (fieldId: string) => void;
+}
+
+function SectionCard({
+  section,
+  sectionIndex,
+  totalSections,
+  fdMap,
+  isSelected,
+  selectedFieldId,
+  onSelectSection,
+  onSelectField,
+  onRemoveSection,
+  onUpdateSection,
+  onMoveUp,
+  onMoveDown,
+  onRemoveField,
+}: SectionCardProps) {
+  const [isCollapsed, setIsCollapsed] = useState(section.defaultCollapsed ?? false);
+
+  // Default column span for fields: 12 / section.columns
+  const defaultColSpan = Math.floor(12 / section.columns);
+
+  return (
+    <div
+      className={cn(
+        "rounded-lg border bg-card transition-shadow",
+        isSelected && "ring-2 ring-primary",
+      )}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelectSection();
+      }}
+    >
+      {/* Section header */}
+      <Collapsible open={!isCollapsed} onOpenChange={(open) => setIsCollapsed(!open)}>
+        <div className="flex items-center justify-between border-b px-3 py-2">
+          <div className="flex items-center gap-2">
+            {section.collapsible && (
+              <CollapsibleTrigger asChild>
+                <button
+                  className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {isCollapsed ? (
+                    <ChevronRight className="size-3.5" />
+                  ) : (
+                    <ChevronDown className="size-3.5" />
+                  )}
+                </button>
+              </CollapsibleTrigger>
+            )}
+            <LayoutGrid className="size-3.5 text-muted-foreground" />
+            <span className="text-sm font-medium">{section.title}</span>
+          </div>
+
+          <div className="flex items-center gap-1">
+            {/* Column selector buttons */}
+            <div className="flex gap-0.5">
+              {([1, 2, 3, 4] as const).map((cols) => (
+                <button
+                  key={cols}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onUpdateSection({ columns: cols });
+                  }}
+                  className={cn(
+                    "rounded px-1.5 py-0.5 text-[10px] transition-colors",
+                    section.columns === cols
+                      ? "bg-primary/10 text-primary font-medium"
+                      : "text-muted-foreground hover:bg-accent",
+                  )}
+                  title={`${cols} column${cols > 1 ? "s" : ""}`}
+                >
+                  {cols}
+                </button>
+              ))}
+            </div>
+
+            {/* Reorder buttons */}
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              className="text-muted-foreground"
+              disabled={sectionIndex === 0}
+              onClick={(e) => {
+                e.stopPropagation();
+                onMoveUp();
+              }}
+              title="Move up"
+            >
+              <ChevronUp className="size-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              className="text-muted-foreground"
+              disabled={sectionIndex === totalSections - 1}
+              onClick={(e) => {
+                e.stopPropagation();
+                onMoveDown();
+              }}
+              title="Move down"
+            >
+              <ChevronDown className="size-3" />
+            </Button>
+
+            {/* Delete button */}
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              className="text-muted-foreground hover:text-destructive"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemoveSection();
+              }}
+              title="Delete section"
+            >
+              <Trash2 className="size-3" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Fields grid */}
+        <CollapsibleContent>
+          <div className="p-3">
+            {section.fields.length === 0 ? (
+              <EmptyGridPlaceholder columns={section.columns} />
+            ) : (
+              <div className="grid grid-cols-12 gap-2">
+                {section.fields
+                  .sort((a, b) => a.order - b.order)
+                  .map((field) => (
+                    <FieldCard
+                      key={field.id}
+                      field={field}
+                      fdLookup={fdMap.get(field.fieldDefinitionId)}
+                      isSelected={selectedFieldId === field.id}
+                      colSpan={field.colSpan ?? defaultColSpan}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectField(field.id);
+                      }}
+                      onRemove={(e) => {
+                        e.stopPropagation();
+                        onRemoveField(field.id);
+                      }}
+                    />
+                  ))}
+              </div>
+            )}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
+  );
+}
+
+// ─── Empty Grid Placeholder with Column Guidelines ───────
+
+function EmptyGridPlaceholder({ columns }: { columns: number }) {
+  const guideCount = columns - 1;
+
+  return (
+    <div className="relative rounded border border-dashed py-6 text-center text-xs text-muted-foreground">
+      {/* Column guideline dividers */}
+      {guideCount > 0 && (
+        <div className="pointer-events-none absolute inset-0 flex" aria-hidden>
+          {Array.from({ length: columns }).map((_, i) => (
+            <div
+              key={i}
+              className={cn(
+                "flex-1",
+                i < guideCount && "border-r border-dashed border-muted-foreground/15",
+              )}
+            />
+          ))}
+        </div>
+      )}
+      <span className="relative">No fields — click a field in the palette to add one</span>
+    </div>
+  );
+}
+
+// ─── Field Card ──────────────────────────────────────────
+
+interface FieldCardProps {
+  field: FormFieldPlacement;
+  fdLookup: FieldDefinitionLookup | undefined;
+  isSelected: boolean;
+  colSpan: number;
+  onClick: (e: React.MouseEvent) => void;
+  onRemove: (e: React.MouseEvent) => void;
+}
+
+function FieldCard({ field, fdLookup, isSelected, colSpan, onClick, onRemove }: FieldCardProps) {
+  const Icon = getFieldTypeIcon(fdLookup?.dataType ?? "TEXT");
+  const label = fdLookup?.label ?? "Unknown field";
+  const span = Math.min(Math.max(colSpan, 1), 12);
+
+  return (
+    <div
+      className={cn(
+        "group flex cursor-pointer items-center gap-2 rounded border bg-background px-2.5 py-2 text-xs transition-colors hover:border-primary/50",
+        isSelected && "ring-2 ring-primary border-primary",
+      )}
+      style={{ gridColumn: `span ${span}` }}
+      onClick={onClick}
+    >
+      <Icon className="size-3.5 shrink-0 text-muted-foreground" />
+      <span className="truncate">{label}</span>
+      <button
+        className="ml-auto hidden shrink-0 rounded p-0.5 text-muted-foreground hover:text-destructive group-hover:block"
+        onClick={onRemove}
+      >
+        <Trash2 className="size-3" />
+      </button>
+    </div>
+  );
+}

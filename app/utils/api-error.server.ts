@@ -5,6 +5,7 @@ import {
   isPrismaNotFoundError,
 } from "~/services/optimistic-lock.server";
 import { FieldError } from "~/services/fields.server";
+import { FormTemplateError } from "~/services/form-templates.server";
 import { WorkflowError } from "~/services/workflow-engine/serializer.server";
 
 export function formatErrorResponse(error: unknown): Response {
@@ -33,6 +34,13 @@ export function formatErrorResponse(error: unknown): Response {
   if (error instanceof FieldError) {
     return Response.json(
       { error: "FIELD_ERROR", message: error.message },
+      { status: error.status },
+    );
+  }
+
+  if (error instanceof FormTemplateError) {
+    return Response.json(
+      { error: "FORM_TEMPLATE_ERROR", message: error.message },
       { status: error.status },
     );
   }

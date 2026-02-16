@@ -16,7 +16,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     where: { tenantId },
     orderBy: { startDate: "asc" },
     include: {
-      _count: { select: { fieldDefinitions: true } },
+      _count: { select: { fieldDefinitions: true, formTemplates: true } },
     },
   });
 
@@ -69,13 +69,22 @@ export default function EventsListPage() {
               <div className="mt-1 text-xs text-muted-foreground">
                 {event._count.fieldDefinitions} field
                 {event._count.fieldDefinitions !== 1 ? "s" : ""}
+                {" · "}
+                {event._count.formTemplates} form
+                {event._count.formTemplates !== 1 ? "s" : ""}
               </div>
-              <div className="mt-4">
+              <div className="mt-4 flex gap-3">
                 <Link
                   to={`/admin/events/${event.id}/fields`}
                   className="text-sm font-medium text-primary hover:underline"
                 >
                   Manage Fields
+                </Link>
+                <Link
+                  to={`/admin/events/${event.id}/forms`}
+                  className="text-sm font-medium text-primary hover:underline"
+                >
+                  Manage Forms
                 </Link>
               </div>
             </div>
