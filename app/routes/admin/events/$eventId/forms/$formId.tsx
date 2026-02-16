@@ -12,6 +12,7 @@ import { DesignerToolbar } from "~/components/form-designer/designer-toolbar";
 import { FieldPalette } from "~/components/form-designer/field-palette";
 import { DesignCanvas } from "~/components/form-designer/design-canvas";
 import { PropertiesPanel } from "~/components/form-designer/properties-panel";
+import { FormPreview } from "~/components/form-designer/form-preview";
 import { DndDesignerContext } from "~/components/form-designer/dnd-designer-context";
 import { Button } from "~/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "~/components/ui/sheet";
@@ -242,6 +243,38 @@ export default function FormDesignerPage() {
     />
   );
 
+  const previewContent = (
+    <FormPreview
+      definition={state.definition}
+      fieldDefinitions={fieldDefinitions}
+      standalone={state.viewMode === "preview"}
+      onClose={() => setViewMode("editor")}
+    />
+  );
+
+  // ─── Full-screen preview mode ──────────────────────
+  if (state.viewMode === "preview") {
+    return (
+      <div className="-m-4 md:-m-6 flex h-[calc(100vh-3rem)] flex-col">
+        <DesignerToolbar
+          formName={template.name}
+          eventId={event.id}
+          formId={template.id}
+          viewMode={state.viewMode}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          autosaveStatus={status}
+          lastSavedAt={lastSavedAt}
+          onUndo={undo}
+          onRedo={redo}
+          onSetViewMode={setViewMode}
+          onSaveNow={saveNow}
+        />
+        <div className="flex-1 overflow-hidden">{previewContent}</div>
+      </div>
+    );
+  }
+
   return (
     <DndDesignerContext
       definition={state.definition}
@@ -268,24 +301,25 @@ export default function FormDesignerPage() {
         />
 
         <div className="flex flex-1 overflow-hidden">
-          {/* Left panel: Field palette */}
-          {isMobile ? (
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button variant="outline" size="icon-sm" className="absolute left-2 top-14 z-10">
-                  <PanelLeft className="size-4" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="w-[280px] p-0">
-                <SheetHeader className="sr-only">
-                  <SheetTitle>Fields</SheetTitle>
-                </SheetHeader>
-                {paletteContent}
-              </SheetContent>
-            </Sheet>
-          ) : (
-            state.viewMode !== "preview" && paletteContent
-          )}
+          {/* Left panel: Field palette (editor mode only) */}
+          {state.viewMode === "editor" &&
+            (isMobile ? (
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button variant="outline" size="icon-sm" className="absolute left-2 top-14 z-10">
+                    <PanelLeft className="size-4" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-[280px] p-0">
+                  <SheetHeader className="sr-only">
+                    <SheetTitle>Fields</SheetTitle>
+                  </SheetHeader>
+                  {paletteContent}
+                </SheetContent>
+              </Sheet>
+            ) : (
+              paletteContent
+            ))}
 
           {/* Center: Design canvas */}
           <DesignCanvas
@@ -308,8 +342,10 @@ export default function FormDesignerPage() {
             onRemoveField={removeField}
           />
 
-          {/* Right panel: Properties */}
-          {isMobile ? (
+          {/* Right panel: Split mode = preview, Editor mode = properties */}
+          {state.viewMode === "split" ? (
+            <div className="flex-1 border-l overflow-hidden">{previewContent}</div>
+          ) : isMobile ? (
             <Sheet>
               <SheetTrigger asChild>
                 <Button variant="outline" size="icon-sm" className="absolute right-2 top-14 z-10">
@@ -324,7 +360,7 @@ export default function FormDesignerPage() {
               </SheetContent>
             </Sheet>
           ) : (
-            state.viewMode !== "preview" && propertiesContent
+            propertiesContent
           )}
         </div>
       </div>

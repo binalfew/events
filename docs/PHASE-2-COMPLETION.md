@@ -1,7 +1,7 @@
 # Phase 2: Dynamic UI & Real-Time — Completion Report
 
 > **Started:** 2026-02-16
-> **Tasks completed:** P2-00, P2-01, P2-02, P2-03, P2-04, P2-05
+> **Tasks completed:** P2-00, P2-01, P2-02, P2-03, P2-04, P2-05, P2-06
 
 ---
 
@@ -14,6 +14,7 @@
 5. [P2-03 — Sections & Pages](#5-p2-03--sections--pages)
 6. [P2-04 — Drag-and-Drop (DnD Kit)](#6-p2-04--drag-and-drop-dnd-kit)
 7. [P2-05 — Conditional Visibility Rules](#7-p2-05--conditional-visibility-rules)
+8. [P2-06 — Preview Mode](#8-p2-06--preview-mode)
 
 ---
 
@@ -609,3 +610,97 @@ evaluateCondition(condition, formValues) → boolean
 | ------------------- | -------------------------------------------------------- |
 | `npm run typecheck` | Zero errors                                              |
 | `npm run test`      | 393/393 tests passing (33 new condition evaluator tests) |
+
+---
+
+## 8. P2-06 — Preview Mode
+
+### What This Task Does
+
+Adds a WYSIWYG preview mode to the form designer so admins can see exactly what participants will see. Three view modes are supported: Editor (full three-panel designer), Split (left canvas + right preview), and Preview (full-screen preview). The preview includes responsive device size simulation, multi-page wizard navigation, conditional visibility evaluation, section collapsing, and editable mock data for testing conditions.
+
+### Architecture
+
+**Three View Modes:**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ Editor: [Palette] [Canvas] [Properties]                 │
+│ Split:  [Canvas]           [Preview]                    │
+│ Preview:         [Full-screen Preview]                  │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Device Size Simulation:**
+
+| Device  | Width |
+| ------- | ----- |
+| Desktop | 100%  |
+| Tablet  | 768px |
+| Phone   | 375px |
+
+**Preview Renderer — maps form definition to production-equivalent UI:**
+
+```
+FormPreview
+  ├─ Toolbar (device toggle, close button)
+  ├─ Preview Container (constrained to device width)
+  │   ├─ Progress bar (wizard mode)
+  │   ├─ PreviewPage
+  │   │   └─ PreviewSection (collapsible, 12-col grid)
+  │   │       └─ PreviewField (type-appropriate input)
+  │   └─ Wizard navigation (Previous / Next / Submit)
+  └─ Mock data state (editable values for testing conditions)
+```
+
+**Display Modes:**
+
+- **Wizard** (default): One page at a time with progress bar and Previous/Next navigation
+- **Single-page**: All pages stacked vertically
+- **Accordion**: Collapsible pages, first page expanded by default
+
+**Mock Data Generation:**
+
+```
+generateMockData(definition, fieldDefinitions) → Record<string, unknown>
+  TEXT → "Sample text"
+  NUMBER → 42
+  BOOLEAN → true
+  DATE → "2026-03-15"
+  EMAIL → "example@email.com"
+  ENUM → "" (empty, user selects)
+  ...etc per field type
+```
+
+Mock data is generated once on mount and stored in component state. Users can edit values to test conditional visibility rules.
+
+### Files Created (3)
+
+| File                                            | Purpose                                                                                                                                                                                                                                                                                                      |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `app/lib/form-preview-data.ts`                  | `generateMockData()` — generates type-appropriate mock values keyed by fieldDefinitionId, deduplicates across pages/sections                                                                                                                                                                                 |
+| `app/components/form-designer/form-preview.tsx` | `FormPreview` component — full preview renderer with device size toggle, multi-page wizard navigation, conditional visibility via `evaluateCondition()`, collapsible sections, 12-col CSS grid, type-appropriate field inputs (mirrors production `FieldRenderer`/`ConformField` layout), editable mock data |
+| `app/lib/__tests__/form-preview-data.test.ts`   | 5 tests for mock data generation: all types, type-appropriate values, unknown fields, deduplication, empty definition                                                                                                                                                                                        |
+
+### Files Modified (1)
+
+| File                                                 | Change                                                                                                                                                                                                                                                                                        |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/routes/admin/events/$eventId/forms/$formId.tsx` | Added `FormPreview` import. Restructured render to support three view modes: preview mode renders full-screen preview with toolbar, split mode replaces properties panel with live preview, editor mode unchanged. Preview receives live `state.definition` for real-time sync in split view. |
+
+### Key Patterns
+
+- **Real-time split sync**: The `FormPreview` receives `state.definition` directly from the `useFormDesigner` hook, so every editor change (field add/remove, property update, section reorder) immediately reflects in the split-view preview without any additional sync mechanism
+- **Standalone preview renderer**: `PreviewField` mirrors the production `FieldRenderer` output (same field types, same visual layout) but without Conform bindings, using plain controlled inputs with mock data state
+- **12-column grid in preview**: Matches the canvas grid — `grid-cols-12` with `colSpan` mapping, so the preview shows the exact same layout as the designer
+- **Conditional visibility in preview**: Uses `evaluateCondition()` from P2-05 to show/hide pages, sections, and fields based on mock data values. Users can edit mock values to test different visibility scenarios
+- **Device size simulation**: Preview container uses `maxWidth` constraint to simulate tablet (768px) and phone (375px) viewports. The form layout responds naturally since it uses grid and responsive utilities
+- **Wizard navigation state**: Multi-page forms maintain `activePageIndex` state with Previous/Next buttons. Conditional page visibility recalculates visible pages, and navigation adjusts accordingly
+- **Display mode support**: Reads `definition.settings.displayMode` to render as wizard (paginated), single-page (all stacked), or accordion (collapsible pages)
+
+### Verification Results
+
+| Check               | Result                                        |
+| ------------------- | --------------------------------------------- |
+| `npm run typecheck` | Zero errors                                   |
+| `npm run test`      | 398/398 tests passing (5 new mock data tests) |
