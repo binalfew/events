@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { NavLink } from "react-router";
+import { NavLink, useLocation } from "react-router";
 import { ChevronRight } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "~/components/ui/collapsible";
 import {
@@ -12,10 +12,24 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from "~/components/ui/sidebar";
-import type { NavGroup } from "~/config/navigation";
+import type { NavChild, NavGroup } from "~/config/navigation";
 
 const GROUPS_COOKIE = "sidebar_groups";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
+
+function isPathActive(pathname: string, url: string, end?: boolean): boolean {
+  return end ? pathname === url : pathname.startsWith(url);
+}
+
+function isChildActive(pathname: string, child: NavChild, siblings: NavChild[]): boolean {
+  // Non-end items: simple prefix match
+  if (!child.end) return pathname.startsWith(child.url);
+  // end items: exact match OR prefix match when no sibling claims the path
+  if (pathname === child.url) return true;
+  if (!pathname.startsWith(child.url)) return false;
+  // Fallback: activate this end-item if no other sibling matches
+  return !siblings.some((s) => s !== child && pathname.startsWith(s.url));
+}
 
 export function NavMain({
   groups,
@@ -24,6 +38,7 @@ export function NavMain({
   groups: NavGroup[];
   groupState: Record<string, boolean>;
 }) {
+  const location = useLocation();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
     for (const group of groups) {
@@ -71,7 +86,10 @@ export function NavMain({
                       <SidebarMenuSub>
                         {item.children.map((child) => (
                           <SidebarMenuSubItem key={child.title}>
-                            <SidebarMenuSubButton asChild>
+                            <SidebarMenuSubButton
+                              isActive={isChildActive(location.pathname, child, item.children!)}
+                              asChild
+                            >
                               <NavLink to={child.url} end={child.end}>
                                 <span>{child.title}</span>
                               </NavLink>
@@ -84,7 +102,11 @@ export function NavMain({
                 </Collapsible>
               ) : (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton tooltip={item.title} asChild>
+                  <SidebarMenuButton
+                    tooltip={item.title}
+                    isActive={isPathActive(location.pathname, item.url, item.end)}
+                    asChild
+                  >
                     <NavLink to={item.url} end={item.end}>
                       <item.icon />
                       <span>{item.title}</span>
