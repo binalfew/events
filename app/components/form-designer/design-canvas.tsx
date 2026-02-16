@@ -58,6 +58,7 @@ interface DesignCanvasProps {
   ) => void;
   onReorderSections: (pageId: string, fromIndex: number, toIndex: number) => void;
   onRemoveField: (pageId: string, sectionId: string, fieldId: string) => void;
+  onSaveAsTemplate?: (section: FormSection) => void;
 }
 
 export function DesignCanvas({
@@ -78,6 +79,7 @@ export function DesignCanvas({
   onUpdateSection,
   onReorderSections,
   onRemoveField,
+  onSaveAsTemplate,
 }: DesignCanvasProps) {
   const fdMap = new Map(fieldDefinitions.map((fd) => [fd.id, fd]));
 
@@ -287,6 +289,7 @@ export function DesignCanvas({
                 onReorderSections(page.id, fromIndex, toIndex)
               }
               onRemoveField={(sectionId, fieldId) => onRemoveField(page.id, sectionId, fieldId)}
+              onSaveAsTemplate={onSaveAsTemplate}
             />
           </TabsContent>
         ))}
@@ -328,6 +331,7 @@ interface PageContentProps {
   ) => void;
   onReorderSections: (fromIndex: number, toIndex: number) => void;
   onRemoveField: (sectionId: string, fieldId: string) => void;
+  onSaveAsTemplate?: (section: FormSection) => void;
 }
 
 function PageContent({
@@ -341,6 +345,7 @@ function PageContent({
   onUpdateSection,
   onReorderSections,
   onRemoveField,
+  onSaveAsTemplate,
 }: PageContentProps) {
   if (page.sections.length === 0) {
     return (
@@ -379,6 +384,7 @@ function PageContent({
             onMoveUp={() => onReorderSections(index, index - 1)}
             onMoveDown={() => onReorderSections(index, index + 1)}
             onRemoveField={(fieldId) => onRemoveField(section.id, fieldId)}
+            onSaveAsTemplate={onSaveAsTemplate ? () => onSaveAsTemplate(section) : undefined}
           />
         ))}
       </SortableContext>

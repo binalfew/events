@@ -11,8 +11,16 @@ import {
   ChevronUp,
   GripVertical,
   Eye,
+  MoreHorizontal,
+  Save,
 } from "lucide-react";
 import { Button } from "~/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "~/components/ui/collapsible";
 import { cn } from "~/lib/utils";
 import { SortableField } from "./sortable-field";
@@ -40,6 +48,7 @@ interface SortableSectionProps {
   onMoveUp: () => void;
   onMoveDown: () => void;
   onRemoveField: (fieldId: string) => void;
+  onSaveAsTemplate?: () => void;
 }
 
 export function SortableSection({
@@ -56,6 +65,7 @@ export function SortableSection({
   onMoveUp,
   onMoveDown,
   onRemoveField,
+  onSaveAsTemplate,
 }: SortableSectionProps) {
   const [isCollapsed, setIsCollapsed] = useState(section.defaultCollapsed ?? false);
   const defaultColSpan = Math.floor(12 / section.columns);
@@ -191,19 +201,31 @@ export function SortableSection({
               <ChevronDown className="size-3" />
             </Button>
 
-            {/* Delete button */}
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              className="text-muted-foreground hover:text-destructive"
-              onClick={(e) => {
-                e.stopPropagation();
-                onRemoveSection();
-              }}
-              title="Delete section"
-            >
-              <Trash2 className="size-3" />
-            </Button>
+            {/* Section menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className="text-muted-foreground"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <MoreHorizontal className="size-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                {onSaveAsTemplate && (
+                  <DropdownMenuItem onClick={onSaveAsTemplate}>
+                    <Save className="size-3.5" />
+                    Save as template
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem variant="destructive" onClick={() => onRemoveSection()}>
+                  <Trash2 className="size-3.5" />
+                  Delete section
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 

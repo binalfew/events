@@ -1,7 +1,7 @@
 # Phase 2: Dynamic UI & Real-Time — Completion Report
 
 > **Started:** 2026-02-16
-> **Tasks completed:** P2-00, P2-01, P2-02, P2-03, P2-04, P2-05, P2-06
+> **Tasks completed:** P2-00, P2-01, P2-02, P2-03, P2-04, P2-05, P2-06, P2-07
 
 ---
 
@@ -15,6 +15,7 @@
 6. [P2-04 — Drag-and-Drop (DnD Kit)](#6-p2-04--drag-and-drop-dnd-kit)
 7. [P2-05 — Conditional Visibility Rules](#7-p2-05--conditional-visibility-rules)
 8. [P2-06 — Preview Mode](#8-p2-06--preview-mode)
+9. [P2-07 — Section Templates](#9-p2-07--section-templates)
 
 ---
 
@@ -704,3 +705,76 @@ Mock data is generated once on mount and stored in component state. Users can ed
 | ------------------- | --------------------------------------------- |
 | `npm run typecheck` | Zero errors                                   |
 | `npm run test`      | 398/398 tests passing (5 new mock data tests) |
+
+---
+
+## 9. P2-07 — Section Templates
+
+### What This Task Does
+
+Adds reusable section templates that admins can save and reuse across form designs. Common sections (e.g., "Personal Information", "Travel Details") can be saved once and inserted into any form with a single click, creating independent deep copies.
+
+### Architecture
+
+**Data Layer:**
+
+- `SectionTemplate` Prisma model with tenant isolation (`@@unique([tenantId, name])`)
+- Stores section definition as JSON (title, columns, collapsible settings, field placements)
+- Soft delete via `isActive` flag
+
+**Service Layer (`app/services/section-templates.server.ts`):**
+
+- CRUD operations: `list`, `get`, `create`, `update`, `delete` (soft)
+- Follows `form-templates.server.ts` pattern: `ServiceContext`, audit logging, unique constraint error handling
+- Tenant-scoped: all queries filter by `tenantId`
+
+**API Routes:**
+
+- `GET/POST /api/v1/section-templates` — list and create
+- `GET/PUT/DELETE /api/v1/section-templates/:id` — get, update, soft delete
+- Gated by `form:read/create/update/delete` permissions and `FF_VISUAL_FORM_DESIGNER` feature flag
+
+**Designer Integration:**
+
+- **Templates tab** in field palette (left panel) alongside Fields tab
+- Template list with search, field count, column count, and missing field warnings
+- Click-to-add: inserts a deep copy (new UUIDs for section and all fields)
+- **Save as template** menu item in section dropdown menu (via `SortableSection`)
+- `SaveTemplateDialog` component with name/description inputs, error handling
+- Client-side state sync: newly saved templates appear immediately in the Templates tab
+
+### Files Created
+
+| File                                                     | Purpose                         |
+| -------------------------------------------------------- | ------------------------------- |
+| `prisma/migrations/20260216183536_add_section_template/` | Database migration              |
+| `app/services/section-templates.server.ts`               | CRUD service with audit logging |
+| `app/lib/schemas/section-template.ts`                    | Zod validation schemas          |
+| `app/routes/api/v1/section-templates/index.tsx`          | List + create API route         |
+| `app/routes/api/v1/section-templates/$id.tsx`            | Get + update + delete API route |
+| `app/components/form-designer/save-template-dialog.tsx`  | Save-as-template dialog         |
+
+### Files Modified
+
+| File                                                 | Change                                                           |
+| ---------------------------------------------------- | ---------------------------------------------------------------- |
+| `prisma/schema.prisma`                               | Added `SectionTemplate` model + Tenant relation                  |
+| `app/components/form-designer/field-palette.tsx`     | Added Templates tab with search, missing field warnings          |
+| `app/components/form-designer/sortable-section.tsx`  | Added "Save as template" dropdown menu item                      |
+| `app/components/form-designer/design-canvas.tsx`     | Passed `onSaveAsTemplate` through PageContent to SortableSection |
+| `app/routes/admin/events/$eventId/forms/$formId.tsx` | Loaded templates in loader, added save/add handlers              |
+| `prisma/seed.ts`                                     | Added `section-template` CRUD permissions                        |
+| `docs/PHASE-2-COMPLETION.md`                         | Added P2-07 entry                                                |
+
+### Key Patterns
+
+- **Deep copy semantics**: Templates are stored as JSON snapshots. When inserted, all IDs are regenerated with `crypto.randomUUID()`, making the copy fully independent
+- **Missing field warnings**: Template tab checks each template's `fieldDefinitionId` references against the current event's field definitions and shows an amber warning icon for unresolvable references
+- **Client-side optimistic update**: After saving a template via `fetch()`, the new template is prepended to the local `sectionTemplates` state array, appearing immediately in the Templates tab without requiring a page reload
+
+### Verification Results
+
+| Check               | Result                |
+| ------------------- | --------------------- |
+| `npm run typecheck` | Zero errors           |
+| `npm run test`      | 398/398 tests passing |

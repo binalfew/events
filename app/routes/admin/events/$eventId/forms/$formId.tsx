@@ -1,10 +1,11 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { data, useLoaderData } from "react-router";
 import { PanelLeft, PanelRight } from "lucide-react";
 import { requirePermission } from "~/lib/require-auth.server";
 import { isFeatureEnabled, FEATURE_FLAG_KEYS } from "~/lib/feature-flags.server";
 import { prisma } from "~/lib/db.server";
 import { getFormTemplate, FormTemplateError } from "~/services/form-templates.server";
+import { listSectionTemplates } from "~/services/section-templates.server";
 import { useFormDesigner } from "~/hooks/use-form-designer";
 import { useAutosave } from "~/hooks/use-autosave";
 import { useIsMobile } from "~/hooks/use-mobile";
@@ -16,7 +17,9 @@ import { FormPreview } from "~/components/form-designer/form-preview";
 import { DndDesignerContext } from "~/components/form-designer/dnd-designer-context";
 import { Button } from "~/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "~/components/ui/sheet";
-import type { FormDefinition } from "~/types/form-designer";
+import { SaveTemplateDialog } from "~/components/form-designer/save-template-dialog";
+import type { SectionTemplateItem } from "~/components/form-designer/field-palette";
+import type { FormDefinition, FormSection } from "~/types/form-designer";
 import type { Route } from "./+types/$formId";
 
 export const handle = { breadcrumb: "Designer" };
@@ -50,13 +53,16 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   try {
     const template = await getFormTemplate(formId, tenantId);
 
-    const fieldDefinitions = await prisma.fieldDefinition.findMany({
-      where: { tenantId, eventId },
-      select: { id: true, name: true, label: true, dataType: true },
-      orderBy: { sortOrder: "asc" },
-    });
+    const [fieldDefinitions, sectionTemplates] = await Promise.all([
+      prisma.fieldDefinition.findMany({
+        where: { tenantId, eventId },
+        select: { id: true, name: true, label: true, dataType: true },
+        orderBy: { sortOrder: "asc" },
+      }),
+      listSectionTemplates(tenantId),
+    ]);
 
-    return { event, template, fieldDefinitions };
+    return { event, template, fieldDefinitions, sectionTemplates };
   } catch (error) {
     if (error instanceof FormTemplateError) {
       throw data({ error: error.message }, { status: error.status });
@@ -66,8 +72,25 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 }
 
 export default function FormDesignerPage() {
-  const { event, template, fieldDefinitions } = useLoaderData<typeof loader>();
+  const {
+    event,
+    template,
+    fieldDefinitions,
+    sectionTemplates: loadedSectionTemplates,
+  } = useLoaderData<typeof loader>();
   const isMobile = useIsMobile();
+  const [sectionTemplates, setSectionTemplates] = useState<SectionTemplateItem[]>(() =>
+    loadedSectionTemplates.map(
+      (t: { id: string; name: string; description: string | null; definition: unknown }) => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        definition: t.definition,
+      }),
+    ),
+  );
+  const [saveTemplateSection, setSaveTemplateSection] = useState<FormSection | null>(null);
+  const [formName, setFormName] = useState(template.name);
 
   const {
     state,
@@ -219,6 +242,83 @@ export default function FormDesignerPage() {
     [state.definition.pages, addPage],
   );
 
+  const handleAddSectionFromTemplate = useCallback(
+    (tmpl: SectionTemplateItem) => {
+      if (!state.activePageId) return;
+      const def = tmpl.definition as FormSection;
+      const page = state.definition.pages.find((p) => p.id === state.activePageId);
+      const sectionCount = page?.sections.length ?? 0;
+
+      // Deep copy with new IDs
+      addSection(state.activePageId, {
+        id: crypto.randomUUID(),
+        title: def.title,
+        description: def.description,
+        columns: def.columns,
+        collapsible: def.collapsible,
+        defaultCollapsed: def.defaultCollapsed,
+        order: sectionCount,
+        fields: (def.fields ?? []).map((f) => ({
+          ...f,
+          id: crypto.randomUUID(),
+        })),
+      });
+    },
+    [state.activePageId, state.definition.pages, addSection],
+  );
+
+  const handleSaveAsTemplate = useCallback(
+    async (name: string, description: string) => {
+      if (!saveTemplateSection) return;
+
+      // Strip IDs for a clean template definition
+      const definition = {
+        title: saveTemplateSection.title,
+        description: saveTemplateSection.description,
+        columns: saveTemplateSection.columns,
+        collapsible: saveTemplateSection.collapsible,
+        defaultCollapsed: saveTemplateSection.defaultCollapsed,
+        fields: saveTemplateSection.fields.map((f) => ({
+          id: f.id,
+          fieldDefinitionId: f.fieldDefinitionId,
+          colSpan: f.colSpan,
+          order: f.order,
+        })),
+      };
+
+      const response = await fetch("/api/v1/section-templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, description, definition }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error ?? "Failed to save template");
+      }
+
+      const result = await response.json();
+      setSectionTemplates((prev) => [
+        { id: result.data.id, name, description, definition: result.data.definition },
+        ...prev,
+      ]);
+      setSaveTemplateSection(null);
+    },
+    [saveTemplateSection],
+  );
+
+  const handleRenameForm = useCallback(
+    async (newName: string) => {
+      setFormName(newName);
+      await fetch(`/api/v1/form-templates/${template.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName }),
+      });
+    },
+    [template.id],
+  );
+
   // ─── Render ─────────────────────────────────────────
 
   const paletteContent = (
@@ -228,6 +328,8 @@ export default function FormDesignerPage() {
       activePageId={state.activePageId}
       activeSectionId={targetSectionId}
       onAddField={handleAddField}
+      sectionTemplates={sectionTemplates}
+      onAddSectionFromTemplate={handleAddSectionFromTemplate}
     />
   );
 
@@ -257,7 +359,7 @@ export default function FormDesignerPage() {
     return (
       <div className="-m-4 md:-m-6 flex h-[calc(100vh-3rem)] flex-col">
         <DesignerToolbar
-          formName={template.name}
+          formName={formName}
           eventId={event.id}
           formId={template.id}
           viewMode={state.viewMode}
@@ -269,6 +371,7 @@ export default function FormDesignerPage() {
           onRedo={redo}
           onSetViewMode={setViewMode}
           onSaveNow={saveNow}
+          onRenameForm={handleRenameForm}
         />
         <div className="flex-1 overflow-hidden">{previewContent}</div>
       </div>
@@ -286,7 +389,7 @@ export default function FormDesignerPage() {
     >
       <div className="-m-4 md:-m-6 flex h-[calc(100vh-3rem)] flex-col">
         <DesignerToolbar
-          formName={template.name}
+          formName={formName}
           eventId={event.id}
           formId={template.id}
           viewMode={state.viewMode}
@@ -298,6 +401,7 @@ export default function FormDesignerPage() {
           onRedo={redo}
           onSetViewMode={setViewMode}
           onSaveNow={saveNow}
+          onRenameForm={handleRenameForm}
         />
 
         <div className="flex flex-1 overflow-hidden">
@@ -340,6 +444,7 @@ export default function FormDesignerPage() {
             onUpdateSection={updateSection}
             onReorderSections={reorderSections}
             onRemoveField={removeField}
+            onSaveAsTemplate={(section) => setSaveTemplateSection(section)}
           />
 
           {/* Right panel: Split mode = preview, Editor mode = properties */}
@@ -364,6 +469,15 @@ export default function FormDesignerPage() {
           )}
         </div>
       </div>
+
+      <SaveTemplateDialog
+        open={saveTemplateSection !== null}
+        onOpenChange={(open) => {
+          if (!open) setSaveTemplateSection(null);
+        }}
+        defaultName={saveTemplateSection?.title ?? ""}
+        onSave={handleSaveAsTemplate}
+      />
     </DndDesignerContext>
   );
 }

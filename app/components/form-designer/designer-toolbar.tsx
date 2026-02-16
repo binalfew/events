@@ -1,6 +1,16 @@
-import { useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Link, useFetcher } from "react-router";
-import { ArrowLeft, Save, Upload, Undo2, Redo2, Monitor, Columns2, Eye } from "lucide-react";
+import {
+  ArrowLeft,
+  Save,
+  Upload,
+  Undo2,
+  Redo2,
+  Monitor,
+  Columns2,
+  Eye,
+  Pencil,
+} from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Separator } from "~/components/ui/separator";
 import { AutosaveIndicator } from "./autosave-indicator";
@@ -21,6 +31,7 @@ interface DesignerToolbarProps {
   onRedo: () => void;
   onSetViewMode: (mode: ViewMode) => void;
   onSaveNow: () => void;
+  onRenameForm?: (name: string) => void;
 }
 
 const viewModes: { mode: ViewMode; icon: typeof Monitor; label: string }[] = [
@@ -42,9 +53,30 @@ export function DesignerToolbar({
   onRedo,
   onSetViewMode,
   onSaveNow,
+  onRenameForm,
 }: DesignerToolbarProps) {
   const publishFetcher = useFetcher();
   const isPublishing = publishFetcher.state !== "idle";
+
+  // Inline rename state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(formName);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  const commitRename = useCallback(() => {
+    const trimmed = editName.trim();
+    if (trimmed && trimmed !== formName) {
+      onRenameForm?.(trimmed);
+    }
+    setIsEditing(false);
+  }, [editName, formName, onRenameForm]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -74,8 +106,36 @@ export function DesignerToolbar({
         </Button>
       </Link>
 
-      {/* Form name */}
-      <span className="truncate text-sm font-medium">{formName}</span>
+      {/* Form name (editable) */}
+      {isEditing ? (
+        <input
+          ref={inputRef}
+          value={editName}
+          onChange={(e) => setEditName(e.target.value)}
+          onBlur={commitRename}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commitRename();
+            if (e.key === "Escape") {
+              setEditName(formName);
+              setIsEditing(false);
+            }
+          }}
+          className="h-7 w-48 rounded border bg-background px-2 text-sm font-medium outline-none focus:ring-1 focus:ring-primary"
+          maxLength={100}
+        />
+      ) : (
+        <button
+          className="group flex items-center gap-1 truncate rounded px-1 py-0.5 text-sm font-medium hover:bg-accent"
+          onClick={() => {
+            setEditName(formName);
+            setIsEditing(true);
+          }}
+          title="Click to rename"
+        >
+          {formName}
+          <Pencil className="size-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
+        </button>
+      )}
 
       <Separator orientation="vertical" className="mx-1 h-5" />
 

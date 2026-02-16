@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Link } from "react-router";
 import { useDraggable } from "@dnd-kit/core";
-import { Search, GripVertical } from "lucide-react";
+import { Search, GripVertical, LayoutGrid, AlertTriangle } from "lucide-react";
 import { Input } from "~/components/ui/input";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "~/components/ui/collapsible";
 import { ChevronRight } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { getFieldTypeIcon, getFieldTypeLabel, fieldCategories } from "./field-type-icons";
 import { makePaletteDndId } from "./dnd-designer-context";
+import type { FormSection } from "~/types/form-designer";
 
 interface FieldDefinitionItem {
   id: string;
@@ -16,12 +18,21 @@ interface FieldDefinitionItem {
   dataType: string;
 }
 
+export interface SectionTemplateItem {
+  id: string;
+  name: string;
+  description: string | null;
+  definition: unknown;
+}
+
 interface FieldPaletteProps {
   fields: FieldDefinitionItem[];
   eventId: string;
   activePageId: string | null;
   activeSectionId: string | null;
   onAddField: (fieldDefinitionId: string) => void;
+  sectionTemplates?: SectionTemplateItem[];
+  onAddSectionFromTemplate?: (template: SectionTemplateItem) => void;
 }
 
 export function FieldPalette({
@@ -30,7 +41,66 @@ export function FieldPalette({
   activePageId,
   activeSectionId,
   onAddField,
+  sectionTemplates = [],
+  onAddSectionFromTemplate,
 }: FieldPaletteProps) {
+  return (
+    <div className="flex h-full w-[250px] shrink-0 flex-col border-r bg-background">
+      <Tabs defaultValue="fields" className="flex h-full flex-col gap-0">
+        <div className="border-b px-2 pt-1">
+          <TabsList className="h-7 w-full">
+            <TabsTrigger value="fields" className="flex-1 text-xs">
+              Fields
+            </TabsTrigger>
+            <TabsTrigger value="templates" className="flex-1 text-xs">
+              Templates
+              {sectionTemplates.length > 0 && (
+                <span className="ml-1 text-[10px] text-muted-foreground">
+                  {sectionTemplates.length}
+                </span>
+              )}
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value="fields" className="flex-1 overflow-hidden">
+          <FieldsTab
+            fields={fields}
+            eventId={eventId}
+            activePageId={activePageId}
+            activeSectionId={activeSectionId}
+            onAddField={onAddField}
+          />
+        </TabsContent>
+
+        <TabsContent value="templates" className="flex-1 overflow-hidden">
+          <TemplatesTab
+            templates={sectionTemplates}
+            fieldDefinitions={fields}
+            activePageId={activePageId}
+            onAddSectionFromTemplate={onAddSectionFromTemplate}
+          />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+// ─── Fields Tab ──────────────────────────────────────────
+
+function FieldsTab({
+  fields,
+  eventId,
+  activePageId,
+  activeSectionId,
+  onAddField,
+}: {
+  fields: FieldDefinitionItem[];
+  eventId: string;
+  activePageId: string | null;
+  activeSectionId: string | null;
+  onAddField: (fieldDefinitionId: string) => void;
+}) {
   const [search, setSearch] = useState("");
 
   const filteredFields = fields.filter(
@@ -39,7 +109,6 @@ export function FieldPalette({
       f.name.toLowerCase().includes(search.toLowerCase()),
   );
 
-  // Group fields by category (matching their dataType to field categories)
   const groupedFields = fieldCategories
     .map((cat) => ({
       ...cat,
@@ -50,10 +119,9 @@ export function FieldPalette({
   const canAdd = activePageId !== null && activeSectionId !== null;
 
   return (
-    <div className="flex h-full w-[250px] shrink-0 flex-col border-r bg-background">
+    <div className="flex h-full flex-col">
       <div className="border-b px-3 py-2">
-        <h3 className="text-sm font-medium">Fields</h3>
-        <div className="relative mt-2">
+        <div className="relative">
           <Search className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search fields..."
@@ -101,6 +169,125 @@ export function FieldPalette({
               </CollapsibleContent>
             </Collapsible>
           ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Templates Tab ───────────────────────────────────────
+
+function TemplatesTab({
+  templates,
+  fieldDefinitions,
+  activePageId,
+  onAddSectionFromTemplate,
+}: {
+  templates: SectionTemplateItem[];
+  fieldDefinitions: FieldDefinitionItem[];
+  activePageId: string | null;
+  onAddSectionFromTemplate?: (template: SectionTemplateItem) => void;
+}) {
+  const [search, setSearch] = useState("");
+
+  const filteredTemplates = templates.filter(
+    (t) =>
+      t.name.toLowerCase().includes(search.toLowerCase()) ||
+      (t.description?.toLowerCase().includes(search.toLowerCase()) ?? false),
+  );
+
+  const fdIdSet = new Set(fieldDefinitions.map((fd) => fd.id));
+
+  const getMissingFields = useCallback(
+    (template: SectionTemplateItem): string[] => {
+      const def = template.definition as FormSection | null;
+      if (!def?.fields) return [];
+      return def.fields
+        .filter((f) => !fdIdSet.has(f.fieldDefinitionId))
+        .map((f) => f.fieldDefinitionId);
+    },
+    [fdIdSet],
+  );
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="border-b px-3 py-2">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search templates..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-7 pl-7 text-xs"
+          />
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-2">
+        {templates.length === 0 ? (
+          <div className="py-8 text-center text-xs text-muted-foreground">
+            <p>No section templates yet.</p>
+            <p className="mt-1">
+              Right-click a section and select
+              <br />
+              &ldquo;Save as template&rdquo; to create one.
+            </p>
+          </div>
+        ) : filteredTemplates.length === 0 ? (
+          <div className="py-8 text-center text-xs text-muted-foreground">
+            No templates match &ldquo;{search}&rdquo;
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {filteredTemplates.map((template) => {
+              const missingFields = getMissingFields(template);
+              const def = template.definition as FormSection | null;
+              const fieldCount = def?.fields?.length ?? 0;
+
+              return (
+                <button
+                  key={template.id}
+                  onClick={() => onAddSectionFromTemplate?.(template)}
+                  disabled={!activePageId}
+                  title={
+                    !activePageId
+                      ? "Select a page first"
+                      : missingFields.length > 0
+                        ? `Warning: ${missingFields.length} field(s) not found in this event`
+                        : `Add "${template.name}" section`
+                  }
+                  className={cn(
+                    "flex w-full flex-col gap-0.5 rounded px-2 py-2 text-left text-xs transition-colors",
+                    activePageId
+                      ? "hover:bg-accent cursor-pointer"
+                      : "opacity-50 cursor-not-allowed",
+                  )}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <LayoutGrid className="size-3.5 shrink-0 text-muted-foreground" />
+                    <span className="truncate font-medium">{template.name}</span>
+                    {missingFields.length > 0 && (
+                      <AlertTriangle className="size-3 shrink-0 text-amber-500" />
+                    )}
+                  </div>
+                  {template.description && (
+                    <p className="ml-5 truncate text-[10px] text-muted-foreground">
+                      {template.description}
+                    </p>
+                  )}
+                  <div className="ml-5 flex gap-2 text-[10px] text-muted-foreground">
+                    <span>{def?.columns ?? 2} col</span>
+                    <span>
+                      {fieldCount} field{fieldCount !== 1 ? "s" : ""}
+                    </span>
+                    {missingFields.length > 0 && (
+                      <span className="text-amber-500">{missingFields.length} missing</span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>

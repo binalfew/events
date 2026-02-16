@@ -62,6 +62,10 @@ async function main() {
     { resource: "event", action: "create" },
     { resource: "event", action: "read" },
     { resource: "event", action: "update" },
+    { resource: "section-template", action: "create" },
+    { resource: "section-template", action: "read" },
+    { resource: "section-template", action: "update" },
+    { resource: "section-template", action: "delete" },
     { resource: "settings", action: "manage" },
     { resource: "feature-flag", action: "manage" },
   ];
