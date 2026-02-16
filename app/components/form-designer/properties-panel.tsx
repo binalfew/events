@@ -2,11 +2,13 @@ import { Settings2 } from "lucide-react";
 import { Input } from "~/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import { cn } from "~/lib/utils";
+import { ConditionBuilder } from "./condition-builder";
 import type {
   FormDefinition,
   FormPage,
   FormSection,
   FormFieldPlacement,
+  VisibilityCondition,
 } from "~/types/form-designer";
 import type { SelectedElementType } from "~/types/designer-state";
 
@@ -127,9 +129,30 @@ export function PropertiesPanel({
           </TabsContent>
 
           <TabsContent value="visibility" className="p-3">
-            <p className="text-xs text-muted-foreground">
-              Visibility conditions will be available in a future update.
-            </p>
+            {selectedElementType === "page" && (
+              <PageVisibilityProperties
+                definition={definition}
+                pageId={selectedElementId}
+                fieldDefinitions={fieldDefinitions}
+                onUpdate={onUpdatePage}
+              />
+            )}
+            {selectedElementType === "section" && (
+              <SectionVisibilityProperties
+                definition={definition}
+                sectionId={selectedElementId}
+                fieldDefinitions={fieldDefinitions}
+                onUpdate={onUpdateSection}
+              />
+            )}
+            {selectedElementType === "field" && (
+              <FieldVisibilityProperties
+                definition={definition}
+                fieldId={selectedElementId}
+                fieldDefinitions={fieldDefinitions}
+                onUpdate={onUpdateField}
+              />
+            )}
           </TabsContent>
         </Tabs>
       </div>
@@ -368,6 +391,84 @@ function FieldLayoutProperties({
         </p>
       </PropertyField>
     </div>
+  );
+}
+
+// ─── Page Visibility ─────────────────────────────────────
+
+function PageVisibilityProperties({
+  definition,
+  pageId,
+  fieldDefinitions,
+  onUpdate,
+}: {
+  definition: FormDefinition;
+  pageId: string;
+  fieldDefinitions: FieldDefinitionLookup[];
+  onUpdate: PropertiesPanelProps["onUpdatePage"];
+}) {
+  const page = definition.pages.find((p) => p.id === pageId);
+  if (!page) return null;
+
+  return (
+    <ConditionBuilder
+      condition={page.visibleIf}
+      availableFields={fieldDefinitions}
+      onChange={(condition) => onUpdate(pageId, { visibleIf: condition })}
+    />
+  );
+}
+
+// ─── Section Visibility ──────────────────────────────────
+
+function SectionVisibilityProperties({
+  definition,
+  sectionId,
+  fieldDefinitions,
+  onUpdate,
+}: {
+  definition: FormDefinition;
+  sectionId: string;
+  fieldDefinitions: FieldDefinitionLookup[];
+  onUpdate: PropertiesPanelProps["onUpdateSection"];
+}) {
+  const found = findPageAndSection(definition, sectionId);
+  if (!found) return null;
+
+  return (
+    <ConditionBuilder
+      condition={found.section.visibleIf}
+      availableFields={fieldDefinitions}
+      onChange={(condition) => onUpdate(found.page.id, sectionId, { visibleIf: condition })}
+    />
+  );
+}
+
+// ─── Field Visibility ────────────────────────────────────
+
+function FieldVisibilityProperties({
+  definition,
+  fieldId,
+  fieldDefinitions,
+  onUpdate,
+}: {
+  definition: FormDefinition;
+  fieldId: string;
+  fieldDefinitions: FieldDefinitionLookup[];
+  onUpdate: PropertiesPanelProps["onUpdateField"];
+}) {
+  const found = findFieldLocation(definition, fieldId);
+  if (!found) return null;
+
+  return (
+    <ConditionBuilder
+      condition={found.field.visibleIf}
+      availableFields={fieldDefinitions}
+      excludeFieldId={found.field.fieldDefinitionId}
+      onChange={(condition) =>
+        onUpdate(found.page.id, found.section.id, fieldId, { visibleIf: condition })
+      }
+    />
   );
 }
 

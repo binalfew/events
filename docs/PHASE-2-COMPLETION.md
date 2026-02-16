@@ -1,7 +1,7 @@
 # Phase 2: Dynamic UI & Real-Time — Completion Report
 
 > **Started:** 2026-02-16
-> **Tasks completed:** P2-00, P2-01, P2-02, P2-03, P2-04
+> **Tasks completed:** P2-00, P2-01, P2-02, P2-03, P2-04, P2-05
 
 ---
 
@@ -13,6 +13,7 @@
 4. [P2-02 — Three-Panel Designer UI](#4-p2-02--three-panel-designer-ui)
 5. [P2-03 — Sections & Pages](#5-p2-03--sections--pages)
 6. [P2-04 — Drag-and-Drop (DnD Kit)](#6-p2-04--drag-and-drop-dnd-kit)
+7. [P2-05 — Conditional Visibility Rules](#7-p2-05--conditional-visibility-rules)
 
 ---
 
@@ -510,3 +511,101 @@ DndContext (root)
 | ------------------- | ------------------------------------ |
 | `npm run typecheck` | Zero errors                          |
 | `npm run test`      | 28/28 designer reducer tests passing |
+
+---
+
+## 7. P2-05 — Conditional Visibility Rules
+
+### What This Task Does
+
+Adds a visual condition builder to the form designer and a pure-function runtime evaluator for conditional visibility. Form pages, sections, and fields can have `visibleIf` conditions that show/hide elements based on other field values (e.g., show "Weapon Permit Number" only when "Carries Weapon" is true).
+
+### Architecture
+
+**Condition Data Model** (already defined in P2-01 types):
+
+```
+VisibilityCondition = SimpleCondition | CompoundCondition
+
+SimpleCondition { type: "simple", field: string, operator: ConditionOperator, value: unknown }
+CompoundCondition { type: "compound", operator: "and" | "or", conditions: VisibilityCondition[] }
+
+ConditionOperator = "eq" | "neq" | "empty" | "notEmpty" | "gt" | "lt" | "gte" | "lte"
+                  | "contains" | "in" | "notIn"
+```
+
+**Condition Evaluator** — Pure function usable on client and server:
+
+```
+evaluateCondition(condition, formValues) → boolean
+  → undefined condition → true (always visible)
+  → simple: evaluate operator against form value
+  → compound AND: all children must be true
+  → compound OR: at least one child must be true
+```
+
+**Operator filtering by field type:**
+
+| Field Type                | Allowed Operators                             |
+| ------------------------- | --------------------------------------------- |
+| TEXT, EMAIL, URL, etc.    | eq, neq, empty, notEmpty, contains, in, notIn |
+| NUMBER, DECIMAL, CURRENCY | eq, neq, empty, notEmpty, gt, lt, gte, lte    |
+| BOOLEAN, TOGGLE           | eq, neq, empty, notEmpty                      |
+| SELECT, RADIO, DROPDOWN   | eq, neq, empty, notEmpty, in, notIn           |
+| DATE, DATETIME            | eq, neq, empty, notEmpty, gt, lt, gte, lte    |
+
+**Condition Builder UI** — integrated into the Properties Panel's Visibility tab:
+
+```
+┌─────────────────────────────────┐
+│ Show when: Name equals "Alice"  │  ← Preview
+├─────────────────────────────────┤
+│ When: [Name        ▾] [✕]      │  ← Field selector + remove
+│ Is:   [equals      ▾]          │  ← Operator selector
+│ Value:[Alice       ]            │  ← Type-appropriate input
+├────── AND ──────────────────────┤  ← Toggle AND/OR
+│ When: [Age         ▾] [✕]      │
+│ Is:   [greater than▾]          │
+│ Value:[18          ]            │
+├─────────────────────────────────┤
+│ [+ Add condition] [Clear all]   │
+└─────────────────────────────────┘
+```
+
+### Files Created (2)
+
+| File                                                 | Purpose                                                                                                                                                                                                     |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/lib/condition-evaluator.ts`                     | Pure function `evaluateCondition()` supporting all 11 operators, compound AND/OR with short-circuit, `getOperatorsForType()` for type-filtered operator lists, `OperatorInfo` metadata                      |
+| `app/components/form-designer/condition-builder.tsx` | Visual rule builder: field selector dropdown, type-filtered operator selector, type-appropriate value inputs (text/number/date/boolean), compound AND/OR toggle, add/remove rules, natural-language preview |
+
+### Files Modified (3)
+
+| File                                                | Change                                                                                                                                                                                                                                                                                      |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/components/form-designer/properties-panel.tsx` | Replaced visibility tab placeholder with `ConditionBuilder` for all three element types (page, section, field). Added `PageVisibilityProperties`, `SectionVisibilityProperties`, `FieldVisibilityProperties` sub-components. Field visibility excludes self-reference via `excludeFieldId`. |
+| `app/components/form-designer/sortable-field.tsx`   | Added amber `Eye` icon indicator when `field.visibleIf` is set                                                                                                                                                                                                                              |
+| `app/components/form-designer/sortable-section.tsx` | Added amber `Eye` icon indicator next to section title when `section.visibleIf` is set                                                                                                                                                                                                      |
+
+### Tests Created (1)
+
+| File                                            | Tests                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/lib/__tests__/condition-evaluator.test.ts` | 33 tests covering: undefined conditions, eq/neq with string/number/null coercion, case-insensitive comparison, empty/notEmpty (null/undefined/string/array), all numeric operators (gt/lt/gte/lte) with coercion, contains (case-insensitive, null handling), in/notIn (array/non-array), compound AND/OR, empty compound, nested compound, unknown operator fallback, `getOperatorsForType()` for TEXT/NUMBER/BOOLEAN/SELECT/unknown types |
+
+### Key Patterns
+
+- **Pure evaluator function**: `evaluateCondition()` has no side effects and no dependencies — works identically on client and server for form rendering and server-side validation
+- **Loose equality with coercion**: `"5" == 5`, `"true" == true`, case-insensitive strings — handles the reality that form values may be strings even for numeric/boolean fields
+- **Type-filtered operators**: `getOperatorsForType()` maps field `dataType` to applicable operators (e.g., no "contains" for numbers, no "gt" for booleans)
+- **Type-appropriate value inputs**: Boolean fields get a true/false dropdown, numbers get a number input, dates get a date picker, text gets a text input
+- **Self-reference prevention**: Field visibility conditions exclude the field's own `fieldDefinitionId` from the field selector to prevent circular dependencies
+- **Progressive compound building**: First condition is a `SimpleCondition`, adding a second wraps both in a `CompoundCondition`, removing back to one unwraps to `SimpleCondition`
+- **Conditions stored in existing JSONB**: `visibleIf` is already part of `FormPage`, `FormSection`, and `FormFieldPlacement` types (defined in P2-01), and the Zod schema already validates recursive conditions via `z.lazy()`
+
+### Verification Results
+
+| Check               | Result                                                   |
+| ------------------- | -------------------------------------------------------- |
+| `npm run typecheck` | Zero errors                                              |
+| `npm run test`      | 393/393 tests passing (33 new condition evaluator tests) |

@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Trash2 } from "lucide-react";
+import { GripVertical, Trash2, Eye } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { getFieldTypeIcon } from "./field-type-icons";
 import { makeFieldDndId } from "./dnd-designer-context";
@@ -45,6 +45,7 @@ export function SortableField({
 
   const Icon = getFieldTypeIcon(fdLookup?.dataType ?? "TEXT");
   const label = fdLookup?.label ?? "Unknown field";
+  const hasCondition = !!field.visibleIf;
 
   return (
     <div
@@ -66,6 +67,11 @@ export function SortableField({
       </button>
       <Icon className="size-3.5 shrink-0 text-muted-foreground" />
       <span className="truncate">{label}</span>
+      {hasCondition && (
+        <span title="Has visibility condition">
+          <Eye className="size-3 shrink-0 text-amber-500" />
+        </span>
+      )}
       <button
         className="ml-auto hidden shrink-0 rounded p-0.5 text-muted-foreground hover:text-destructive group-hover:block"
         onClick={onRemove}

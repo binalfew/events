@@ -10,6 +10,7 @@ import {
   ChevronRight,
   ChevronUp,
   GripVertical,
+  Eye,
 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "~/components/ui/collapsible";
@@ -132,6 +133,11 @@ export function SortableSection({
             )}
             <LayoutGrid className="size-3.5 text-muted-foreground" />
             <span className="text-sm font-medium">{section.title}</span>
+            {section.visibleIf && (
+              <span title="Has visibility condition">
+                <Eye className="size-3 shrink-0 text-amber-500" />
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-1">
