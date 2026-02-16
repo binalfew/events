@@ -26,7 +26,7 @@ export default function DashboardLayout() {
 
   return (
     <SidebarProvider defaultOpen={sidebarOpen}>
-      <AppSidebar user={user} roles={roles} groupState={sidebarGroups} />
+      <AppSidebar roles={roles} groupState={sidebarGroups} />
       <SidebarInset>
         <TopNavbar user={user} theme={theme} colorTheme={colorTheme} />
         <div className="flex-1 p-4 md:p-6">
