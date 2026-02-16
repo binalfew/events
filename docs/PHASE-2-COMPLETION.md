@@ -1,7 +1,7 @@
 # Phase 2: Dynamic UI & Real-Time — Completion Report
 
 > **Started:** 2026-02-16
-> **Tasks completed:** P2-00, P2-01, P2-02, P2-03, P2-04, P2-05, P2-06, P2-07, P2-08, P2-09, P2-10, P2-11
+> **Tasks completed:** P2-00, P2-01, P2-02, P2-03, P2-04, P2-05, P2-06, P2-07, P2-08, P2-09, P2-10, P2-11, P2-12
 
 ---
 
@@ -20,6 +20,7 @@
 11. [P2-09 — SSE Real-Time Updates](#11-p2-09--sse-real-time-updates)
 12. [P2-10 — Notification System](#12-p2-10--notification-system)
 13. [P2-11 — Global Search](#13-p2-11--global-search)
+14. [P2-12 — Keyboard Shortcuts](#14-p2-12--keyboard-shortcuts)
 
 ---
 
@@ -1014,6 +1015,85 @@ Implemented a cross-entity global search system with a command palette UI. Users
 3. **Debounce + AbortController** — 300ms debounce prevents excessive requests; AbortController cancels inflight requests when a new query arrives, preventing stale results.
 4. **localStorage for recent searches** — Simple persistence without server-side storage; graceful fallback if localStorage is unavailable.
 5. **Feature flag gating** — `FF_GLOBAL_SEARCH` controls both the `⌘K` shortcut registration and the clickable trigger visibility. When disabled, the static placeholder remains.
+
+### Verification Results
+
+| Check               | Result                |
+| ------------------- | --------------------- |
+| `npm run typecheck` | Zero errors           |
+| `npm run test`      | 398/398 tests passing |
+
+---
+
+## 14. P2-12 — Keyboard Shortcuts
+
+### Summary
+
+Implemented a keyboard shortcuts system with a reusable hook (`useKeyboardShortcuts`), chord support (e.g., `g` then `e` for Go to Events), navigation shortcuts, a searchable shortcut help dialog (`?`), and feature flag gating via `FF_KEYBOARD_SHORTCUTS`. Workflow shortcuts (A/R/B/N/P) and designer shortcuts (⌘Z/⌘S) are registered in the help dialog for discoverability, with handlers to be wired when their respective UIs are built.
+
+### Architecture
+
+**Keyboard Shortcut Hook:**
+
+```
+useKeyboardShortcuts(shortcuts, { enabled })
+  → window.addEventListener("keydown", handler)
+  → Input focus detection (skip when in inputs/textareas/contenteditable)
+  → Modifier key support (Ctrl/Cmd via metaKey || ctrlKey)
+  → Chord support with 800ms timeout between keys
+  → Cleanup on unmount
+```
+
+**Chord Implementation:**
+
+```
+Key 1 pressed → store in ref, start 800ms timeout
+  → Key 2 pressed within timeout → match chord → fire handler
+  → Timeout expires → clear chord state
+  → Non-matching key → clear chord state
+```
+
+**Shortcut Categories:**
+
+| Category   | Shortcuts                                                                                        | Status        |
+| ---------- | ------------------------------------------------------------------------------------------------ | ------------- |
+| Global     | `⌘K` (search), `?` (help)                                                                        | Active        |
+| Navigation | `g+d` (Dashboard), `g+e` (Events), `g+s` (Settings), `g+n` (Notifications), `g+p` (Participants) | Active        |
+| Designer   | `⌘Z` (Undo), `⌘⇧Z` (Redo), `⌘S` (Save)                                                           | Informational |
+| Workflow   | `A` (Approve), `R` (Reject), `B` (Bypass), `N` (Next), `P` (Prev)                                | Informational |
+
+"Informational" shortcuts appear in the help dialog but handlers live in their respective components (designer-toolbar.tsx for designer, future validation queue for workflow).
+
+**Help Dialog:**
+
+- Triggered by `?` key
+- Grouped by category with section headers
+- Searchable (filters by description and key combination)
+- Key combinations rendered as styled `<kbd>` elements with "then" separator for chords
+
+### Files Created
+
+| File                                      | Purpose                                                            |
+| ----------------------------------------- | ------------------------------------------------------------------ |
+| `app/lib/use-keyboard-shortcuts.ts`       | Core hook with chord support, modifier keys, input focus detection |
+| `app/components/layout/shortcut-help.tsx` | Searchable help dialog grouped by shortcut category                |
+
+### Files Modified
+
+| File                                   | Change                                                                                                          |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `app/components/layout/top-navbar.tsx` | Added `shortcutsEnabled` prop, replaced standalone `⌘K` effect with `useKeyboardShortcuts`, renders help dialog |
+| `app/routes/admin/_layout.tsx`         | Added `shortcutsEnabled` via `FF_KEYBOARD_SHORTCUTS` flag check, passed to TopNavbar                            |
+| `docs/PHASE-2-COMPLETION.md`           | Added P2-12 entry                                                                                               |
+
+### Key Design Decisions
+
+1. **Single hook for all shortcut types** — `useKeyboardShortcuts` handles simple keys, modifier combos, and chords uniformly via the `key: string | [string, string]` definition. No separate systems for different shortcut types.
+2. **Ref-based chord state** — Chord first-key is stored in a `useRef` (not state) to avoid re-renders on every keystroke. An 800ms timeout clears stale chord state.
+3. **`enabled: false` for informational shortcuts** — Designer and workflow shortcuts are registered with `enabled: false` so they appear in the help dialog but don't fire handlers. Their actual handlers live in their respective components (designer-toolbar.tsx already handles ⌘Z/⌘S).
+4. **Input focus guard** — Shortcuts without modifiers are automatically suppressed when focus is in text inputs, textareas, selects, or contenteditable elements. Modifier shortcuts (⌘K) still fire in inputs since they're intentional.
+5. **Two feature flags** — `⌘K` is gated by `FF_GLOBAL_SEARCH` (from P2-11); navigation chords and `?` help are gated by `FF_KEYBOARD_SHORTCUTS`. The hook is enabled if either flag is on.
+6. **`getShortcutInfo()` utility** — Extracts display-only info (id, keys, description, group) from `ShortcutDefinition[]` for the help dialog, separating handler logic from presentation.
 
 ### Verification Results
 

@@ -1,7 +1,13 @@
-import { useEffect, useState } from "react";
-import { Form, Link, useMatches } from "react-router";
+import { useMemo, useState } from "react";
+import { Form, Link, useMatches, useNavigate } from "react-router";
 import { LogOut, Search, User } from "lucide-react";
 import { CommandPalette } from "~/components/layout/command-palette";
+import { ShortcutHelp } from "~/components/layout/shortcut-help";
+import {
+  useKeyboardShortcuts,
+  getShortcutInfo,
+  type ShortcutDefinition,
+} from "~/lib/use-keyboard-shortcuts";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -45,6 +51,7 @@ type TopNavbarProps = {
   unreadCount?: number;
   notifications?: NotificationItem[];
   searchEnabled?: boolean;
+  shortcutsEnabled?: boolean;
 };
 
 type BreadcrumbEntry = {
@@ -89,24 +96,177 @@ export function TopNavbar({
   unreadCount = 0,
   notifications = [],
   searchEnabled = false,
+  shortcutsEnabled = false,
 }: TopNavbarProps) {
   const breadcrumbs = useBreadcrumbs();
+  const navigate = useNavigate();
   const [searchOpen, setSearchOpen] = useState(false);
+  const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false);
 
-  // ⌘K / Ctrl+K keyboard shortcut
-  useEffect(() => {
-    if (!searchEnabled) return;
+  // Build shortcut definitions
+  const shortcuts = useMemo<ShortcutDefinition[]>(() => {
+    const defs: ShortcutDefinition[] = [];
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "k" && (event.metaKey || event.ctrlKey)) {
-        event.preventDefault();
-        setSearchOpen((open) => !open);
-      }
-    };
+    // ⌘K — Open command palette (works even without shortcuts feature, if search is enabled)
+    if (searchEnabled) {
+      defs.push({
+        id: "search",
+        keys: "⌘ K",
+        description: "Open command palette",
+        group: "global",
+        key: "k",
+        mod: true,
+        handler: () => setSearchOpen((o) => !o),
+      });
+    }
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [searchEnabled]);
+    // ? — Open shortcut help
+    defs.push({
+      id: "help",
+      keys: "?",
+      description: "Show keyboard shortcuts",
+      group: "global",
+      key: "?",
+      handler: () => setShortcutHelpOpen((o) => !o),
+    });
+
+    // Navigation chords
+    defs.push(
+      {
+        id: "nav-dashboard",
+        keys: "g then d",
+        description: "Go to Dashboard",
+        group: "navigation",
+        key: ["g", "d"],
+        handler: () => navigate("/admin"),
+      },
+      {
+        id: "nav-events",
+        keys: "g then e",
+        description: "Go to Events",
+        group: "navigation",
+        key: ["g", "e"],
+        handler: () => navigate("/admin/events"),
+      },
+      {
+        id: "nav-settings",
+        keys: "g then s",
+        description: "Go to Settings",
+        group: "navigation",
+        key: ["g", "s"],
+        handler: () => navigate("/admin/settings"),
+      },
+      {
+        id: "nav-notifications",
+        keys: "g then n",
+        description: "Go to Notifications",
+        group: "navigation",
+        key: ["g", "n"],
+        handler: () => navigate("/admin/notifications"),
+      },
+      {
+        id: "nav-participants",
+        keys: "g then p",
+        description: "Go to Participants",
+        group: "navigation",
+        key: ["g", "p"],
+        handler: () => navigate("/admin/participants"),
+      },
+    );
+
+    // Designer shortcuts (informational — actual handlers in designer-toolbar.tsx)
+    defs.push(
+      {
+        id: "designer-undo",
+        keys: "⌘ Z",
+        description: "Undo",
+        group: "designer",
+        key: "z",
+        mod: true,
+        handler: () => {},
+        enabled: false,
+      },
+      {
+        id: "designer-redo",
+        keys: "⌘ ⇧ Z",
+        description: "Redo",
+        group: "designer",
+        key: "z",
+        mod: true,
+        shift: true,
+        handler: () => {},
+        enabled: false,
+      },
+      {
+        id: "designer-save",
+        keys: "⌘ S",
+        description: "Save form",
+        group: "designer",
+        key: "s",
+        mod: true,
+        handler: () => {},
+        enabled: false,
+      },
+    );
+
+    // Workflow shortcuts (informational — handlers wired when validation queue is built)
+    defs.push(
+      {
+        id: "workflow-approve",
+        keys: "A",
+        description: "Approve current participant",
+        group: "workflow",
+        key: "a",
+        handler: () => {},
+        enabled: false,
+      },
+      {
+        id: "workflow-reject",
+        keys: "R",
+        description: "Reject current participant",
+        group: "workflow",
+        key: "r",
+        handler: () => {},
+        enabled: false,
+      },
+      {
+        id: "workflow-bypass",
+        keys: "B",
+        description: "Bypass current step",
+        group: "workflow",
+        key: "b",
+        handler: () => {},
+        enabled: false,
+      },
+      {
+        id: "workflow-next",
+        keys: "N",
+        description: "Next participant",
+        group: "workflow",
+        key: "n",
+        handler: () => {},
+        enabled: false,
+      },
+      {
+        id: "workflow-prev",
+        keys: "P",
+        description: "Previous participant",
+        group: "workflow",
+        key: "p",
+        handler: () => {},
+        enabled: false,
+      },
+    );
+
+    return defs;
+  }, [searchEnabled, navigate]);
+
+  // Register shortcuts — ⌘K always active if search is enabled, others need shortcutsEnabled
+  useKeyboardShortcuts(shortcuts, {
+    enabled: searchEnabled || shortcutsEnabled,
+  });
+
+  const shortcutInfoList = useMemo(() => getShortcutInfo(shortcuts), [shortcuts]);
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 border-b">
@@ -206,6 +366,11 @@ export function TopNavbar({
       </div>
 
       {searchEnabled && <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} />}
+      <ShortcutHelp
+        open={shortcutHelpOpen}
+        onOpenChange={setShortcutHelpOpen}
+        shortcuts={shortcutInfoList}
+      />
     </header>
   );
 }

@@ -23,6 +23,10 @@ export async function loader({ request }: Route.LoaderArgs) {
   const sseEnabled = env.ENABLE_SSE && (await isFeatureEnabled("FF_SSE_UPDATES", flagContext));
   const notificationsEnabled = await isFeatureEnabled(FEATURE_FLAG_KEYS.NOTIFICATIONS, flagContext);
   const searchEnabled = await isFeatureEnabled(FEATURE_FLAG_KEYS.GLOBAL_SEARCH, flagContext);
+  const shortcutsEnabled = await isFeatureEnabled(
+    FEATURE_FLAG_KEYS.KEYBOARD_SHORTCUTS,
+    flagContext,
+  );
 
   let unreadCount = 0;
   let recentNotifications: Array<{
@@ -60,6 +64,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     sseEnabled,
     notificationsEnabled,
     searchEnabled,
+    shortcutsEnabled,
     unreadCount,
     recentNotifications,
   };
@@ -76,6 +81,7 @@ export default function DashboardLayout() {
     sseEnabled,
     notificationsEnabled,
     searchEnabled,
+    shortcutsEnabled,
     unreadCount,
     recentNotifications,
   } = useLoaderData<typeof loader>();
@@ -97,6 +103,7 @@ export default function DashboardLayout() {
           colorTheme={colorTheme}
           notificationsEnabled={notificationsEnabled}
           searchEnabled={searchEnabled}
+          shortcutsEnabled={shortcutsEnabled}
           unreadCount={unreadCount}
           notifications={recentNotifications}
         />
