@@ -1,7 +1,7 @@
 # Phase 2: Dynamic UI & Real-Time — Completion Report
 
 > **Started:** 2026-02-16
-> **Tasks completed:** P2-00, P2-01, P2-02, P2-03, P2-04, P2-05, P2-06, P2-07, P2-08, P2-09, P2-10
+> **Tasks completed:** P2-00, P2-01, P2-02, P2-03, P2-04, P2-05, P2-06, P2-07, P2-08, P2-09, P2-10, P2-11
 
 ---
 
@@ -19,6 +19,7 @@
 10. [P2-08 — Skeleton Loading States](#10-p2-08--skeleton-loading-states)
 11. [P2-09 — SSE Real-Time Updates](#11-p2-09--sse-real-time-updates)
 12. [P2-10 — Notification System](#12-p2-10--notification-system)
+13. [P2-11 — Global Search](#13-p2-11--global-search)
 
 ---
 
@@ -947,3 +948,76 @@ Implemented a full notification system with persistent storage, bell icon with u
 | `npx prisma db push` | Schema pushed without error |
 | `npm run typecheck`  | Zero errors                 |
 | `npm run test`       | 398/398 tests passing       |
+
+---
+
+## 13. P2-11 — Global Search
+
+### Summary
+
+Implemented a cross-entity global search system with a command palette UI. Users can search across Participants, Events, and Form Templates from anywhere in the admin interface via `⌘K` / `Ctrl+K`. The feature includes debounced search, keyboard navigation, recent searches (localStorage), quick actions, and grouped results. Gated behind the existing `FF_GLOBAL_SEARCH` feature flag.
+
+### Architecture
+
+**Search Pipeline:**
+
+```
+⌘K → CommandPalette dialog → debounced fetch (300ms) → GET /api/v1/search?q=
+  → requireAuth (tenant-scoped) → globalSearch() → 3 parallel Prisma queries
+  → grouped results { participants, events, forms }
+```
+
+**Search Strategy:**
+
+- Prisma `contains` with `mode: "insensitive"` (case-insensitive substring match)
+- No raw SQL needed — standard Prisma `findMany` with `OR` conditions
+- Each entity type limited to 5 results, ordered by `updatedAt desc`
+
+**Searched Fields by Entity:**
+
+| Entity       | Fields Searched                                            |
+| ------------ | ---------------------------------------------------------- |
+| Participants | firstName, lastName, email, organization, registrationCode |
+| Events       | name, description                                          |
+| Forms        | name                                                       |
+
+**Command Palette Features:**
+
+- Dialog positioned near top of viewport with search input
+- Debounced fetch (300ms) with AbortController for request cancellation
+- Grouped results with entity type icons and headers
+- Quick actions (Go to Events, Participants, Settings) when query is empty
+- Recent searches stored in `localStorage` (max 5 entries)
+- Full keyboard navigation: `↑`/`↓` to move, `Enter` to open, `Esc` to close
+- Loading spinner and empty state
+
+### Files Created
+
+| File                                        | Purpose                                                        |
+| ------------------------------------------- | -------------------------------------------------------------- |
+| `app/services/search.server.ts`             | `globalSearch()` — 3 parallel Prisma queries with tenant scope |
+| `app/routes/api/v1/search.tsx`              | GET loader-only route, auth-gated, rejects queries < 2 chars   |
+| `app/components/layout/command-palette.tsx` | Dialog-based command palette with full keyboard navigation     |
+
+### Files Modified
+
+| File                                   | Change                                                              |
+| -------------------------------------- | ------------------------------------------------------------------- |
+| `app/components/layout/top-navbar.tsx` | Added `searchEnabled` prop, `⌘K` shortcut, clickable search trigger |
+| `app/routes/admin/_layout.tsx`         | Added `searchEnabled` via `FF_GLOBAL_SEARCH` flag check             |
+| `docs/PHASE-2-COMPLETION.md`           | Added P2-11 entry                                                   |
+
+### Key Design Decisions
+
+1. **Simple Prisma queries over raw SQL** — `contains` + `insensitive` mode is sufficient for substring search across fixed columns. The JSONB query layer (`field-query.server.ts`) is overkill for this use case.
+2. **Loader-only API route** — Search is read-only, so only a `loader` function is needed (GET requests).
+3. **Debounce + AbortController** — 300ms debounce prevents excessive requests; AbortController cancels inflight requests when a new query arrives, preventing stale results.
+4. **localStorage for recent searches** — Simple persistence without server-side storage; graceful fallback if localStorage is unavailable.
+5. **Feature flag gating** — `FF_GLOBAL_SEARCH` controls both the `⌘K` shortcut registration and the clickable trigger visibility. When disabled, the static placeholder remains.
+
+### Verification Results
+
+| Check               | Result                |
+| ------------------- | --------------------- |
+| `npm run typecheck` | Zero errors           |
+| `npm run test`      | 398/398 tests passing |

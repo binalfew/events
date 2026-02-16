@@ -22,6 +22,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   };
   const sseEnabled = env.ENABLE_SSE && (await isFeatureEnabled("FF_SSE_UPDATES", flagContext));
   const notificationsEnabled = await isFeatureEnabled(FEATURE_FLAG_KEYS.NOTIFICATIONS, flagContext);
+  const searchEnabled = await isFeatureEnabled(FEATURE_FLAG_KEYS.GLOBAL_SEARCH, flagContext);
 
   let unreadCount = 0;
   let recentNotifications: Array<{
@@ -58,6 +59,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     colorTheme: getColorTheme(request),
     sseEnabled,
     notificationsEnabled,
+    searchEnabled,
     unreadCount,
     recentNotifications,
   };
@@ -73,6 +75,7 @@ export default function DashboardLayout() {
     colorTheme,
     sseEnabled,
     notificationsEnabled,
+    searchEnabled,
     unreadCount,
     recentNotifications,
   } = useLoaderData<typeof loader>();
@@ -93,6 +96,7 @@ export default function DashboardLayout() {
           theme={theme}
           colorTheme={colorTheme}
           notificationsEnabled={notificationsEnabled}
+          searchEnabled={searchEnabled}
           unreadCount={unreadCount}
           notifications={recentNotifications}
         />

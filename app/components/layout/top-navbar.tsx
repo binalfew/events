@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { Form, Link, useMatches } from "react-router";
 import { LogOut, Search, User } from "lucide-react";
+import { CommandPalette } from "~/components/layout/command-palette";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -42,6 +44,7 @@ type TopNavbarProps = {
   notificationsEnabled?: boolean;
   unreadCount?: number;
   notifications?: NotificationItem[];
+  searchEnabled?: boolean;
 };
 
 type BreadcrumbEntry = {
@@ -85,8 +88,25 @@ export function TopNavbar({
   notificationsEnabled = false,
   unreadCount = 0,
   notifications = [],
+  searchEnabled = false,
 }: TopNavbarProps) {
   const breadcrumbs = useBreadcrumbs();
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  // ⌘K / Ctrl+K keyboard shortcut
+  useEffect(() => {
+    if (!searchEnabled) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "k" && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        setSearchOpen((open) => !open);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [searchEnabled]);
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 border-b">
@@ -115,14 +135,28 @@ export function TopNavbar({
       </div>
 
       <div className="flex items-center gap-2 px-4">
-        {/* Search placeholder */}
-        <div className="hidden items-center gap-2 rounded-md border bg-muted/50 px-3 py-1.5 text-sm text-muted-foreground md:flex">
-          <Search className="size-4" />
-          <span>Search...</span>
-          <kbd className="pointer-events-none ml-2 inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
-            <span className="text-xs">&#8984;</span>K
-          </kbd>
-        </div>
+        {/* Search trigger */}
+        {searchEnabled ? (
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            className="hidden cursor-pointer items-center gap-2 rounded-md border bg-muted/50 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted md:flex"
+          >
+            <Search className="size-4" />
+            <span>Search...</span>
+            <kbd className="pointer-events-none ml-2 inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+              <span className="text-xs">&#8984;</span>K
+            </kbd>
+          </button>
+        ) : (
+          <div className="hidden items-center gap-2 rounded-md border bg-muted/50 px-3 py-1.5 text-sm text-muted-foreground md:flex">
+            <Search className="size-4" />
+            <span>Search...</span>
+            <kbd className="pointer-events-none ml-2 inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+              <span className="text-xs">&#8984;</span>K
+            </kbd>
+          </div>
+        )}
 
         {/* Theme switcher */}
         <ThemeSwitch userPreference={theme} />
@@ -170,6 +204,8 @@ export function TopNavbar({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {searchEnabled && <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} />}
     </header>
   );
 }
