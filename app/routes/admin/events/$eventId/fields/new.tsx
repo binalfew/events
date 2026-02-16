@@ -119,7 +119,7 @@ export default function NewFieldPage() {
   const actionData = useActionData<typeof action>();
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="space-y-6">
       <div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Link to="/admin/events" className="hover:text-foreground">
