@@ -12,6 +12,7 @@ import { DesignerToolbar } from "~/components/form-designer/designer-toolbar";
 import { FieldPalette } from "~/components/form-designer/field-palette";
 import { DesignCanvas } from "~/components/form-designer/design-canvas";
 import { PropertiesPanel } from "~/components/form-designer/properties-panel";
+import { DndDesignerContext } from "~/components/form-designer/dnd-designer-context";
 import { Button } from "~/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "~/components/ui/sheet";
 import type { FormDefinition } from "~/types/form-designer";
@@ -85,6 +86,7 @@ export default function FormDesignerPage() {
     addField,
     removeField,
     updateField,
+    moveField,
     reorderPages,
     reorderSections,
     markSaved,
@@ -181,6 +183,23 @@ export default function FormDesignerPage() {
     [state.definition.pages, addSection],
   );
 
+  const handleAddFieldFromPalette = useCallback(
+    (fieldDefinitionId: string, targetSectionId: string, order: number) => {
+      if (!state.activePageId) return;
+      const section = activePage?.sections.find((s) => s.id === targetSectionId);
+      const defaultColSpan = Math.floor(
+        12 / (section?.columns ?? 2),
+      ) as FormDefinition["pages"][number]["sections"][number]["fields"][number]["colSpan"];
+      addField(state.activePageId, targetSectionId, {
+        id: crypto.randomUUID(),
+        fieldDefinitionId,
+        order,
+        colSpan: defaultColSpan,
+      });
+    },
+    [state.activePageId, activePage, addField],
+  );
+
   const handleDuplicatePage = useCallback(
     (pageId: string) => {
       const page = state.definition.pages.find((p) => p.id === pageId);
@@ -224,82 +243,91 @@ export default function FormDesignerPage() {
   );
 
   return (
-    <div className="-m-4 md:-m-6 flex h-[calc(100vh-3rem)] flex-col">
-      <DesignerToolbar
-        formName={template.name}
-        eventId={event.id}
-        formId={template.id}
-        viewMode={state.viewMode}
-        canUndo={canUndo}
-        canRedo={canRedo}
-        autosaveStatus={status}
-        lastSavedAt={lastSavedAt}
-        onUndo={undo}
-        onRedo={redo}
-        onSetViewMode={setViewMode}
-        onSaveNow={saveNow}
-      />
-
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left panel: Field palette */}
-        {isMobile ? (
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="icon-sm" className="absolute left-2 top-14 z-10">
-                <PanelLeft className="size-4" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-[280px] p-0">
-              <SheetHeader className="sr-only">
-                <SheetTitle>Fields</SheetTitle>
-              </SheetHeader>
-              {paletteContent}
-            </SheetContent>
-          </Sheet>
-        ) : (
-          state.viewMode !== "preview" && paletteContent
-        )}
-
-        {/* Center: Design canvas */}
-        <DesignCanvas
-          definition={state.definition}
-          activePageId={state.activePageId}
-          selectedElementId={state.selectedElementId}
-          selectedElementType={state.selectedElementType}
-          fieldDefinitions={fieldDefinitions}
-          onSelectElement={selectElement}
-          onSetActivePage={setActivePage}
-          onAddPage={handleAddPage}
-          onRemovePage={removePage}
-          onUpdatePage={updatePage}
-          onDuplicatePage={handleDuplicatePage}
-          onReorderPages={reorderPages}
-          onAddSection={handleAddSection}
-          onRemoveSection={removeSection}
-          onUpdateSection={updateSection}
-          onReorderSections={reorderSections}
-          onRemoveField={removeField}
+    <DndDesignerContext
+      definition={state.definition}
+      activePageId={state.activePageId}
+      fieldDefinitions={fieldDefinitions}
+      onMoveField={moveField}
+      onReorderSections={reorderSections}
+      onAddFieldFromPalette={handleAddFieldFromPalette}
+    >
+      <div className="-m-4 md:-m-6 flex h-[calc(100vh-3rem)] flex-col">
+        <DesignerToolbar
+          formName={template.name}
+          eventId={event.id}
+          formId={template.id}
+          viewMode={state.viewMode}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          autosaveStatus={status}
+          lastSavedAt={lastSavedAt}
+          onUndo={undo}
+          onRedo={redo}
+          onSetViewMode={setViewMode}
+          onSaveNow={saveNow}
         />
 
-        {/* Right panel: Properties */}
-        {isMobile ? (
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="icon-sm" className="absolute right-2 top-14 z-10">
-                <PanelRight className="size-4" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-[320px] p-0">
-              <SheetHeader className="sr-only">
-                <SheetTitle>Properties</SheetTitle>
-              </SheetHeader>
-              {propertiesContent}
-            </SheetContent>
-          </Sheet>
-        ) : (
-          state.viewMode !== "preview" && propertiesContent
-        )}
+        <div className="flex flex-1 overflow-hidden">
+          {/* Left panel: Field palette */}
+          {isMobile ? (
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="icon-sm" className="absolute left-2 top-14 z-10">
+                  <PanelLeft className="size-4" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-[280px] p-0">
+                <SheetHeader className="sr-only">
+                  <SheetTitle>Fields</SheetTitle>
+                </SheetHeader>
+                {paletteContent}
+              </SheetContent>
+            </Sheet>
+          ) : (
+            state.viewMode !== "preview" && paletteContent
+          )}
+
+          {/* Center: Design canvas */}
+          <DesignCanvas
+            definition={state.definition}
+            activePageId={state.activePageId}
+            selectedElementId={state.selectedElementId}
+            selectedElementType={state.selectedElementType}
+            fieldDefinitions={fieldDefinitions}
+            onSelectElement={selectElement}
+            onSetActivePage={setActivePage}
+            onAddPage={handleAddPage}
+            onRemovePage={removePage}
+            onUpdatePage={updatePage}
+            onDuplicatePage={handleDuplicatePage}
+            onReorderPages={reorderPages}
+            onAddSection={handleAddSection}
+            onRemoveSection={removeSection}
+            onUpdateSection={updateSection}
+            onReorderSections={reorderSections}
+            onRemoveField={removeField}
+          />
+
+          {/* Right panel: Properties */}
+          {isMobile ? (
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="icon-sm" className="absolute right-2 top-14 z-10">
+                  <PanelRight className="size-4" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[320px] p-0">
+                <SheetHeader className="sr-only">
+                  <SheetTitle>Properties</SheetTitle>
+                </SheetHeader>
+                {propertiesContent}
+              </SheetContent>
+            </Sheet>
+          ) : (
+            state.viewMode !== "preview" && propertiesContent
+          )}
+        </div>
       </div>
-    </div>
+    </DndDesignerContext>
   );
 }

@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { Link } from "react-router";
+import { useDraggable } from "@dnd-kit/core";
 import { Search, GripVertical } from "lucide-react";
 import { Input } from "~/components/ui/input";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "~/components/ui/collapsible";
 import { ChevronRight } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { getFieldTypeIcon, getFieldTypeLabel, fieldCategories } from "./field-type-icons";
+import { makePaletteDndId } from "./dnd-designer-context";
 
 interface FieldDefinitionItem {
   id: string;
@@ -87,34 +89,14 @@ export function FieldPalette({
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <div className="ml-1 space-y-0.5 pb-2">
-                  {group.fields.map((field) => {
-                    const Icon = getFieldTypeIcon(field.dataType);
-                    return (
-                      <button
-                        key={field.id}
-                        onClick={() => onAddField(field.id)}
-                        disabled={!canAdd}
-                        title={
-                          canAdd
-                            ? `Add "${field.label}" to current section`
-                            : "Select a section first"
-                        }
-                        className={cn(
-                          "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors",
-                          canAdd
-                            ? "hover:bg-accent cursor-pointer"
-                            : "opacity-50 cursor-not-allowed",
-                        )}
-                      >
-                        <GripVertical className="size-3 text-muted-foreground/50" />
-                        <Icon className="size-3.5 shrink-0 text-muted-foreground" />
-                        <span className="truncate">{field.label}</span>
-                        <span className="ml-auto text-[10px] text-muted-foreground">
-                          {getFieldTypeLabel(field.dataType)}
-                        </span>
-                      </button>
-                    );
-                  })}
+                  {group.fields.map((field) => (
+                    <DraggablePaletteItem
+                      key={field.id}
+                      field={field}
+                      canAdd={canAdd}
+                      onAddField={onAddField}
+                    />
+                  ))}
                 </div>
               </CollapsibleContent>
             </Collapsible>
@@ -122,5 +104,53 @@ export function FieldPalette({
         )}
       </div>
     </div>
+  );
+}
+
+// ─── Draggable Palette Item ──────────────────────────────
+
+function DraggablePaletteItem({
+  field,
+  canAdd,
+  onAddField,
+}: {
+  field: FieldDefinitionItem;
+  canAdd: boolean;
+  onAddField: (fieldDefinitionId: string) => void;
+}) {
+  const dndId = makePaletteDndId(field.id);
+
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: dndId,
+    data: { type: "palette", fieldDefinitionId: field.id },
+  });
+
+  const Icon = getFieldTypeIcon(field.dataType);
+
+  return (
+    <button
+      ref={setNodeRef}
+      onClick={() => onAddField(field.id)}
+      disabled={!canAdd}
+      title={canAdd ? `Add "${field.label}" to current section` : "Select a section first"}
+      className={cn(
+        "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors",
+        canAdd ? "hover:bg-accent cursor-pointer" : "opacity-50 cursor-not-allowed",
+        isDragging && "opacity-30",
+      )}
+    >
+      <span
+        className="shrink-0 cursor-grab touch-none text-muted-foreground/50 hover:text-muted-foreground active:cursor-grabbing"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="size-3" />
+      </span>
+      <Icon className="size-3.5 shrink-0 text-muted-foreground" />
+      <span className="truncate">{field.label}</span>
+      <span className="ml-auto text-[10px] text-muted-foreground">
+        {getFieldTypeLabel(field.dataType)}
+      </span>
+    </button>
   );
 }

@@ -1,7 +1,7 @@
 # Phase 2: Dynamic UI & Real-Time — Completion Report
 
 > **Started:** 2026-02-16
-> **Tasks completed:** P2-00, P2-01, P2-02, P2-03
+> **Tasks completed:** P2-00, P2-01, P2-02, P2-03, P2-04
 
 ---
 
@@ -12,6 +12,7 @@
 3. [P2-01 — FormTemplate Model](#3-p2-01--formtemplate-model)
 4. [P2-02 — Three-Panel Designer UI](#4-p2-02--three-panel-designer-ui)
 5. [P2-03 — Sections & Pages](#5-p2-03--sections--pages)
+6. [P2-04 — Drag-and-Drop (DnD Kit)](#6-p2-04--drag-and-drop-dnd-kit)
 
 ---
 
@@ -427,3 +428,85 @@ Enhances the form designer canvas with polished section/page management: collaps
 | ------------------- | ---------------------------------------------------------- |
 | `npm run typecheck` | Zero errors                                                |
 | `npm run test`      | 28/28 designer reducer tests passing (7 new reorder tests) |
+
+---
+
+## 6. P2-04 — Drag-and-Drop (DnD Kit)
+
+### What This Task Does
+
+Adds full drag-and-drop capability to the form designer using `@dnd-kit/core`, `@dnd-kit/sortable`, and `@dnd-kit/utilities`. Fields can be dragged from the palette onto canvas sections, reordered within sections, moved between sections, and sections themselves can be reordered via drag. All operations integrate with the existing undo/redo system.
+
+### Architecture
+
+**DnD ID Scheme:**
+
+```
+palette:{fieldDefinitionId}  — Draggable palette items
+field:{fieldPlacementId}     — Sortable field cards on canvas
+section:{sectionId}          — Sortable section cards + droppable zones
+```
+
+**Sensor Configuration:**
+
+- `PointerSensor` with 5px distance activation constraint
+- `KeyboardSensor` with `sortableKeyboardCoordinates` for accessible keyboard drag
+- `TouchSensor` with 200ms delay + 5px tolerance for mobile
+
+**Collision Detection:**
+Custom cascade: `pointerWithin` → `rectIntersection` → `closestCenter`. This ensures cross-container drops work reliably with nested sortable contexts.
+
+**Nested SortableContexts:**
+
+```
+DndContext (root)
+  └─ SortableContext (sections, verticalListSortingStrategy)
+       ├─ SortableSection #1
+       │    └─ SortableContext (fields, rectSortingStrategy)
+       │         ├─ SortableField (field:abc)
+       │         └─ SortableField (field:def)
+       └─ SortableSection #2
+            └─ SortableContext (fields, rectSortingStrategy)
+                 └─ SortableField (field:ghi)
+```
+
+**Drag overlay:** A `DragOverlay` renders a ghost of the dragged item (section label or field card with icon), following the cursor with smooth 200ms ease animation.
+
+### Files Created (3)
+
+| File                                                    | Purpose                                                                                                                                                                                                                                        |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/components/form-designer/dnd-designer-context.tsx` | Root `DndContext` wrapper with sensors, collision detection, drag event handlers (start/over/end/cancel), `DragOverlay`, ID parsing utilities (`makeSectionDndId`, `makeFieldDndId`, `makePaletteDndId`, `parseDndId`)                         |
+| `app/components/form-designer/sortable-section.tsx`     | `SortableSection` — uses `useSortable` for section reorder + `useDroppable` as a field drop target, contains nested `SortableContext` for fields, drag handle with `GripVertical` icon, drop highlight, empty drop zone with column guidelines |
+| `app/components/form-designer/sortable-field.tsx`       | `SortableField` — uses `useSortable` for field reorder/cross-section move, drag handle, CSS transform for smooth animations, 12-col grid spanning                                                                                              |
+
+### Files Modified (3)
+
+| File                                                 | Change                                                                                                                                                                                                      |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/components/form-designer/design-canvas.tsx`     | Replaced static `SectionCard`/`FieldCard` with `SortableSection` + `SortableContext` for sections using `verticalListSortingStrategy`, removed inline section/field card components (now in separate files) |
+| `app/components/form-designer/field-palette.tsx`     | Extracted `DraggablePaletteItem` sub-component using `useDraggable` hook, grip handle triggers drag while click still adds field                                                                            |
+| `app/routes/admin/events/$eventId/forms/$formId.tsx` | Wrapped entire designer layout with `DndDesignerContext`, destructured `moveField` from hook, added `handleAddFieldFromPalette` callback for palette DnD drops with target section + order                  |
+
+### Dependencies Added
+
+| Package              | Version | Purpose                                                 |
+| -------------------- | ------- | ------------------------------------------------------- |
+| `@dnd-kit/core`      | ^6      | DnD context, sensors, collision detection, drag overlay |
+| `@dnd-kit/sortable`  | ^10     | `useSortable`, `SortableContext`, sorting strategies    |
+| `@dnd-kit/utilities` | ^3      | CSS transform utilities                                 |
+
+### Key Patterns
+
+- **Prefixed DnD IDs**: `section:`, `field:`, `palette:` prefixes disambiguate item types in shared DnD context
+- **Dual role for sections**: Each `SortableSection` is both a sortable item (for section reorder) and a droppable zone (for receiving fields)
+- **Drag handle isolation**: `{...listeners}` attached only to the grip handle element, not the entire card, so clicks/interactions on other buttons work normally
+- **Palette → Canvas**: `useDraggable` on palette items (not `useSortable`), since palette items aren't sortable — they create new field placements when dropped
+- **Touch support**: `TouchSensor` with 200ms delay prevents accidental drags on mobile scroll
+
+### Verification Results
+
+| Check               | Result                               |
+| ------------------- | ------------------------------------ |
+| `npm run typecheck` | Zero errors                          |
+| `npm run test`      | 28/28 designer reducer tests passing |
