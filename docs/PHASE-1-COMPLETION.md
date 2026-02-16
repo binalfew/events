@@ -2,7 +2,7 @@
 
 > **Started:** 2026-02-15
 > **Last updated:** 2026-02-16
-> **Tasks completed:** P1-00, P1-01, P1-02, P1-03, P1-04, P1-05, P1-06, P1-07, P1-08, P1-09, P1-10, P1-11 (all 12 tasks) + App Shell & Color Themes
+> **Tasks completed:** P1-00, P1-01, P1-02, P1-03, P1-04, P1-05, P1-06, P1-07, P1-08, P1-09, P1-10, P1-11 (all 12 tasks) + App Shell, Color Themes, Login Redesign & Sidebar Active State
 > **Status:** Complete
 
 ---
@@ -24,11 +24,13 @@
 13. [P1-11 — File Upload Scanning](#13-p1-11--file-upload-scanning)
 14. [App Shell Redesign](#14-app-shell-redesign)
 15. [Color Theme Selector](#15-color-theme-selector)
-16. [Commit History](#16-commit-history)
-17. [Complete File Inventory](#17-complete-file-inventory)
-18. [Bugs & Gotchas Encountered](#18-bugs--gotchas-encountered)
-19. [Architecture Decisions](#19-architecture-decisions)
-20. [Quality Gate Progress](#20-quality-gate-progress)
+16. [Login Page Redesign](#16-login-page-redesign)
+17. [Sidebar Active State](#17-sidebar-active-state)
+18. [Commit History](#18-commit-history)
+19. [Complete File Inventory](#19-complete-file-inventory)
+20. [Bugs & Gotchas Encountered](#20-bugs--gotchas-encountered)
+21. [Architecture Decisions](#21-architecture-decisions)
+22. [Quality Gate Progress](#22-quality-gate-progress)
 
 ---
 
@@ -1679,7 +1681,85 @@ The `COLOR_THEMES` constant is needed on both server (cookie validation) and cli
 
 ---
 
-## 16. Commit History
+## 16. Login Page Redesign
+
+### What This Delivers
+
+A polished login page following the shadcn login-01 Card-based layout. The page centers a compact Card component with structured header (title + description), form fields with labels, and a "Forgot your password?" link — all while preserving the existing Conform + Zod validation, progressive lockout, and audit logging.
+
+### Layout
+
+```
+┌─────────────────────────────┐
+│  min-h-svh centered flex    │
+│  ┌───────────────────────┐  │
+│  │ CardHeader            │  │
+│  │   "Login"             │  │
+│  │   "Enter your email…" │  │
+│  ├───────────────────────┤  │
+│  │ CardContent           │  │
+│  │   [form errors]       │  │
+│  │   Email input         │  │
+│  │   Password + "Forgot" │  │
+│  │   [Login] button      │  │
+│  └───────────────────────┘  │
+└─────────────────────────────┘
+```
+
+### Files Modified
+
+| File                        | Changes                                                                    |
+| --------------------------- | -------------------------------------------------------------------------- |
+| `app/routes/auth/login.tsx` | Redesigned JSX to Card layout with CardHeader/CardContent, max-w-sm center |
+
+### What's Preserved
+
+- Conform `useForm` + `getFormProps` / `getInputProps` integration
+- Zod `loginSchema` with email + password + redirectTo validation
+- Server action with lockout detection, password verification, failed-attempt tracking, and audit logging
+- Progressive enhancement (works without JavaScript)
+
+---
+
+## 17. Sidebar Active State
+
+### What This Delivers
+
+Sidebar navigation items now highlight the active route using the selected color theme's accent color. The active state detection handles deeply nested routes (e.g., `/admin/events/:eventId/fields`) by falling back to the closest matching parent nav item when no sub-item directly claims the path.
+
+### How It Works
+
+Two helper functions in `nav-main.tsx`:
+
+- **`isPathActive(pathname, url, end?)`** — used for top-level items without children. Exact match when `end: true`, prefix match otherwise.
+- **`isChildActive(pathname, child, siblings)`** — used for sub-items within collapsible groups. For `end: true` items, falls back to prefix matching when no sibling claims the path.
+
+```
+/admin/events                         → "All Events" active (exact match)
+/admin/events/categories              → "Categories" active (prefix match)
+/admin/events/cmlnbygt…/fields        → "All Events" active (fallback — no sibling matches)
+```
+
+### Theme-Aware Highlighting
+
+The sidebar's `data-[active=true]` styles were changed from neutral `sidebar-accent` to `sidebar-primary`, so active items reflect the user's chosen accent color:
+
+| Component              | Before                   | After                     |
+| ---------------------- | ------------------------ | ------------------------- |
+| `SidebarMenuButton`    | `bg-sidebar-accent`      | `bg-sidebar-primary`      |
+| `SidebarMenuSubButton` | `bg-sidebar-accent`      | `bg-sidebar-primary`      |
+| Text color             | `text-sidebar-accent-fg` | `text-sidebar-primary-fg` |
+
+### Files Modified
+
+| File                                 | Changes                                                                              |
+| ------------------------------------ | ------------------------------------------------------------------------------------ |
+| `app/components/layout/nav-main.tsx` | Added `useLocation`, `isPathActive`, `isChildActive`; pass `isActive` to all buttons |
+| `app/components/ui/sidebar.tsx`      | Changed `data-[active=true]` from `sidebar-accent` to `sidebar-primary` colors       |
+
+---
+
+## 18. Commit History
 
 ```
 (Phase 0 final commits for reference)
@@ -1706,108 +1786,110 @@ b42e37c feat: implement P1-11 file upload scanning with ClamAV integration
 ab6c657 feat: implement app shell redesign with collapsible sidebar and top navbar
 7fb8706 feat: add accent color theme selector with cookie persistence
 cbcc085 feat: update green theme to #3F734B, compact navbar and sidebar header
+e719c2c feat: redesign login page to shadcn login-01 Card layout
+5a73c7d feat: add sidebar active state with theme-aware highlighting
 ```
 
 ---
 
-## 17. Complete File Inventory
+## 19. Complete File Inventory
 
 ### Files Created
 
-| File                                                                                     | Task  | Purpose                                                                                  |
-| ---------------------------------------------------------------------------------------- | ----- | ---------------------------------------------------------------------------------------- |
-| `prisma/migrations/20260215054649_phase1_core_models/migration.sql`                      | P1-00 | Phase 1 database migration (enums, tables, indexes, FKs, partial indexes)                |
-| `prisma/migrations/20260215060000_rename_custom_field_def_and_custom_data/migration.sql` | P1-00 | Rename `CustomFieldDef` → `FieldDefinition`, `customData` → `extras` (data-preserving)   |
-| `docs/PHASE-1-COMPLETION.md`                                                             | P1-00 | This completion report                                                                   |
-| `app/lib/auth.server.ts`                                                                 | P1-01 | Password hashing/verification using bcryptjs                                             |
-| `app/lib/session.server.ts`                                                              | P1-01 | Cookie session storage, user session management                                          |
-| `app/lib/require-auth.server.ts`                                                         | P1-01 | Auth guards: `requireAuth`, `requireRole`, `requireAnyRole`, `hasPermission`             |
-| `app/routes/auth/login.tsx`                                                              | P1-01 | Login page with Conform + Zod, progressive lockout, audit logging                        |
-| `app/routes/auth/logout.tsx`                                                             | P1-01 | Logout action with session destruction                                                   |
-| `app/routes/admin/_layout.tsx`                                                           | P1-01 | Protected dashboard layout route                                                         |
-| `app/routes/admin/index.tsx`                                                             | P1-01 | Dashboard index page                                                                     |
-| `app/lib/__tests__/auth.server.test.ts`                                                  | P1-01 | 5 tests for password hashing/verification                                                |
-| `app/lib/__tests__/session.server.test.ts`                                               | P1-01 | 3 tests for session management                                                           |
-| `app/lib/__tests__/require-auth.server.test.ts`                                          | P1-01 | 3 tests for RBAC permission checking                                                     |
-| `app/config/fields.ts`                                                                   | P1-02 | Limit constants (500/tenant, 100/event)                                                  |
-| `app/lib/schemas/field.ts`                                                               | P1-02 | Zod v4 schemas for create, update, reorder                                               |
-| `app/services/fields.server.ts`                                                          | P1-02 | Service layer: list, create, update, delete, reorder                                     |
-| `app/routes/api/v1/fields/index.tsx`                                                     | P1-02 | GET (list) + POST (create) route                                                         |
-| `app/routes/api/v1/fields/$id.tsx`                                                       | P1-02 | PUT (update) + DELETE route                                                              |
-| `app/routes/api/v1/fields/reorder.tsx`                                                   | P1-02 | POST (reorder) route                                                                     |
-| `app/lib/schemas/__tests__/field.test.ts`                                                | P1-02 | 28 schema validation tests                                                               |
-| `app/services/__tests__/fields.server.test.ts`                                           | P1-02 | 19 service layer tests                                                                   |
-| `app/lib/fields.server.ts`                                                               | P1-03 | Zod schema builder, form parser, cache, Conform constraints                              |
-| `app/lib/__tests__/fields.server.test.ts`                                                | P1-03 | 53 tests for all 4 functions                                                             |
-| `app/components/fields/types.ts`                                                         | P1-04 | Shared types (FieldConfig), helpers (getFieldConfig, sortFieldDefs, getFieldElementType) |
-| `app/components/ui/conform-field.tsx`                                                    | P1-04 | Conform-aware label + description + error wrapper using shadcn Label                     |
-| `app/components/fields/FieldRenderer.tsx`                                                | P1-04 | Core component: maps dataType → shadcn Input/Textarea/NativeSelect with Conform binding  |
-| `app/components/fields/FieldSection.tsx`                                                 | P1-04 | Groups/sorts/renders field definitions in responsive grid                                |
-| `app/components/fields/index.ts`                                                         | P1-04 | Barrel exports                                                                           |
-| `app/components/fields/__tests__/fields.test.ts`                                         | P1-04 | 25 pure logic tests for helper functions                                                 |
-| `app/routes/admin/test-field-form.tsx`                                                   | P1-04 | Integration test route: full field form pipeline                                         |
-| `app/routes/admin/events/index.tsx`                                                      | P1-05 | Event listing page with field definition counts                                          |
-| `app/routes/admin/events/$eventId/fields/index.tsx`                                      | P1-05 | Field list with filtering, reordering, and delete                                        |
-| `app/routes/admin/events/$eventId/fields/new.tsx`                                        | P1-05 | Create new field definition                                                              |
-| `app/routes/admin/events/$eventId/fields/$fieldId.tsx`                                   | P1-05 | Edit existing field definition                                                           |
-| `app/components/fields/FieldForm.tsx`                                                    | P1-05 | Field create/edit form with all 16 data types                                            |
-| `app/components/fields/FieldTable.tsx`                                                   | P1-05 | Field list table with inline reorder and actions                                         |
-| `app/components/fields/DeleteFieldDialog.tsx`                                            | P1-05 | Confirmation dialog with data-existence warning                                          |
-| `app/components/fields/TypeConfigPanel.tsx`                                              | P1-05 | Type-specific configuration inputs                                                       |
-| `app/components/fields/EnumOptionsEditor.tsx`                                            | P1-05 | Visual editor for enum option management                                                 |
-| `app/components/fields/+utils.ts`                                                        | P1-05 | `labelToFieldName`, `formatDataType` helpers                                             |
-| `app/components/ui/*.tsx` (button, table, dialog, badge, card, switch, separator, alert) | P1-05 | shadcn/ui component library                                                              |
-| `app/lib/schemas/field-query.ts`                                                         | P1-06 | Zod schemas for JSONB query conditions and search params                                 |
-| `app/services/field-query.server.ts`                                                     | P1-06 | JSONB query builder, expression index management                                         |
-| `app/routes/api/v1/participants/search.tsx`                                              | P1-06 | `POST /api/v1/participants/search` endpoint                                              |
-| `app/lib/schemas/__tests__/field-query.test.ts`                                          | P1-06 | 16 schema validation tests                                                               |
-| `app/services/__tests__/field-query.server.test.ts`                                      | P1-06 | 25+ query and index management tests                                                     |
-| `prisma/migrations/20260215144504_add_workflow_version_to_participant/migration.sql`     | P1-07 | Add workflowVersionId + index to Participant                                             |
-| `app/services/workflow-engine/serializer.server.ts`                                      | P1-07 | Workflow snapshot serialization, hashing, deserialization                                |
-| `app/services/workflow-engine/versioning.server.ts`                                      | P1-07 | Version management: ensure, publish, list, compare                                       |
-| `app/services/workflow-engine/entry.server.ts`                                           | P1-07 | Workflow entry: assign version + entry step                                              |
-| `app/services/workflow-engine/navigation.server.ts`                                      | P1-07 | Step navigation engine for 6 workflow actions                                            |
-| `app/services/workflow-engine/__tests__/serializer.server.test.ts`                       | P1-07 | 8 serializer tests                                                                       |
-| `app/services/workflow-engine/__tests__/versioning.server.test.ts`                       | P1-07 | 9 version management tests                                                               |
-| `app/services/workflow-engine/__tests__/entry.server.test.ts`                            | P1-07 | 3 workflow entry tests                                                                   |
-| `app/services/workflow-engine/__tests__/navigation.server.test.ts`                       | P1-07 | 11 navigation tests (+3 P1-09)                                                           |
-| `prisma/migrations/20260215154603_add_sla_breach_audit_action/migration.sql`             | P1-08 | Add SLA_BREACH to AuditAction enum                                                       |
-| `app/services/workflow-engine/sla-checker.server.ts`                                     | P1-08 | SLA violation detection and action execution                                             |
-| `app/services/workflow-engine/sla-notifications.server.ts`                               | P1-08 | Phase 1 notification stubs (Pino log + AuditLog)                                         |
-| `app/services/workflow-engine/sla-stats.server.ts`                                       | P1-08 | Dashboard queries: getSLAStats, getOverdueParticipants                                   |
-| `app/services/jobs/sla-job.server.ts`                                                    | P1-08 | TypeScript SLA job runner                                                                |
-| `server/sla-job.js`                                                                      | P1-08 | Plain JS SLA job runner for server.js                                                    |
-| `app/services/workflow-engine/__tests__/sla-checker.server.test.ts`                      | P1-08 | 11 SLA checker tests                                                                     |
-| `app/services/workflow-engine/__tests__/sla-notifications.server.test.ts`                | P1-08 | 4 notification tests                                                                     |
-| `app/services/workflow-engine/__tests__/sla-stats.server.test.ts`                        | P1-08 | 7 SLA stats tests                                                                        |
-| `app/services/jobs/__tests__/sla-job.server.test.ts`                                     | P1-08 | 4 job lifecycle tests                                                                    |
-| `app/services/optimistic-lock.server.ts`                                                 | P1-09 | Optimistic locking utilities and error classes                                           |
-| `app/utils/api-error.server.ts`                                                          | P1-09 | Unified error→Response formatting                                                        |
-| `app/services/__tests__/optimistic-lock.server.test.ts`                                  | P1-09 | 14 optimistic lock tests                                                                 |
-| `app/utils/__tests__/api-error.server.test.ts`                                           | P1-09 | 7 error formatting tests                                                                 |
-| `prisma/migrations/20260215165310_add_rate_limit_audit_action/migration.sql`             | P1-10 | Add RATE_LIMIT to AuditAction enum                                                       |
-| `server/rate-limit-audit.ts`                                                             | P1-10 | Fire-and-forget audit logging for rate limit violations                                  |
-| `server/__tests__/rate-limiting.test.ts`                                                 | P1-10 | 12 tests for rate limiting helpers and session extraction                                |
-| `server/__tests__/rate-limit-audit.test.ts`                                              | P1-10 | 6 tests for audit logging and context extraction                                         |
-| `prisma/migrations/20260215180000_add_file_upload_audit_actions/migration.sql`           | P1-11 | Add FILE_UPLOAD, FILE_UPLOAD_BLOCKED to AuditAction enum                                 |
-| `app/services/file-scanning.server.ts`                                                   | P1-11 | ClamAV INSTREAM scanning, magic bytes validation, availability check                     |
-| `app/services/file-upload.server.ts`                                                     | P1-11 | Upload pipeline: validate → scan → store → meta sidecar → audit log                      |
-| `app/routes/api/v1/files/index.tsx`                                                      | P1-11 | POST /api/v1/files — multipart upload route                                              |
-| `app/routes/api/v1/files/$fileId.tsx`                                                    | P1-11 | GET /api/v1/files/:fileId — file serve route with tenant isolation                       |
-| `app/services/__tests__/file-scanning.server.test.ts`                                    | P1-11 | 10 scanning tests (magic bytes, INSTREAM, availability)                                  |
-| `app/services/__tests__/file-upload.server.test.ts`                                      | P1-11 | 13 upload pipeline tests (MIME, size, ClamAV, storage, audit)                            |
-| `app/components/layout/app-sidebar.tsx`                                                  | Shell | Collapsible sidebar with tenant switcher, nav groups, user menu                          |
-| `app/components/layout/top-navbar.tsx`                                                   | Shell | Top navbar with breadcrumbs, search, theme/color toggles, notifications, user dropdown   |
-| `app/components/layout/nav-main.tsx`                                                     | Shell | Sidebar navigation groups with collapsible sections and persistent state                 |
-| `app/components/layout/nav-user.tsx`                                                     | Shell | Sidebar footer user menu with avatar and sign-out                                        |
-| `app/components/layout/tenant-switcher.tsx`                                              | Shell | Sidebar header tenant switcher dropdown                                                  |
-| `app/config/navigation.ts`                                                               | Shell | Navigation group definitions with role-based visibility                                  |
-| `app/lib/sidebar.server.ts`                                                              | Shell | Cookie persistence for sidebar open/closed and group collapse state                      |
-| `app/routes/resources/theme-switch.tsx`                                                  | Shell | Light/dark/system theme toggle resource route with optimistic UI                         |
-| `app/lib/theme.server.ts`                                                                | Shell | Theme cookie read/write                                                                  |
-| `app/lib/color-theme.ts`                                                                 | Color | Shared color theme constants and types (client-safe)                                     |
-| `app/lib/color-theme.server.ts`                                                          | Color | Color theme cookie read/write (server-only)                                              |
-| `app/routes/resources/color-theme.tsx`                                                   | Color | Color theme resource route with selector component and optimistic UI                     |
+| File                                                                                     | Task          | Purpose                                                                                  |
+| ---------------------------------------------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------- |
+| `prisma/migrations/20260215054649_phase1_core_models/migration.sql`                      | P1-00         | Phase 1 database migration (enums, tables, indexes, FKs, partial indexes)                |
+| `prisma/migrations/20260215060000_rename_custom_field_def_and_custom_data/migration.sql` | P1-00         | Rename `CustomFieldDef` → `FieldDefinition`, `customData` → `extras` (data-preserving)   |
+| `docs/PHASE-1-COMPLETION.md`                                                             | P1-00         | This completion report                                                                   |
+| `app/lib/auth.server.ts`                                                                 | P1-01         | Password hashing/verification using bcryptjs                                             |
+| `app/lib/session.server.ts`                                                              | P1-01         | Cookie session storage, user session management                                          |
+| `app/lib/require-auth.server.ts`                                                         | P1-01         | Auth guards: `requireAuth`, `requireRole`, `requireAnyRole`, `hasPermission`             |
+| `app/routes/auth/login.tsx`                                                              | P1-01         | Login page with Conform + Zod, progressive lockout, audit logging                        |
+| `app/routes/auth/logout.tsx`                                                             | P1-01         | Logout action with session destruction                                                   |
+| `app/routes/admin/_layout.tsx`                                                           | P1-01         | Protected dashboard layout route                                                         |
+| `app/routes/admin/index.tsx`                                                             | P1-01         | Dashboard index page                                                                     |
+| `app/lib/__tests__/auth.server.test.ts`                                                  | P1-01         | 5 tests for password hashing/verification                                                |
+| `app/lib/__tests__/session.server.test.ts`                                               | P1-01         | 3 tests for session management                                                           |
+| `app/lib/__tests__/require-auth.server.test.ts`                                          | P1-01         | 3 tests for RBAC permission checking                                                     |
+| `app/config/fields.ts`                                                                   | P1-02         | Limit constants (500/tenant, 100/event)                                                  |
+| `app/lib/schemas/field.ts`                                                               | P1-02         | Zod v4 schemas for create, update, reorder                                               |
+| `app/services/fields.server.ts`                                                          | P1-02         | Service layer: list, create, update, delete, reorder                                     |
+| `app/routes/api/v1/fields/index.tsx`                                                     | P1-02         | GET (list) + POST (create) route                                                         |
+| `app/routes/api/v1/fields/$id.tsx`                                                       | P1-02         | PUT (update) + DELETE route                                                              |
+| `app/routes/api/v1/fields/reorder.tsx`                                                   | P1-02         | POST (reorder) route                                                                     |
+| `app/lib/schemas/__tests__/field.test.ts`                                                | P1-02         | 28 schema validation tests                                                               |
+| `app/services/__tests__/fields.server.test.ts`                                           | P1-02         | 19 service layer tests                                                                   |
+| `app/lib/fields.server.ts`                                                               | P1-03         | Zod schema builder, form parser, cache, Conform constraints                              |
+| `app/lib/__tests__/fields.server.test.ts`                                                | P1-03         | 53 tests for all 4 functions                                                             |
+| `app/components/fields/types.ts`                                                         | P1-04         | Shared types (FieldConfig), helpers (getFieldConfig, sortFieldDefs, getFieldElementType) |
+| `app/components/ui/conform-field.tsx`                                                    | P1-04         | Conform-aware label + description + error wrapper using shadcn Label                     |
+| `app/components/fields/FieldRenderer.tsx`                                                | P1-04         | Core component: maps dataType → shadcn Input/Textarea/NativeSelect with Conform binding  |
+| `app/components/fields/FieldSection.tsx`                                                 | P1-04         | Groups/sorts/renders field definitions in responsive grid                                |
+| `app/components/fields/index.ts`                                                         | P1-04         | Barrel exports                                                                           |
+| `app/components/fields/__tests__/fields.test.ts`                                         | P1-04         | 25 pure logic tests for helper functions                                                 |
+| `app/routes/admin/test-field-form.tsx`                                                   | P1-04         | Integration test route: full field form pipeline                                         |
+| `app/routes/admin/events/index.tsx`                                                      | P1-05         | Event listing page with field definition counts                                          |
+| `app/routes/admin/events/$eventId/fields/index.tsx`                                      | P1-05         | Field list with filtering, reordering, and delete                                        |
+| `app/routes/admin/events/$eventId/fields/new.tsx`                                        | P1-05         | Create new field definition                                                              |
+| `app/routes/admin/events/$eventId/fields/$fieldId.tsx`                                   | P1-05         | Edit existing field definition                                                           |
+| `app/components/fields/FieldForm.tsx`                                                    | P1-05         | Field create/edit form with all 16 data types                                            |
+| `app/components/fields/FieldTable.tsx`                                                   | P1-05         | Field list table with inline reorder and actions                                         |
+| `app/components/fields/DeleteFieldDialog.tsx`                                            | P1-05         | Confirmation dialog with data-existence warning                                          |
+| `app/components/fields/TypeConfigPanel.tsx`                                              | P1-05         | Type-specific configuration inputs                                                       |
+| `app/components/fields/EnumOptionsEditor.tsx`                                            | P1-05         | Visual editor for enum option management                                                 |
+| `app/components/fields/+utils.ts`                                                        | P1-05         | `labelToFieldName`, `formatDataType` helpers                                             |
+| `app/components/ui/*.tsx` (button, table, dialog, badge, card, switch, separator, alert) | P1-05         | shadcn/ui component library                                                              |
+| `app/lib/schemas/field-query.ts`                                                         | P1-06         | Zod schemas for JSONB query conditions and search params                                 |
+| `app/services/field-query.server.ts`                                                     | P1-06         | JSONB query builder, expression index management                                         |
+| `app/routes/api/v1/participants/search.tsx`                                              | P1-06         | `POST /api/v1/participants/search` endpoint                                              |
+| `app/lib/schemas/__tests__/field-query.test.ts`                                          | P1-06         | 16 schema validation tests                                                               |
+| `app/services/__tests__/field-query.server.test.ts`                                      | P1-06         | 25+ query and index management tests                                                     |
+| `prisma/migrations/20260215144504_add_workflow_version_to_participant/migration.sql`     | P1-07         | Add workflowVersionId + index to Participant                                             |
+| `app/services/workflow-engine/serializer.server.ts`                                      | P1-07         | Workflow snapshot serialization, hashing, deserialization                                |
+| `app/services/workflow-engine/versioning.server.ts`                                      | P1-07         | Version management: ensure, publish, list, compare                                       |
+| `app/services/workflow-engine/entry.server.ts`                                           | P1-07         | Workflow entry: assign version + entry step                                              |
+| `app/services/workflow-engine/navigation.server.ts`                                      | P1-07         | Step navigation engine for 6 workflow actions                                            |
+| `app/services/workflow-engine/__tests__/serializer.server.test.ts`                       | P1-07         | 8 serializer tests                                                                       |
+| `app/services/workflow-engine/__tests__/versioning.server.test.ts`                       | P1-07         | 9 version management tests                                                               |
+| `app/services/workflow-engine/__tests__/entry.server.test.ts`                            | P1-07         | 3 workflow entry tests                                                                   |
+| `app/services/workflow-engine/__tests__/navigation.server.test.ts`                       | P1-07         | 11 navigation tests (+3 P1-09)                                                           |
+| `prisma/migrations/20260215154603_add_sla_breach_audit_action/migration.sql`             | P1-08         | Add SLA_BREACH to AuditAction enum                                                       |
+| `app/services/workflow-engine/sla-checker.server.ts`                                     | P1-08         | SLA violation detection and action execution                                             |
+| `app/services/workflow-engine/sla-notifications.server.ts`                               | P1-08         | Phase 1 notification stubs (Pino log + AuditLog)                                         |
+| `app/services/workflow-engine/sla-stats.server.ts`                                       | P1-08         | Dashboard queries: getSLAStats, getOverdueParticipants                                   |
+| `app/services/jobs/sla-job.server.ts`                                                    | P1-08         | TypeScript SLA job runner                                                                |
+| `server/sla-job.js`                                                                      | P1-08         | Plain JS SLA job runner for server.js                                                    |
+| `app/services/workflow-engine/__tests__/sla-checker.server.test.ts`                      | P1-08         | 11 SLA checker tests                                                                     |
+| `app/services/workflow-engine/__tests__/sla-notifications.server.test.ts`                | P1-08         | 4 notification tests                                                                     |
+| `app/services/workflow-engine/__tests__/sla-stats.server.test.ts`                        | P1-08         | 7 SLA stats tests                                                                        |
+| `app/services/jobs/__tests__/sla-job.server.test.ts`                                     | P1-08         | 4 job lifecycle tests                                                                    |
+| `app/services/optimistic-lock.server.ts`                                                 | P1-09         | Optimistic locking utilities and error classes                                           |
+| `app/utils/api-error.server.ts`                                                          | P1-09         | Unified error→Response formatting                                                        |
+| `app/services/__tests__/optimistic-lock.server.test.ts`                                  | P1-09         | 14 optimistic lock tests                                                                 |
+| `app/utils/__tests__/api-error.server.test.ts`                                           | P1-09         | 7 error formatting tests                                                                 |
+| `prisma/migrations/20260215165310_add_rate_limit_audit_action/migration.sql`             | P1-10         | Add RATE_LIMIT to AuditAction enum                                                       |
+| `server/rate-limit-audit.ts`                                                             | P1-10         | Fire-and-forget audit logging for rate limit violations                                  |
+| `server/__tests__/rate-limiting.test.ts`                                                 | P1-10         | 12 tests for rate limiting helpers and session extraction                                |
+| `server/__tests__/rate-limit-audit.test.ts`                                              | P1-10         | 6 tests for audit logging and context extraction                                         |
+| `prisma/migrations/20260215180000_add_file_upload_audit_actions/migration.sql`           | P1-11         | Add FILE_UPLOAD, FILE_UPLOAD_BLOCKED to AuditAction enum                                 |
+| `app/services/file-scanning.server.ts`                                                   | P1-11         | ClamAV INSTREAM scanning, magic bytes validation, availability check                     |
+| `app/services/file-upload.server.ts`                                                     | P1-11         | Upload pipeline: validate → scan → store → meta sidecar → audit log                      |
+| `app/routes/api/v1/files/index.tsx`                                                      | P1-11         | POST /api/v1/files — multipart upload route                                              |
+| `app/routes/api/v1/files/$fileId.tsx`                                                    | P1-11         | GET /api/v1/files/:fileId — file serve route with tenant isolation                       |
+| `app/services/__tests__/file-scanning.server.test.ts`                                    | P1-11         | 10 scanning tests (magic bytes, INSTREAM, availability)                                  |
+| `app/services/__tests__/file-upload.server.test.ts`                                      | P1-11         | 13 upload pipeline tests (MIME, size, ClamAV, storage, audit)                            |
+| `app/components/layout/app-sidebar.tsx`                                                  | Shell         | Collapsible sidebar with tenant switcher, nav groups, user menu                          |
+| `app/components/layout/top-navbar.tsx`                                                   | Shell         | Top navbar with breadcrumbs, search, theme/color toggles, notifications, user dropdown   |
+| `app/components/layout/nav-main.tsx`                                                     | Shell, Active | Sidebar nav groups with collapsible sections, persistent state, active route detection   |
+| `app/components/layout/nav-user.tsx`                                                     | Shell         | Sidebar footer user menu with avatar and sign-out                                        |
+| `app/components/layout/tenant-switcher.tsx`                                              | Shell         | Sidebar header tenant switcher dropdown                                                  |
+| `app/config/navigation.ts`                                                               | Shell         | Navigation group definitions with role-based visibility                                  |
+| `app/lib/sidebar.server.ts`                                                              | Shell         | Cookie persistence for sidebar open/closed and group collapse state                      |
+| `app/routes/resources/theme-switch.tsx`                                                  | Shell         | Light/dark/system theme toggle resource route with optimistic UI                         |
+| `app/lib/theme.server.ts`                                                                | Shell         | Theme cookie read/write                                                                  |
+| `app/lib/color-theme.ts`                                                                 | Color         | Shared color theme constants and types (client-safe)                                     |
+| `app/lib/color-theme.server.ts`                                                          | Color         | Color theme cookie read/write (server-only)                                              |
+| `app/routes/resources/color-theme.tsx`                                                   | Color         | Color theme resource route with selector component and optimistic UI                     |
 
 ### Files Modified
 
@@ -1834,11 +1916,12 @@ cbcc085 feat: update green theme to #3F734B, compact navbar and sidebar header
 | `app/root.tsx`                     | Shell, Color                      | Added theme class, color theme data-attribute on `<html>`, nonce provider refactor                                                       |
 | `app/routes/admin/_layout.tsx`     | Shell, Color                      | Redesigned with SidebarProvider + AppSidebar + TopNavbar + color theme loader                                                            |
 | `app/app.css`                      | Color                             | Added 14 CSS blocks (7 themes x light/dark) with `[data-theme]` selector overrides for accent colors                                     |
-| `app/components/ui/sidebar.tsx`    | Shell                             | shadcn sidebar component with collapsible icon mode, keyboard shortcut, mobile sheet                                                     |
+| `app/components/ui/sidebar.tsx`    | Shell, Active                     | shadcn sidebar component; active state changed from `sidebar-accent` to `sidebar-primary` for theme-aware highlighting                   |
+| `app/routes/auth/login.tsx`        | Login                             | Redesigned to shadcn login-01 Card layout with CardHeader/CardContent, centered max-w-sm                                                 |
 
 ---
 
-## 18. Bugs & Gotchas Encountered
+## 20. Bugs & Gotchas Encountered
 
 ### 1. Partial indexes dropped by Prisma migration
 
@@ -1937,7 +2020,7 @@ This matches the existing `BUILD_PATH` pattern already used in `server.js`.
 
 ---
 
-## 19. Architecture Decisions
+## 21. Architecture Decisions
 
 ### AD-01: Soft references for Step routing
 
@@ -2048,9 +2131,22 @@ This matches the existing `BUILD_PATH` pattern already used in `server.js`.
 
 **Trade-off:** 14 CSS blocks (7 themes x 2 modes) adds ~170 lines to `app.css`. This is acceptable for a fixed set of themes and avoids runtime CSS-in-JS overhead.
 
+### AD-10: Sibling-aware active state fallback for nested routes
+
+**Decision:** Sub-items with `end: true` use a two-phase active state check: first exact match, then prefix match only when no sibling sub-item claims the path.
+
+**Rationale:**
+
+1. Nav sub-items like "All Events" (`/admin/events`, `end: true`) need exact match to avoid activating when on "Categories" (`/admin/events/categories`) — a sibling that directly matches
+2. But deeply nested routes like `/admin/events/:eventId/fields` don't correspond to any sub-item, so the closest ancestor ("All Events") should activate as a fallback
+3. The `isChildActive` function checks siblings first — if any sibling's URL is a prefix of the current path, the `end: true` item stays inactive; otherwise it activates via prefix match
+4. This is purely client-side with `useLocation()`, avoiding the HTML nesting issues that arise from using NavLink's render prop with Radix's `asChild` pattern
+
+**Trade-off:** Slightly more complex matching logic than simple prefix/exact, but correctly handles the full spectrum of route depths without requiring navigation config changes for every new detail page.
+
 ---
 
-## 20. Quality Gate Progress
+## 22. Quality Gate Progress
 
 Progress toward the Phase 1 → Phase 2 quality gate:
 
@@ -2067,4 +2163,6 @@ Progress toward the Phase 1 → Phase 2 quality gate:
 | Zod schemas validate field data on submission                 | Complete | P1-03 — 53 tests                                                       |
 | App shell with collapsible sidebar and responsive layout      | Complete | Sidebar, top navbar, breadcrumbs, role-based nav, cookie persistence   |
 | Accent color theme persists across refreshes                  | Complete | 7 themes, cookie-based, optimistic UI, independent of light/dark mode  |
+| Login page follows shadcn Card layout pattern                 | Complete | login-01 block with Conform + Zod validation preserved                 |
+| Sidebar active state reflects current route and accent color  | Complete | Deep nested route fallback, theme-aware `sidebar-primary` highlighting |
 | Unit test coverage ≥ 85% for new code                         | Complete | 332/332 tests pass across 27 test files                                |

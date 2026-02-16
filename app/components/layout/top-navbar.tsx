@@ -140,7 +140,7 @@ export function TopNavbar({ user, theme, colorTheme }: TopNavbarProps) {
             <DropdownMenuSeparator />
             <Form method="post" action="/auth/logout">
               <DropdownMenuItem asChild>
-                <button type="submit" className="w-full cursor-pointer">
+                <button type="submit" className="w-full">
                   <LogOut />
                   Sign out
                 </button>
