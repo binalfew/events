@@ -11,6 +11,7 @@
 2. [P4-01 — REST API Layer & API Key Authentication](#p4-01-rest-api-layer--api-key-authentication)
 3. [P4-02 — Webhook System](#p4-02-webhook-system)
 4. [P4-03 — Check-in & QR Code System](#p4-03-check-in--qr-code-system)
+5. [P4-04 — Communication Hub](#p4-04-communication-hub)
 
 ---
 
@@ -274,3 +275,169 @@ Built the on-site check-in system with AES-256-GCM encrypted QR codes, a camera-
 - **useFetcher for scans** — camera stays running during scan processing, no full page navigation
 - **3-second debounce** on QR scanner prevents duplicate submissions from continuous camera scanning
 - **Used `findFirst` instead of `findUnique`** for VenueOccupancy lookup because Prisma's compound unique key doesn't accept nullable `zoneId` in the where clause
+
+---
+
+## P4-04: Communication Hub
+
+**Status**: Completed
+**Date**: 2026-02-17
+
+### Summary
+
+Built the communication hub with message template CRUD, audience filtering engine, broadcast composition with scheduling, multi-channel delivery pipeline (email, SMS, push, in-app), per-recipient tracking with background delivery job, and full management UI. The system enables event organizers to send targeted broadcasts to filtered groups of participants with `{{variable}}` template substitution.
+
+### Files Created
+
+1. **`app/lib/schemas/message-template.ts`** — Zod schemas (zod/v4) for create/update template with name, subject, body, channel, and variables fields.
+
+2. **`app/lib/schemas/broadcast.ts`** — Zod schemas for audience filter (participantTypes, statuses, registeredAfter/Before, customFields) and broadcast creation (eventId, subject, body, channel, filters, scheduling, emergency flag).
+
+3. **`app/services/message-templates.server.ts`** — Template CRUD service with `TemplateError` class, create/list/get/update/delete/clone functions. Includes `renderTemplate()` for `{{variable}}` substitution (unmatched vars left as-is) and `previewTemplate()` for live preview. System templates are read-only. All mutations create audit log entries.
+
+4. **`app/services/audience-filter.server.ts`** — Composable AND filter engine with `countAudience()` and `resolveAudience()` (paginated in batches of 200). Supports filtering by participant type, status, registration date range, and JSONB custom fields.
+
+5. **`app/services/broadcasts.server.ts`** — Broadcast service with `BroadcastError` class, feature flag gate (`FF_COMMUNICATION_HUB`). Functions: `createBroadcast` (DRAFT), `scheduleBroadcast`, `sendBroadcast` (resolves audience → creates MessageDelivery records in batches of 100), `cancelBroadcast` (marks QUEUED deliveries as FAILED), `sendEmergencyBroadcast` (creates + sends immediately with priority=1), `getBroadcast` (with delivery stats via groupBy), `getBroadcastDeliveries` (paginated), `listBroadcasts` (paginated).
+
+6. **`app/services/channels/email.server.ts`** — Nodemailer SMTP adapter with `ChannelResult` interface. Creates transport from env SMTP vars. When `SMTP_HOST` is empty, logs only (dev mode — no crash). Exports `sendEmail(to, subject, htmlBody)`.
+
+7. **`app/services/channels/in-app.server.ts`** — Reuses existing `createNotification()` + SSE push for in-app messages. Includes log-only stubs for SMS (`sendSMS`) and Push (`sendPush`) matching the same `ChannelResult` interface.
+
+8. **`app/services/jobs/broadcast-delivery-job.server.ts`** — Background job processing QUEUED deliveries in batches of 50. For each: dispatches to appropriate channel adapter → updates status to SENT/FAILED. Retry logic: exponential backoff (1min, 5min, 15min), max 3 retries. Processes scheduled broadcasts when `scheduledAt <= now`. Updates broadcast aggregate counts and sets status to SENT when all deliveries complete. Emits SSE progress events via `eventBus.publish("communications", ...)`.
+
+9. **`server/broadcast-delivery-job.js`** — Server-side entry following `webhook-retry-job.js` pattern. Runs every 10 seconds (configurable via `BROADCAST_DELIVERY_INTERVAL_MS`). Dynamic import loader for dev (Vite ssrLoadModule) and prod.
+
+10. **`app/components/communications/template-list.tsx`** — Table component showing name, channel badge, variable count, system flag, with edit/delete/clone action buttons.
+
+11. **`app/components/communications/template-editor.tsx`** — Form with name, subject, body (Textarea), channel selector (NativeSelect), common variable insertion buttons, custom variable input, and live preview panel.
+
+12. **`app/components/communications/broadcast-list.tsx`** — Table showing subject, channel badge, status badge, recipient/sent/failed counts, view detail and cancel action buttons.
+
+13. **`app/components/communications/broadcast-composer.tsx`** — Comprehensive composer with template picker, body editor with variable insertion, channel selector, audience filter panel (participant type checkboxes, status checkboxes), audience count preview (fetcher call), schedule toggle (send now / pick date), emergency checkbox, and send confirmation dialog.
+
+14. **`app/components/communications/broadcast-detail.tsx`** — Delivery progress dashboard with progress bar, status breakdown cards (queued, sending, sent, bounced, failed), timestamps, cancel button, and paginated delivery log table.
+
+15. **`app/routes/admin/events/$eventId/communications.tsx`** — Broadcast list + composer. Loader checks permission + feature flag, loads broadcasts, templates, participant types. Action handles countAudience, send, schedule, cancel.
+
+16. **`app/routes/admin/events/$eventId/communications/$broadcastId.tsx`** — Broadcast detail with delivery log. Loader loads broadcast with stats + paginated deliveries. Action handles cancel.
+
+17. **`app/routes/admin/events/$eventId/communications/templates.tsx`** — Template management page with create/edit/delete/clone via loader/action pattern. Toggles between list and editor views.
+
+18. **`app/routes/admin/events/communications.tsx`** — Cross-event communications page. Lists all tenant events with broadcast count, links to event-specific broadcasts and templates.
+
+19. **`app/services/__tests__/communications.server.test.ts`** — 18 test cases covering: template CRUD (create, list, get, update, system template rejection, delete), template rendering (variable substitution, unmatched variables, no variables), audience filter (count, resolve in batches), broadcast pipeline (create draft, send with deliveries, cancel, emergency), delivery job (process QUEUED, retry with backoff), feature flag gate.
+
+### Files Modified
+
+1. **`app/lib/env.server.ts`** — Added SMTP config: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` with sensible defaults.
+
+2. **`app/types/sse-events.ts`** — Added `"communications"` to `SSE_CHANNELS`. Added `BroadcastProgressEvent` interface with broadcastId, sentCount, failedCount, deliveredCount, total, status. Extended `SSEEvent` union.
+
+3. **`app/hooks/use-sse.ts`** — Added `"broadcast:progress"` to `SSE_EVENT_TYPES`.
+
+4. **`app/config/navigation.ts`** — Added `MessageSquare` icon import. Added "Communications" nav group under Operations with Broadcasts and Templates children.
+
+5. **`server.js`** — Imported and registered `broadcastDeliveryJob`. Added `BROADCAST_DELIVERY_DEV`/`BROADCAST_DELIVERY_PROD` path constants, `broadcastLoader` for both dev and prod, startup call, and shutdown cleanup.
+
+6. **`docs/PHASE-4-COMPLETION.md`** — Added P4-04 entry.
+
+### Dependencies Installed
+
+- `nodemailer` — SMTP email sending
+- `@types/nodemailer` — TypeScript definitions (devDependency)
+
+### Verification Results
+
+| Check               | Result                                   |
+| ------------------- | ---------------------------------------- |
+| `npm run typecheck` | No type errors                           |
+| `npm run test`      | 55 test files, 702 tests passed (18 new) |
+
+### Notable Decisions
+
+- **No rich text editor** — Used Textarea for body composition. Variable insertion via buttons is sufficient for the current scope.
+- **Batch delivery via background job** — Broadcasts don't block the UI. Creating a broadcast enqueues MessageDelivery records; the background job processes them in batches of 50 every 10 seconds.
+- **Email dev mode** — When `SMTP_HOST` is empty, the email adapter logs only (no crash in development).
+- **SMS/Push are stubs** — Log-only adapters matching the `ChannelResult` interface, ready for Twilio/Web Push integration later.
+- **In-app reuses notifications** — Leverages existing `createNotification()` + SSE `eventBus.publish()` for real-time delivery.
+- **No async generators** — `resolveAudience` uses paginated `findMany` in batches of 200 instead of generators (simpler, better Prisma compatibility).
+- **Feature flag gate** — All broadcast operations check `FF_COMMUNICATION_HUB`. Routes return 404 when disabled.
+- **zod/v4 schema** — Used `z.record(z.string(), z.unknown())` for customFields (zod/v4 requires two args for `z.record`). All filter fields are optional to allow `{}` as valid empty filter.
+- **Exponential backoff retry** — Failed deliveries retry at 1min, 5min, 15min intervals with max 3 retries before permanent failure.
+
+---
+
+## P4-05: Kiosk Mode
+
+**Status**: Completed
+**Date**: 2026-02-17
+
+### Summary
+
+Built the kiosk mode system with self-service status lookup, queue management, fullscreen touch-optimized interface with auto-reset, device registration and heartbeat monitoring, and staff queue management UI. Kiosk routes are public (device ID in URL, no user login required) while admin routes are permission-gated behind `FF_KIOSK_MODE` feature flag.
+
+### Files Created
+
+1. **`app/lib/schemas/kiosk-device.ts`** — Zod schemas for register/update device with mode (self-service, check-in, queue-display, info) and language (en, fr, am, ar).
+
+2. **`app/lib/schemas/queue-ticket.ts`** — Zod schema for joining queue with eventId, participantId, serviceType, and priority.
+
+3. **`app/services/kiosk-devices.server.ts`** — Device CRUD service with `KioskDeviceError` class. Functions: `registerDevice`, `listDevices`, `getDevice` (public, no tenant filter), `updateDevice`, `decommissionDevice`, `recordHeartbeat`, `markStaleDevicesOffline` (3-minute threshold). All mutations create audit log entries.
+
+4. **`app/services/kiosk-sessions.server.ts`** — Session tracking service. Functions: `startSession`, `endSession` (with timedOut flag), `getActiveSession`, `getDeviceStats` (totalSessions, avgDurationSeconds, sessionsByType, timedOutCount).
+
+5. **`app/services/queue-tickets.server.ts`** — Queue management service with `QueueError` class. Functions: `joinQueue` (assigns `A001`-style sequential ticket numbers per event per day), `callNextTicket` (priority-ordered FIFO), `startServing`, `completeService`, `cancelTicket`, `getQueueStatus` (nowServing per counter, nextUp 5, waitingCount, averageWaitMinutes), `estimateWaitTime`.
+
+6. **`app/components/kiosk/kiosk-shell.tsx`** — Fullscreen wrapper with 120s inactivity auto-reset (countdown in last 30s), touch/click/keypress activity detection, language selector (en/fr/am/ar with 48px+ buttons), event branding header, and 30s heartbeat interval via fetcher.
+
+7. **`app/components/kiosk/status-lookup.tsx`** — Two input modes: QR scan (lazy-loaded QRScanner) or email/registration code text input. Result display with large colored status badge (green=Approved, yellow=Pending, red=Rejected). "Join Queue" and "Done" action buttons.
+
+8. **`app/components/kiosk/queue-join.tsx`** — Service type selection (Badge Pickup, Information, Credential Verification, General Assistance) with large touch buttons. Success: ticket number in 7xl font, estimated wait time, "Done" button.
+
+9. **`app/components/kiosk/queue-display.tsx`** — Full-screen display board with "Now Serving" (per counter, 6xl ticket numbers), "Next Up" (next 5), and stats (waiting count, avg wait). Auto-refreshes via `useRevalidator()` with 5s polling. Web Audio API chime when new ticket called.
+
+10. **`app/components/kiosk/queue-manager.tsx`** — Staff counter UI with counter number input, "Call Next" button, current ticket display (ticket number, participant name, status), "Start Serving"/"Complete"/"No Show" buttons, and queue overview (waiting, avg wait, served today).
+
+11. **`app/components/kiosk/device-list.tsx`** — Table with Name, Location, Mode badge, Online/Offline (green/red dot), Last Heartbeat (relative time), and Actions (Edit, Copy URL, Decommission with confirmation dialog).
+
+12. **`app/components/kiosk/register-device-dialog.tsx`** — Dialog form for create/edit device: Name, Location, Mode (NativeSelect), Language (NativeSelect). Reused for both register and edit modes.
+
+13. **`app/routes/kiosk/$deviceId.tsx`** — Layout route: validates device (public, no auth), renders `<KioskShell>` wrapping `<Outlet>`. Action handles heartbeat and endSession.
+
+14. **`app/routes/kiosk/$deviceId/index.tsx`** — Redirects to child route based on `device.mode` (self-service → self-service, queue-display → queue-display, etc.).
+
+15. **`app/routes/kiosk/$deviceId/self-service.tsx`** — Status lookup + queue join page. Actions: lookup (email/code search), scan (QR via processScan), joinQueue, startSession, endSession.
+
+16. **`app/routes/kiosk/$deviceId/queue-display.tsx`** — Queue display board (loader-only, polls via useRevalidator). Renders `<QueueDisplay>` component.
+
+17. **`app/routes/admin/events/$eventId/settings/kiosks.tsx`** — Device management CRUD. Loader: `requirePermission("kiosk", "manage")` + `FF_KIOSK_MODE` check. Actions: register, update, decommission.
+
+18. **`app/routes/admin/events/$eventId/queue.tsx`** — Staff queue management page. Loader: permission + feature flag check, queue status + completed today count. Actions: callNext, startServing, complete, cancel.
+
+19. **`app/routes/admin/events/kiosks.tsx`** — Cross-event kiosk overview. Lists events with device count and queue ticket count, links to Devices and Queue pages.
+
+20. **`app/services/__tests__/kiosk.server.test.ts`** — 16 test cases covering: device CRUD (register, list, get, get-not-found, decommission), heartbeat recording, stale device detection, session start/end, session timeout tracking, device stats calculation, queue join (sequential ticket A001/A006), call next (priority ordering), call next empty queue, complete/cancel, and queue status.
+
+### Files Modified
+
+1. **`app/config/navigation.ts`** — Added `Monitor` icon import. Added "Kiosks" nav group under Operations with Devices and Queue children.
+
+2. **`docs/PHASE-4-COMPLETION.md`** — Added P4-05 entry.
+
+### Verification Results
+
+| Check               | Result                                   |
+| ------------------- | ---------------------------------------- |
+| `npm run typecheck` | No type errors                           |
+| `npm run test`      | 56 test files, 718 tests passed (16 new) |
+
+### Notable Decisions
+
+- **Kiosk routes are public** — No user login required. Device ID in URL validates the kiosk and derives tenantId/eventId. This allows unattended kiosk operation.
+- **Reuses check-in service** — `processScan()` from `check-in.server.ts` accepts `deviceId` in `ScanContext`, making it directly usable from kiosk routes without duplication.
+- **No Participant.photoUrl** — The Prisma schema doesn't have a `photoUrl` field on Participant, so photo display was removed from the status lookup component.
+- **Web Audio API chime** — Queue display uses a simple sine wave frequency sweep (880Hz → 1100Hz) for new ticket notifications, no audio file dependencies.
+- **5-second polling for queue display** — Uses `useRevalidator()` with `setInterval` instead of SSE for queue display updates (simpler for display-only kiosk mode).
+- **Sequential ticket numbering** — `A001`, `A002`, etc. resets daily per event using a count of tickets joined today.
+- **Device heartbeat** — 30-second interval via fetcher in the kiosk shell. `markStaleDevicesOffline()` marks devices offline after 3 minutes without heartbeat.
+- **Auto-reset** — 120-second inactivity timer with countdown display in the last 30 seconds. Resets on touch, click, or keypress events.

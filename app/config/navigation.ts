@@ -13,6 +13,8 @@ import {
   Eye,
   Database,
   ScanLine,
+  MessageSquare,
+  Monitor,
 } from "lucide-react";
 
 export type NavChild = {
@@ -123,6 +125,37 @@ export const navigationGroups: NavGroup[] = [
           { title: "Scanner", tKey: "scanner", url: "/admin/events/check-in", end: true },
           { title: "Access Logs", tKey: "accessLogs", url: "/admin/events/access-logs" },
           { title: "Checkpoints", tKey: "checkpoints", url: "/admin/events/checkpoints" },
+        ],
+      },
+      {
+        title: "Communications",
+        tKey: "communications",
+        url: "/admin/events/communications",
+        icon: MessageSquare,
+        roles: ["ADMIN"],
+        children: [
+          {
+            title: "Broadcasts",
+            tKey: "broadcasts",
+            url: "/admin/events/communications",
+            end: true,
+          },
+          {
+            title: "Templates",
+            tKey: "communicationTemplates",
+            url: "/admin/events/communications/templates",
+          },
+        ],
+      },
+      {
+        title: "Kiosks",
+        tKey: "kiosks",
+        url: "/admin/events/kiosks",
+        icon: Monitor,
+        roles: ["ADMIN"],
+        children: [
+          { title: "Devices", tKey: "devices", url: "/admin/events/kiosks", end: true },
+          { title: "Queue", tKey: "queue", url: "/admin/events/queue" },
         ],
       },
       {
