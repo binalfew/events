@@ -27,6 +27,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     FEATURE_FLAG_KEYS.KEYBOARD_SHORTCUTS,
     flagContext,
   );
+  const i18nEnabled = await isFeatureEnabled(FEATURE_FLAG_KEYS.I18N, flagContext);
 
   let unreadCount = 0;
   let recentNotifications: Array<{
@@ -65,6 +66,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     notificationsEnabled,
     searchEnabled,
     shortcutsEnabled,
+    i18nEnabled,
     unreadCount,
     recentNotifications,
   };
@@ -82,6 +84,7 @@ export default function DashboardLayout() {
     notificationsEnabled,
     searchEnabled,
     shortcutsEnabled,
+    i18nEnabled,
     unreadCount,
     recentNotifications,
   } = useLoaderData<typeof loader>();
@@ -104,6 +107,7 @@ export default function DashboardLayout() {
           notificationsEnabled={notificationsEnabled}
           searchEnabled={searchEnabled}
           shortcutsEnabled={shortcutsEnabled}
+          i18nEnabled={i18nEnabled}
           unreadCount={unreadCount}
           notifications={recentNotifications}
         />

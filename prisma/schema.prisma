@@ -69,6 +69,33 @@ enum StepType {
   FORK
 }
 
+enum AssignmentStrategy {
+  MANUAL
+  ROUND_ROBIN
+  LEAST_LOADED
+}
+
+enum AutoActionType {
+  AUTO_APPROVE
+  AUTO_REJECT
+  AUTO_BYPASS
+  AUTO_ESCALATE
+}
+
+enum DelegationInviteStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  CANCELLED
+}
+
+enum ViewType {
+  TABLE
+  KANBAN
+  CALENDAR
+  GALLERY
+}
+
 enum StepAction {
   APPROVE
   REJECT
@@ -167,11 +194,13 @@ model User {
   tenantId String?
   tenant   Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  password      Password?
-  sessions      Session[]
-  userRoles     UserRole[]
-  approvals     Approval[]
-  notifications Notification[]
+  password        Password?
+  sessions        Session[]
+  userRoles       UserRole[]
+  approvals       Approval[]
+  notifications   Notification[]
+  stepAssignments StepAssignment[] @relation("StepAssignments")
+  savedViews      SavedView[]      @relation("SavedViews")
 
   @@index([deletedAt])
   @@index([tenantId])
@@ -217,6 +246,7 @@ model Event {
   fieldDefinitions FieldDefinition[]
   formTemplates    FormTemplate[]
   userRoles        UserRole[]
+  delegationQuotas DelegationQuota[]
 
   @@unique([tenantId, name])
   @@index([tenantId, status])
@@ -350,7 +380,9 @@ model Step {
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 
-  approvals Approval[]
+  approvals       Approval[]
+  assignments     StepAssignment[]
+  autoActionRules AutoActionRule[]
 
   @@unique([workflowId, order])
   @@index([workflowId])
@@ -588,4 +620,158 @@ model Notification {
   @@index([userId, read])
   @@index([userId, createdAt])
   @@index([tenantId])
+}
+
+// ─── Step Assignment Domain ──────────────────────────────
+
+model StepAssignment {
+  id         String             @id @default(cuid())
+  stepId     String
+  step       Step               @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User               @relation("StepAssignments", fields: [userId], references: [id], onDelete: Cascade)
+  strategy   AssignmentStrategy @default(MANUAL)
+  isActive   Boolean            @default(true)
+  assignedBy String?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  @@unique([stepId, userId])
+  @@index([stepId, isActive])
+  @@index([userId, isActive])
+}
+
+// ─── Auto-Action Rules Domain ────────────────────────────
+
+model AutoActionRule {
+  id                  String         @id @default(cuid())
+  stepId              String
+  step                Step           @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  name                String
+  description         String?
+  conditionExpression Json
+  actionType          AutoActionType
+  priority            Int            @default(0)
+  isActive            Boolean        @default(true)
+  createdBy           String?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  @@index([stepId, isActive, priority])
+}
+
+// ─── Delegation Domain ───────────────────────────────────
+
+model DelegationQuota {
+  id              String   @id @default(cuid())
+  tenantId        String
+  eventId         String
+  organizationId  String
+  maxParticipants Int
+  usedCount       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  invites DelegationInvite[]
+
+  @@unique([tenantId, eventId, organizationId])
+  @@index([tenantId, eventId])
+}
+
+model DelegationInvite {
+  id         String                 @id @default(cuid())
+  quotaId    String
+  quota      DelegationQuota        @relation(fields: [quotaId], references: [id], onDelete: Cascade)
+  email      String
+  token      String                 @unique
+  status     DelegationInviteStatus @default(PENDING)
+  invitedBy  String
+  acceptedAt DateTime?
+  expiresAt  DateTime
+  createdAt  DateTime               @default(now())
+  updatedAt  DateTime               @updatedAt
+
+  @@index([quotaId, status])
+  @@index([token])
+  @@index([email])
+}
+
+// ─── Saved Views Domain ──────────────────────────────────
+
+model SavedView {
+  id         String   @id @default(cuid())
+  tenantId   String
+  userId     String?
+  name       String
+  entityType String
+  viewType   ViewType @default(TABLE)
+  filters    Json     @default("[]")
+  sorts      Json     @default("[]")
+  columns    Json     @default("[]")
+  config     Json     @default("{}")
+  isShared   Boolean  @default(false)
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  owner User? @relation("SavedViews", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, userId, name, entityType])
+  @@index([tenantId, entityType])
+  @@index([userId])
+}
+
+// ─── Custom Objects Domain ───────────────────────────────
+
+model CustomObjectDefinition {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  slug        String
+  description String?
+  icon        String?
+  fields      Json     @default("[]")
+  isActive    Boolean  @default(true)
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  records CustomObjectRecord[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, isActive])
+}
+
+model CustomObjectRecord {
+  id           String                 @id @default(cuid())
+  definitionId String
+  definition   CustomObjectDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+  tenantId     String
+  data         Json                   @default("{}")
+  createdBy    String?
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+
+  @@index([definitionId, tenantId])
+  @@index([tenantId])
+}
+
+// ─── Analytics Domain ────────────────────────────────────
+
+model AnalyticsSnapshot {
+  id         String   @id @default(cuid())
+  tenantId   String
+  eventId    String?
+  metric     String
+  value      Float
+  dimensions Json     @default("{}")
+  period     String
+  timestamp  DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, metric, period])
+  @@index([tenantId, eventId, metric])
+  @@index([timestamp])
 }

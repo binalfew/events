@@ -29,6 +29,7 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { NotificationBell } from "~/components/notification-bell";
+import { LanguageSwitcher } from "~/components/layout/language-switcher";
 import { ThemeSwitch } from "~/routes/resources/theme-switch";
 import { ColorThemeSelector } from "~/routes/resources/color-theme";
 import type { Theme } from "~/lib/theme.server";
@@ -52,6 +53,7 @@ type TopNavbarProps = {
   notifications?: NotificationItem[];
   searchEnabled?: boolean;
   shortcutsEnabled?: boolean;
+  i18nEnabled?: boolean;
 };
 
 type BreadcrumbEntry = {
@@ -97,6 +99,7 @@ export function TopNavbar({
   notifications = [],
   searchEnabled = false,
   shortcutsEnabled = false,
+  i18nEnabled = false,
 }: TopNavbarProps) {
   const breadcrumbs = useBreadcrumbs();
   const navigate = useNavigate();
@@ -317,6 +320,9 @@ export function TopNavbar({
             </kbd>
           </div>
         )}
+
+        {/* Language switcher */}
+        {i18nEnabled && <LanguageSwitcher />}
 
         {/* Theme switcher */}
         <ThemeSwitch userPreference={theme} />

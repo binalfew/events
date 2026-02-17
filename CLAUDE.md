@@ -84,7 +84,39 @@ The `docs/modules/` directory contains 19 modular specifications (the authoritat
 
 Modules declare dependency chains in their headers (`Requires`, `Required By`, `Integrates With`).
 
-## Task Completion Workflow
+## UI Component Guidelines
+
+- **Date Picker**: Use the ShadCN date picker pattern (built on `app/components/ui/calendar.tsx` + `app/components/ui/popover.tsx`). Do NOT use native `<input type="date">` for date selection in forms.
+- **Select**: Use `NativeSelect` / `NativeSelectOption` from `~/components/ui/native-select` (Radix Select is not in the project).
+- **All UI components** are in `app/components/ui/` — always check what exists before creating new ones.
+
+## Implementation Workflow
+
+### 1. Create Task Files Before Implementing
+
+Before writing any code for a new phase, create detailed task definition files in `docs/tasks/phase-{N}/`. Each phase must have:
+
+- A `README.md` index file with: phase goal, prerequisites, quality gate, task list table, dependency graph, suggested timeline, and module references
+- One `P{N}-{NN}-{slug}.md` file per task, following the established format:
+  - Metadata table (Task ID, Phase, Category, Assignee, Depends On, Blocks, Estimated Effort, Module References)
+  - Context section explaining why the task is needed
+  - Deliverables section with numbered sub-items, including Prisma models, services, UI components, API routes, and seed data — with code snippets where helpful
+  - Acceptance criteria as a checklist
+
+Reference existing task files in `docs/tasks/phase-0/`, `phase-1/`, and `phase-2/` for format examples.
+
+### 2. Implement One Task at a Time
+
+Follow the dependency graph. For each task:
+
+1. Implement the task
+2. Run `npm run typecheck` and `npm run test` to verify
+3. Update the phase completion document (see step 3 below)
+4. **Stop and ask the user for permission before moving on to the next task**
+
+Do NOT start the next task automatically. Always wait for explicit user approval.
+
+### 3. Update Phase Completion Document
 
 After completing each implementation task (e.g., P2-00, P2-01), update the phase completion document at `docs/PHASE-{N}-COMPLETION.md`. If the file does not yet exist, create it. Each entry should include:
 

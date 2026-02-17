@@ -68,6 +68,10 @@ async function main() {
     { resource: "section-template", action: "delete" },
     { resource: "settings", action: "manage" },
     { resource: "feature-flag", action: "manage" },
+    { resource: "delegation", action: "manage" },
+    { resource: "views", action: "create" },
+    { resource: "custom-objects", action: "manage" },
+    { resource: "analytics", action: "view" },
   ];
 
   const permissions = await Promise.all(
@@ -361,6 +365,22 @@ async function main() {
     { key: "FF_KEYBOARD_SHORTCUTS", description: "Keyboard shortcut support" },
     { key: "FF_NOTIFICATIONS", description: "Notification system" },
     { key: "FF_GLOBAL_SEARCH", description: "Cross-event participant search" },
+    { key: "FF_I18N", description: "Internationalization and multi-language support" },
+    {
+      key: "FF_CONDITIONAL_ROUTING",
+      description: "Conditional workflow routing based on participant data",
+    },
+    { key: "FF_STEP_ASSIGNMENT", description: "Step assignment and reassignment with strategies" },
+    { key: "FF_AUTO_ACTIONS", description: "Automatic action rules engine for workflow steps" },
+    { key: "FF_DELEGATION_PORTAL", description: "Delegation quota management and invite portal" },
+    {
+      key: "FF_SAVED_VIEWS",
+      description: "Saved views with table, kanban, calendar, and gallery layouts",
+    },
+    { key: "FF_CUSTOM_OBJECTS", description: "Tenant-defined custom entity types" },
+    { key: "FF_ANALYTICS_DASHBOARD", description: "Analytics dashboard with charts and metrics" },
+    { key: "FF_PWA", description: "Progressive Web App shell and service worker" },
+    { key: "FF_OFFLINE_MODE", description: "Offline mode with IndexedDB mutation queue and sync" },
   ];
 
   for (const flag of defaultFlags) {

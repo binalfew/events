@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   LayoutDashboard,
   Bell,
+  ClipboardList,
   CalendarDays,
   Users,
   GitBranch,
@@ -9,6 +10,8 @@ import {
   BarChart3,
   UserCog,
   Settings,
+  Eye,
+  Database,
 } from "lucide-react";
 
 export type NavChild = {
@@ -37,6 +40,10 @@ export const navigationGroups: NavGroup[] = [
     items: [
       { title: "Dashboard", url: "/admin", icon: LayoutDashboard, end: true },
       { title: "Notifications", url: "/admin/notifications", icon: Bell },
+      { title: "My Assignments", url: "/admin/assignments", icon: ClipboardList },
+      { title: "Saved Views", url: "/admin/views", icon: Eye },
+      { title: "Custom Objects", url: "/admin/custom-objects", icon: Database },
+      { title: "Analytics", url: "/admin/analytics", icon: BarChart3 },
     ],
   },
   {
@@ -52,6 +59,7 @@ export const navigationGroups: NavGroup[] = [
           { title: "Forms", url: "/admin/events/forms" },
           { title: "Categories", url: "/admin/events/categories" },
           { title: "Templates", url: "/admin/events/templates" },
+          { title: "Delegations", url: "/admin/events/delegations" },
         ],
       },
       {

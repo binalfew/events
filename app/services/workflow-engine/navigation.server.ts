@@ -1,9 +1,109 @@
 import { prisma } from "~/lib/db.server";
 import { logger } from "~/lib/logger.server";
 import { eventBus } from "~/lib/event-bus.server";
+import { evaluateCondition } from "~/lib/condition-evaluator";
 import { ConflictError, isPrismaNotFoundError } from "~/services/optimistic-lock.server";
 import { deserializeWorkflow, WorkflowError } from "./serializer.server";
+import type { StepSnapshot, ConditionalRoute } from "./serializer.server";
 import type { ApprovalAction } from "../../generated/prisma/client.js";
+
+/**
+ * Evaluate conditional routes against participant data.
+ * Routes are sorted by priority (ascending). First matching condition wins.
+ * Returns the target step ID if a match is found, null otherwise.
+ */
+export function evaluateConditionalRoutes(
+  routes: ConditionalRoute[] | undefined,
+  participantData: Record<string, unknown>,
+): string | null {
+  if (!routes || routes.length === 0) return null;
+
+  const sorted = [...routes].sort((a, b) => a.priority - b.priority);
+
+  for (const route of sorted) {
+    if (evaluateCondition(route.condition, participantData)) {
+      return route.targetStepId;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Resolve the next step for a given action, considering conditional routes.
+ * For APPROVE/PRINT: check conditionalRoutes first, fall back to nextStepId.
+ * For REJECT: check rejectionConditionalRoutes first, fall back to rejectionTargetId.
+ * For BYPASS/ESCALATE/RETURN: no conditional routing (explicit overrides).
+ */
+export function resolveNextStep(
+  step: StepSnapshot,
+  action: ApprovalAction,
+  participantData: Record<string, unknown>,
+  conditionalRoutingEnabled: boolean,
+): string | null {
+  if (conditionalRoutingEnabled) {
+    switch (action) {
+      case "APPROVE":
+      case "PRINT": {
+        const conditionalTarget = evaluateConditionalRoutes(
+          step.conditionalRoutes,
+          participantData,
+        );
+        if (conditionalTarget) return conditionalTarget;
+        break;
+      }
+      case "REJECT": {
+        const conditionalTarget = evaluateConditionalRoutes(
+          step.rejectionConditionalRoutes,
+          participantData,
+        );
+        if (conditionalTarget) return conditionalTarget;
+        break;
+      }
+    }
+  }
+
+  // Default routing (no conditional match or feature disabled)
+  switch (action) {
+    case "APPROVE":
+    case "PRINT":
+      return step.nextStepId;
+    case "REJECT":
+      return step.rejectionTargetId;
+    case "BYPASS":
+      return step.bypassTargetId;
+    case "ESCALATE":
+      return step.escalationTargetId;
+    default:
+      return null;
+  }
+}
+
+/**
+ * Build participant data object for condition evaluation.
+ * Merges fixed fields with extras JSONB data.
+ */
+function buildParticipantData(participant: {
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  status: string;
+  extras: unknown;
+}): Record<string, unknown> {
+  const data: Record<string, unknown> = {
+    firstName: participant.firstName,
+    lastName: participant.lastName,
+    email: participant.email,
+    status: participant.status,
+  };
+
+  // Merge extras (dynamic fields) into flat namespace
+  if (participant.extras && typeof participant.extras === "object") {
+    Object.assign(data, participant.extras);
+  }
+
+  return data;
+}
 
 export async function processWorkflowAction(
   participantId: string,
@@ -11,6 +111,7 @@ export async function processWorkflowAction(
   action: ApprovalAction,
   comment?: string,
   expectedVersion?: string,
+  conditionalRoutingEnabled = false,
 ) {
   const participant = await prisma.participant.findFirst({
     where: { id: participantId, deletedAt: null },
@@ -47,28 +148,15 @@ export async function processWorkflowAction(
   const previousStepId = participant.currentStepId!;
   let nextStepId: string | null = null;
 
-  switch (action) {
-    case "APPROVE":
-    case "PRINT":
-      nextStepId = currentStep.nextStepId;
-      break;
-    case "REJECT":
-      nextStepId = currentStep.rejectionTargetId;
-      break;
-    case "BYPASS":
-      nextStepId = currentStep.bypassTargetId;
-      break;
-    case "RETURN": {
-      const lastApproval = await prisma.approval.findFirst({
-        where: { participantId },
-        orderBy: { createdAt: "desc" },
-      });
-      nextStepId = lastApproval?.stepId ?? null;
-      break;
-    }
-    case "ESCALATE":
-      nextStepId = currentStep.escalationTargetId;
-      break;
+  if (action === "RETURN") {
+    const lastApproval = await prisma.approval.findFirst({
+      where: { participantId },
+      orderBy: { createdAt: "desc" },
+    });
+    nextStepId = lastApproval?.stepId ?? null;
+  } else {
+    const participantData = buildParticipantData(participant);
+    nextStepId = resolveNextStep(currentStep, action, participantData, conditionalRoutingEnabled);
   }
 
   let isComplete = false;

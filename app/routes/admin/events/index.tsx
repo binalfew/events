@@ -79,18 +79,24 @@ export default function EventsListPage() {
                 {event._count.formTemplates} form
                 {event._count.formTemplates !== 1 ? "s" : ""}
               </div>
-              <div className="mt-4 flex gap-3">
+              <div className="mt-4 flex flex-wrap gap-3">
                 <Link
                   to={`/admin/events/${event.id}/fields`}
                   className="text-sm font-medium text-primary hover:underline"
                 >
-                  Manage Fields
+                  Fields
                 </Link>
                 <Link
                   to={`/admin/events/${event.id}/forms`}
                   className="text-sm font-medium text-primary hover:underline"
                 >
-                  Manage Forms
+                  Forms
+                </Link>
+                <Link
+                  to={`/admin/events/${event.id}/delegations`}
+                  className="text-sm font-medium text-primary hover:underline"
+                >
+                  Delegations
                 </Link>
               </div>
             </div>

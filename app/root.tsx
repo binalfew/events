@@ -16,6 +16,7 @@ import { getTheme } from "~/lib/theme.server";
 import { getColorTheme } from "~/lib/color-theme.server";
 import { useOptimisticThemeMode } from "~/routes/resources/theme-switch";
 import { useOptimisticColorTheme } from "~/routes/resources/color-theme";
+import { initI18n, getLanguageDir } from "~/lib/i18n";
 import type { Theme } from "~/lib/theme.server";
 import type { ColorTheme } from "~/lib/color-theme";
 import "./app.css";
@@ -33,11 +34,18 @@ export const links: Route.LinksFunction = () => [
   },
 ];
 
+function getLanguageFromCookie(request: Request): string {
+  const cookie = request.headers.get("Cookie") ?? "";
+  const match = cookie.match(/i18n_lang=([a-z]{2})/);
+  return match?.[1] ?? "en";
+}
+
 export function loader({ request }: Route.LoaderArgs) {
   return {
     sentryDsn: process.env.SENTRY_DSN || "",
     theme: getTheme(request),
     colorTheme: getColorTheme(request),
+    language: getLanguageFromCookie(request),
   };
 }
 
@@ -56,14 +64,25 @@ function useColorThemeData(): ColorTheme {
   return optimistic ?? data?.colorTheme ?? "default";
 }
 
+function useLanguage(): string {
+  const data = useRouteLoaderData("root") as { language: string } | undefined;
+  return data?.language ?? "en";
+}
+
 export function Layout({ children }: { children: React.ReactNode }) {
   const nonce = useNonce();
   const themeClass = useThemeClass();
   const colorTheme = useColorThemeData();
+  const language = useLanguage();
+  const dir = getLanguageDir(language);
+
+  // Initialize i18n with server-detected language
+  initI18n(language);
 
   return (
     <html
-      lang="en"
+      lang={language}
+      dir={dir}
       className={themeClass}
       data-theme={colorTheme !== "default" ? colorTheme : undefined}
     >

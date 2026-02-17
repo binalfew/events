@@ -1,4 +1,15 @@
 import { createHash } from "node:crypto";
+import type { VisibilityCondition } from "~/types/form-designer";
+
+// ─── Conditional Route Types ──────────────────────────────
+
+export interface ConditionalRoute {
+  id: string;
+  condition: VisibilityCondition;
+  targetStepId: string;
+  priority: number;
+  label?: string;
+}
 
 export interface StepSnapshot {
   id: string;
@@ -15,6 +26,8 @@ export interface StepSnapshot {
   slaDurationMinutes: number | null;
   slaAction: string | null;
   conditions: unknown;
+  conditionalRoutes?: ConditionalRoute[];
+  rejectionConditionalRoutes?: ConditionalRoute[];
   slaWarningMinutes: number | null;
   assignedRoleId: string | null;
 }
@@ -61,8 +74,9 @@ interface WorkflowInput {
 export function serializeWorkflow(workflow: WorkflowInput): WorkflowSnapshot {
   const steps = [...workflow.steps]
     .sort((a, b) => a.order - b.order)
-    .map(
-      (step): StepSnapshot => ({
+    .map((step): StepSnapshot => {
+      const config = (step.config ?? {}) as Record<string, unknown>;
+      return {
         id: step.id,
         name: step.name,
         description: step.description,
@@ -77,10 +91,16 @@ export function serializeWorkflow(workflow: WorkflowInput): WorkflowSnapshot {
         slaDurationMinutes: step.slaDurationMinutes,
         slaAction: step.slaAction,
         conditions: step.config,
+        conditionalRoutes: Array.isArray(config.conditionalRoutes)
+          ? (config.conditionalRoutes as ConditionalRoute[])
+          : undefined,
+        rejectionConditionalRoutes: Array.isArray(config.rejectionConditionalRoutes)
+          ? (config.rejectionConditionalRoutes as ConditionalRoute[])
+          : undefined,
         slaWarningMinutes: null,
         assignedRoleId: null,
-      }),
-    );
+      };
+    });
 
   return {
     id: workflow.id,
