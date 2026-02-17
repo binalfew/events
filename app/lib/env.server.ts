@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { z } from "zod";
 
 /**
@@ -53,6 +54,9 @@ const envSchema = z.object({
   FILE_UPLOAD_MAX_SIZE_MB: z.coerce.number().default(100),
   FILE_UPLOAD_DIR: z.string().default("data/uploads"),
 
+  // QR Code encryption
+  QR_ENCRYPTION_KEY: z.string().default(""),
+
   // Feature flags
   ENABLE_2FA: booleanString.default(false),
   ENABLE_OFFLINE_MODE: booleanString.default(false),
@@ -73,7 +77,17 @@ function validateEnv(): Env {
     process.exit(1);
   }
 
-  return result.data;
+  const parsed = result.data;
+
+  // Derive QR_ENCRYPTION_KEY from SESSION_SECRET when not explicitly set
+  if (!parsed.QR_ENCRYPTION_KEY) {
+    parsed.QR_ENCRYPTION_KEY = crypto
+      .createHash("sha256")
+      .update(parsed.SESSION_SECRET)
+      .digest("hex");
+  }
+
+  return parsed;
 }
 
 export const env = validateEnv();

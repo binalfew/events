@@ -98,6 +98,12 @@ export default function EventsListPage() {
                 >
                   Delegations
                 </Link>
+                <Link
+                  to={`/admin/events/${event.id}/check-in`}
+                  className="text-sm font-medium text-primary hover:underline"
+                >
+                  Check-in
+                </Link>
               </div>
             </div>
           ))}

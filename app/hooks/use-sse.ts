@@ -7,6 +7,7 @@ const SSE_EVENT_TYPES: SSEEventType[] = [
   "sla:warning",
   "sla:breached",
   "notification:new",
+  "occupancy:updated",
 ];
 
 interface SSEEventData {

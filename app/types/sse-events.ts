@@ -1,6 +1,6 @@
 // ─── SSE Channel Definitions ─────────────────────────────
 
-export const SSE_CHANNELS = ["validation", "notifications", "dashboard"] as const;
+export const SSE_CHANNELS = ["validation", "notifications", "dashboard", "occupancy"] as const;
 export type SSEChannel = (typeof SSE_CHANNELS)[number];
 
 // ─── SSE Event Types ─────────────────────────────────────
@@ -42,12 +42,21 @@ export interface NotificationNewEvent {
   message: string;
 }
 
+export interface OccupancyUpdatedEvent {
+  type: "occupancy:updated";
+  eventId: string;
+  zoneId: string | null;
+  currentCount: number;
+  maxCapacity: number;
+}
+
 export type SSEEvent =
   | ParticipantApprovedEvent
   | ParticipantRejectedEvent
   | SLAWarningEvent
   | SLABreachedEvent
-  | NotificationNewEvent;
+  | NotificationNewEvent
+  | OccupancyUpdatedEvent;
 
 export type SSEEventType = SSEEvent["type"];
 

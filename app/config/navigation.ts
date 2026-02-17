@@ -12,6 +12,7 @@ import {
   Settings,
   Eye,
   Database,
+  ScanLine,
 } from "lucide-react";
 
 export type NavChild = {
@@ -112,6 +113,18 @@ export const navigationGroups: NavGroup[] = [
     label: "Operations",
     tKey: "operations",
     items: [
+      {
+        title: "Check-in",
+        tKey: "checkIn",
+        url: "/admin/events/check-in",
+        icon: ScanLine,
+        roles: ["ADMIN"],
+        children: [
+          { title: "Scanner", tKey: "scanner", url: "/admin/events/check-in", end: true },
+          { title: "Access Logs", tKey: "accessLogs", url: "/admin/events/access-logs" },
+          { title: "Checkpoints", tKey: "checkpoints", url: "/admin/events/checkpoints" },
+        ],
+      },
       {
         title: "Logistics",
         tKey: "logistics",

@@ -10,6 +10,7 @@
 1. [P4-00 — Foundation: Models, Migrations, Feature Flags](#p4-00-foundation--models-migrations-feature-flags)
 2. [P4-01 — REST API Layer & API Key Authentication](#p4-01-rest-api-layer--api-key-authentication)
 3. [P4-02 — Webhook System](#p4-02-webhook-system)
+4. [P4-03 — Check-in & QR Code System](#p4-03-check-in--qr-code-system)
 
 ---
 
@@ -187,3 +188,89 @@ Built a webhook delivery system with HMAC-SHA256 signing, exponential backoff re
 - Test webhook endpoint uses `test.ping` event type (not in the catalog) to distinguish test deliveries from real events
 - Webhook secret is shown once on creation (like API keys) — not retrievable afterward
 - Delivery response body is truncated to 1KB to prevent storage issues
+
+---
+
+## P4-03: Check-in & QR Code System
+
+**Status**: Completed
+**Date**: 2026-02-17
+
+### Summary
+
+Built the on-site check-in system with AES-256-GCM encrypted QR codes, a camera-based scanning engine, checkpoint management, real-time venue occupancy tracking, and access log viewer with CSV export. The system supports both QR scanning and manual registration code entry, with audio feedback and a full scan pipeline that validates participant status, event dates, and duplicate scans.
+
+### Files Created
+
+1. **`app/services/qr-code.server.ts`** — QR code encryption service. `generateQRPayload()` creates compact JSON `{pid,tid,eid,iat,v:1}`, encrypts with AES-256-GCM (random 12-byte IV), prepends 4-byte CRC32, and Base64url-encodes. `decodeQRPayload()` reverses the process with CRC verification. `generateQRCodeDataURL()` produces PNG data URLs via the `qrcode` package.
+
+2. **`app/services/checkpoints.server.ts`** — Checkpoint CRUD service with `CheckpointError` class, create/list/get/update/delete/toggle functions. All mutations create audit log entries. Tenant-scoped with composite unique constraint on `[tenantId, eventId, name]`.
+
+3. **`app/services/venue-occupancy.server.ts`** — Venue occupancy service with `getEventOccupancy()` and `updateOccupancy()` (atomic increment/decrement). Uses `findFirst` for nullable `zoneId` compound lookups.
+
+4. **`app/services/check-in.server.ts`** — Main check-in service. `processScan()` implements a 10-step pipeline: decode QR → verify tenant → lookup participant → check status (REVOKED for CANCELLED) → check event date (EXPIRED) → verify checkpoint active → duplicate check (ALREADY_SCANNED with override option) → create AccessLog → update occupancy → return ScanResponse. Also includes `processManualEntry()`, `getAccessLogs()` (paginated + filtered), and `exportAccessLogsCsv()`.
+
+5. **`app/lib/schemas/checkpoint.ts`** — Zod validation schemas for checkpoint create/update. Defines checkpoint types (gate, meeting-room, vip-area, registration-desk) and directions (entry, exit, bidirectional).
+
+6. **`app/hooks/use-scan-audio.ts`** — Web Audio API hook for success (rising A5→C#6), error (low square wave buzz), and warning (double beep) tones. No audio file bundling needed.
+
+7. **`app/components/check-in/qr-scanner.tsx`** — Client-only camera QR reader using `html5-qrcode`. Loaded via `React.lazy()` to prevent SSR import crash. Includes 3-second debounce for same-code scans.
+
+8. **`app/components/check-in/scan-result-display.tsx`** — Color-coded result panel (green for VALID, red for INVALID/REVOKED, yellow for EXPIRED/ALREADY_SCANNED) with participant name and registration code.
+
+9. **`app/components/check-in/manual-entry.tsx`** — Registration code fallback input form.
+
+10. **`app/components/check-in/checkpoint-selector.tsx`** — NativeSelect dropdown filtered to active checkpoints only.
+
+11. **`app/components/check-in/scan-history.tsx`** — Recent scans list with result badges and timestamps. Keeps last 50 entries.
+
+12. **`app/components/check-in/access-log-table.tsx`** — Filterable log table with participant name, checkpoint, scan type, result, and override reason columns.
+
+13. **`app/components/occupancy/occupancy-panel.tsx`** — Real-time zone occupancy progress bars. Color-coded: green (<75%), yellow (75-90%), red (>90%).
+
+14. **`app/routes/admin/events/$eventId/check-in.tsx`** — Scanner page with QR camera (client-only via React.lazy), checkpoint selector, manual entry fallback, scan result display with audio feedback, and recent scan history. All scans via `useFetcher` to keep camera running.
+
+15. **`app/routes/admin/events/$eventId/settings/checkpoints.tsx`** — Checkpoint management page with create/edit dialogs, enable/disable toggle, and delete confirmation. Full CRUD via loader/action pattern.
+
+16. **`app/routes/admin/events/$eventId/access-logs.tsx`** — Access log viewer with checkpoint and result filters, pagination, occupancy panel, and CSV export button.
+
+17. **`app/services/__tests__/qr-code.server.test.ts`** — 6 test cases: round-trip encrypt/decrypt, Base64url format, unique payloads for same input (random IV), CRC tamper detection, garbage input handling, PNG data URL generation.
+
+18. **`app/services/__tests__/check-in.server.test.ts`** — 9 test cases: VALID scan, INVALID garbled data, tenant mismatch, REVOKED cancelled participant, EXPIRED past event, ALREADY_SCANNED duplicate, MANUAL_OVERRIDE with reason, valid manual entry, unknown registration code.
+
+19. **`app/services/__tests__/checkpoints.server.test.ts`** — 2 test cases: checkpoint creation with audit log, toggle active state with audit log.
+
+### Files Modified
+
+1. **`app/lib/env.server.ts`** — Added `QR_ENCRYPTION_KEY` env var (optional, defaults to empty string). Added derivation logic: when empty, derives from `SESSION_SECRET` via SHA-256 hash, so no extra configuration is needed.
+
+2. **`app/types/sse-events.ts`** — Added `"occupancy"` to `SSE_CHANNELS`. Added `OccupancyUpdatedEvent` interface with eventId, zoneId, currentCount, maxCapacity fields. Extended `SSEEvent` union type.
+
+3. **`app/hooks/use-sse.ts`** — Added `"occupancy:updated"` to `SSE_EVENT_TYPES` array.
+
+4. **`app/config/navigation.ts`** — Added `ScanLine` icon import. Added "Check-in" nav group under Operations with Scanner, Access Logs, and Checkpoints children.
+
+5. **`docs/PHASE-4-COMPLETION.md`** — Added P4-03 entry.
+
+### Dependencies Installed
+
+- `qrcode` — QR code PNG generation
+- `html5-qrcode` — Browser camera-based QR scanning
+- `@types/qrcode` — TypeScript definitions (devDependency)
+
+### Verification Results
+
+| Check               | Result                                   |
+| ------------------- | ---------------------------------------- |
+| `npm run typecheck` | No type errors                           |
+| `npm run test`      | 54 test files, 684 tests passed (17 new) |
+
+### Notable Decisions
+
+- **QR_ENCRYPTION_KEY** derives from SESSION_SECRET via SHA-256 when not explicitly set — zero-config for development
+- **Client-only QR scanner** via `React.lazy()` + `typeof window !== "undefined"` guard prevents `html5-qrcode` SSR crash
+- **Capacity is informational, not blocking** — the system never denies entry based on zone capacity to avoid dangerous gate jams; operators see warnings via color-coded occupancy bars
+- **Web Audio API** for audio feedback — no audio file bundling needed; synthesized tones for success (rising), error (buzz), and warning (double beep)
+- **useFetcher for scans** — camera stays running during scan processing, no full page navigation
+- **3-second debounce** on QR scanner prevents duplicate submissions from continuous camera scanning
+- **Used `findFirst` instead of `findUnique`** for VenueOccupancy lookup because Prisma's compound unique key doesn't accept nullable `zoneId` in the where clause
