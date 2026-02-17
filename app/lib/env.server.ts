@@ -57,6 +57,13 @@ const envSchema = z.object({
   // QR Code encryption
   QR_ENCRYPTION_KEY: z.string().default(""),
 
+  // SMTP (Communication Hub)
+  SMTP_HOST: z.string().default(""),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_USER: z.string().default(""),
+  SMTP_PASS: z.string().default(""),
+  SMTP_FROM: z.string().default("noreply@events.local"),
+
   // Feature flags
   ENABLE_2FA: booleanString.default(false),
   ENABLE_OFFLINE_MODE: booleanString.default(false),

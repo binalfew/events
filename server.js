@@ -8,6 +8,10 @@ import { correlationMiddleware, getCorrelationId } from "./server/correlation.js
 import { requestLogger } from "./server/request-logger.js";
 import { startSLACheckJob, stopSLACheckJob } from "./server/sla-job.js";
 import { startWebhookRetryJob, stopWebhookRetryJob } from "./server/webhook-retry-job.js";
+import {
+  startBroadcastDeliveryJob,
+  stopBroadcastDeliveryJob,
+} from "./server/broadcast-delivery-job.js";
 
 // Fail fast if required environment variables are missing
 const required = ["DATABASE_URL", "SESSION_SECRET"];
@@ -27,6 +31,8 @@ const SLA_CHECKER_DEV = "./app/services/workflow-engine/sla-checker.server.ts";
 const SLA_CHECKER_PROD = "./build/server/services/workflow-engine/sla-checker.server.js";
 const WEBHOOK_DELIVERY_DEV = "./app/services/webhook-delivery.server.ts";
 const WEBHOOK_DELIVERY_PROD = "./build/server/services/webhook-delivery.server.js";
+const BROADCAST_DELIVERY_DEV = "./app/services/jobs/broadcast-delivery-job.server.ts";
+const BROADCAST_DELIVERY_PROD = "./build/server/services/jobs/broadcast-delivery-job.server.js";
 const DEVELOPMENT = process.env.NODE_ENV === "development";
 const PORT = Number.parseInt(process.env.PORT || "3000");
 
@@ -51,6 +57,8 @@ app.use(requestLogger);
 let slaLoader;
 /** @type {() => Promise<any>} */
 let webhookLoader;
+/** @type {() => Promise<any>} */
+let broadcastLoader;
 
 if (DEVELOPMENT) {
   logger.info("Starting development server");
@@ -75,6 +83,7 @@ if (DEVELOPMENT) {
   // Use Vite's ssrLoadModule so ~ aliases and TypeScript resolve correctly
   slaLoader = () => viteDevServer.ssrLoadModule(SLA_CHECKER_DEV);
   webhookLoader = () => viteDevServer.ssrLoadModule(WEBHOOK_DELIVERY_DEV);
+  broadcastLoader = () => viteDevServer.ssrLoadModule(BROADCAST_DELIVERY_DEV);
 } else {
   logger.info("Starting production server");
   app.use(
@@ -85,6 +94,7 @@ if (DEVELOPMENT) {
   app.use(await import(BUILD_PATH).then((mod) => mod.app));
   slaLoader = () => import(SLA_CHECKER_PROD);
   webhookLoader = () => import(WEBHOOK_DELIVERY_PROD);
+  broadcastLoader = () => import(BROADCAST_DELIVERY_PROD);
 }
 
 app.listen(PORT, () => {
@@ -93,10 +103,12 @@ app.listen(PORT, () => {
   // Start background jobs
   startSLACheckJob(slaLoader);
   startWebhookRetryJob(webhookLoader);
+  startBroadcastDeliveryJob(broadcastLoader);
 
   const shutdown = () => {
     stopSLACheckJob();
     stopWebhookRetryJob();
+    stopBroadcastDeliveryJob();
     process.exit(0);
   };
   process.on("SIGTERM", shutdown);

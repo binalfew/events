@@ -1,6 +1,12 @@
 // ─── SSE Channel Definitions ─────────────────────────────
 
-export const SSE_CHANNELS = ["validation", "notifications", "dashboard", "occupancy"] as const;
+export const SSE_CHANNELS = [
+  "validation",
+  "notifications",
+  "dashboard",
+  "occupancy",
+  "communications",
+] as const;
 export type SSEChannel = (typeof SSE_CHANNELS)[number];
 
 // ─── SSE Event Types ─────────────────────────────────────
@@ -50,13 +56,24 @@ export interface OccupancyUpdatedEvent {
   maxCapacity: number;
 }
 
+export interface BroadcastProgressEvent {
+  type: "broadcast:progress";
+  broadcastId: string;
+  sentCount: number;
+  failedCount: number;
+  deliveredCount: number;
+  total: number;
+  status: string;
+}
+
 export type SSEEvent =
   | ParticipantApprovedEvent
   | ParticipantRejectedEvent
   | SLAWarningEvent
   | SLABreachedEvent
   | NotificationNewEvent
-  | OccupancyUpdatedEvent;
+  | OccupancyUpdatedEvent
+  | BroadcastProgressEvent;
 
 export type SSEEventType = SSEEvent["type"];
 
