@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Form, Link, useMatches, useNavigate } from "react-router";
+import { useTranslation } from "react-i18next";
 import { LogOut, Search, User } from "lucide-react";
 import { CommandPalette } from "~/components/layout/command-palette";
 import { ShortcutHelp } from "~/components/layout/shortcut-help";
@@ -106,6 +107,7 @@ export function TopNavbar({
 }: TopNavbarProps) {
   const breadcrumbs = useBreadcrumbs();
   const navigate = useNavigate();
+  const { t } = useTranslation("common");
   const [searchOpen, setSearchOpen] = useState(false);
   const [shortcutHelpOpen, setShortcutHelpOpen] = useState(false);
 
@@ -319,7 +321,7 @@ export function TopNavbar({
               className="hidden cursor-pointer items-center gap-2 rounded-md border bg-muted/50 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted md:flex"
             >
               <Search className="size-4" />
-              <span>Search...</span>
+              <span>{t("search")}</span>
               <kbd className="pointer-events-none ml-2 inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
                 <span className="text-xs">&#8984;</span>K
               </kbd>
@@ -379,14 +381,14 @@ export function TopNavbar({
             <DropdownMenuSeparator />
             <DropdownMenuItem disabled>
               <User />
-              Profile
+              {t("profile")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <Form method="post" action="/auth/logout">
               <DropdownMenuItem asChild>
                 <button type="submit" className="w-full">
                   <LogOut />
-                  Sign out
+                  {t("signOut")}
                 </button>
               </DropdownMenuItem>
             </Form>

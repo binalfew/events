@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { NavLink, useLocation } from "react-router";
+import { useTranslation } from "react-i18next";
 import { ChevronRight } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "~/components/ui/collapsible";
 import {
@@ -39,6 +40,7 @@ export function NavMain({
   groupState: Record<string, boolean>;
 }) {
   const location = useLocation();
+  const { t } = useTranslation("nav");
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
     for (const group of groups) {
@@ -63,7 +65,7 @@ export function NavMain({
     <>
       {groups.map((group) => (
         <SidebarGroup key={group.label}>
-          <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+          <SidebarGroupLabel>{group.tKey ? t(group.tKey) : group.label}</SidebarGroupLabel>
           <SidebarMenu>
             {group.items.map((item) =>
               item.children ? (
@@ -76,9 +78,9 @@ export function NavMain({
                 >
                   <SidebarMenuItem>
                     <CollapsibleTrigger asChild>
-                      <SidebarMenuButton tooltip={item.title}>
+                      <SidebarMenuButton tooltip={item.tKey ? t(item.tKey) : item.title}>
                         <item.icon />
-                        <span>{item.title}</span>
+                        <span>{item.tKey ? t(item.tKey) : item.title}</span>
                         <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                       </SidebarMenuButton>
                     </CollapsibleTrigger>
@@ -91,7 +93,7 @@ export function NavMain({
                               asChild
                             >
                               <NavLink to={child.url} end={child.end}>
-                                <span>{child.title}</span>
+                                <span>{child.tKey ? t(child.tKey) : child.title}</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -103,13 +105,13 @@ export function NavMain({
               ) : (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
-                    tooltip={item.title}
+                    tooltip={item.tKey ? t(item.tKey) : item.title}
                     isActive={isPathActive(location.pathname, item.url, item.end)}
                     asChild
                   >
                     <NavLink to={item.url} end={item.end}>
                       <item.icon />
-                      <span>{item.title}</span>
+                      <span>{item.tKey ? t(item.tKey) : item.title}</span>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

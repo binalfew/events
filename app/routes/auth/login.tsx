@@ -1,6 +1,7 @@
 import { useForm, getFormProps, getInputProps } from "@conform-to/react";
 import { parseWithZod } from "@conform-to/zod/v4";
 import { data, Form, redirect, useActionData } from "react-router";
+import { useTranslation } from "react-i18next";
 import { z } from "zod/v4";
 import { verifyPassword } from "~/lib/auth.server";
 import { prisma } from "~/lib/db.server";
@@ -182,6 +183,7 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function LoginPage({ actionData }: Route.ComponentProps) {
+  const { t } = useTranslation("auth");
   const [form, fields] = useForm({
     lastResult: actionData,
     onValidate({ formData }) {
@@ -196,8 +198,8 @@ export default function LoginPage({ actionData }: Route.ComponentProps) {
         <div className="flex flex-col gap-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-2xl">Login</CardTitle>
-              <CardDescription>Enter your email below to login to your account</CardDescription>
+              <CardTitle className="text-2xl">{t("loginTitle")}</CardTitle>
+              <CardDescription>{t("loginSubtitle")}</CardDescription>
             </CardHeader>
             <CardContent>
               <Form method="post" {...getFormProps(form)}>
@@ -209,7 +211,7 @@ export default function LoginPage({ actionData }: Route.ComponentProps) {
                   )}
 
                   <div className="grid gap-2">
-                    <Label htmlFor={fields.email.id}>Email</Label>
+                    <Label htmlFor={fields.email.id}>{t("email")}</Label>
                     {(() => {
                       const { key, ...emailProps } = getInputProps(fields.email, {
                         type: "email",
@@ -230,12 +232,12 @@ export default function LoginPage({ actionData }: Route.ComponentProps) {
 
                   <div className="grid gap-2">
                     <div className="flex items-center">
-                      <Label htmlFor={fields.password.id}>Password</Label>
+                      <Label htmlFor={fields.password.id}>{t("password")}</Label>
                       <a
                         href="#"
                         className="ml-auto inline-block text-sm underline-offset-4 hover:underline"
                       >
-                        Forgot your password?
+                        {t("forgotPassword")}
                       </a>
                     </div>
                     {(() => {
@@ -252,7 +254,7 @@ export default function LoginPage({ actionData }: Route.ComponentProps) {
                   <input type="hidden" name="redirectTo" value="" />
 
                   <Button type="submit" className="w-full">
-                    Login
+                    {t("login")}
                   </Button>
                 </div>
               </Form>
