@@ -297,20 +297,31 @@ export function TopNavbar({
         </Breadcrumb>
       </div>
 
-      <div className="flex items-center gap-2 px-4">
-        {/* Search trigger */}
+      <div className="flex items-center gap-1 px-2 sm:gap-2 sm:px-4">
+        {/* Search trigger — icon on mobile, full bar on desktop */}
         {searchEnabled ? (
-          <button
-            type="button"
-            onClick={() => setSearchOpen(true)}
-            className="hidden cursor-pointer items-center gap-2 rounded-md border bg-muted/50 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted md:flex"
-          >
-            <Search className="size-4" />
-            <span>Search...</span>
-            <kbd className="pointer-events-none ml-2 inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
-              <span className="text-xs">&#8984;</span>K
-            </kbd>
-          </button>
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 md:hidden"
+              onClick={() => setSearchOpen(true)}
+              aria-label="Search"
+            >
+              <Search className="size-4" />
+            </Button>
+            <button
+              type="button"
+              onClick={() => setSearchOpen(true)}
+              className="hidden cursor-pointer items-center gap-2 rounded-md border bg-muted/50 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted md:flex"
+            >
+              <Search className="size-4" />
+              <span>Search...</span>
+              <kbd className="pointer-events-none ml-2 inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+                <span className="text-xs">&#8984;</span>K
+              </kbd>
+            </button>
+          </>
         ) : (
           <div className="hidden items-center gap-2 rounded-md border bg-muted/50 px-3 py-1.5 text-sm text-muted-foreground md:flex">
             <Search className="size-4" />
@@ -321,14 +332,20 @@ export function TopNavbar({
           </div>
         )}
 
-        {/* Language switcher */}
-        {i18nEnabled && <LanguageSwitcher />}
+        {/* Language switcher — hidden on small screens */}
+        {i18nEnabled && (
+          <div className="hidden sm:flex">
+            <LanguageSwitcher />
+          </div>
+        )}
 
         {/* Theme switcher */}
         <ThemeSwitch userPreference={theme} />
 
-        {/* Color theme selector */}
-        <ColorThemeSelector currentTheme={colorTheme} />
+        {/* Color theme selector — hidden on small screens */}
+        <div className="hidden sm:flex">
+          <ColorThemeSelector currentTheme={colorTheme} />
+        </div>
 
         {/* Notifications */}
         <NotificationBell

@@ -11,6 +11,8 @@ import { AppSidebar } from "~/components/layout/app-sidebar";
 import { TopNavbar } from "~/components/layout/top-navbar";
 import { Toaster } from "~/components/ui/toaster";
 import { SSEProvider } from "~/components/sse-provider";
+import { InstallPrompt } from "~/components/pwa/install-prompt";
+import { SwUpdatePrompt } from "~/components/pwa/sw-update-prompt";
 import type { Route } from "./+types/_layout";
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -28,6 +30,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     flagContext,
   );
   const i18nEnabled = await isFeatureEnabled(FEATURE_FLAG_KEYS.I18N, flagContext);
+  const pwaEnabled = await isFeatureEnabled(FEATURE_FLAG_KEYS.PWA, flagContext);
 
   let unreadCount = 0;
   let recentNotifications: Array<{
@@ -67,6 +70,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     searchEnabled,
     shortcutsEnabled,
     i18nEnabled,
+    pwaEnabled,
     unreadCount,
     recentNotifications,
   };
@@ -85,6 +89,7 @@ export default function DashboardLayout() {
     searchEnabled,
     shortcutsEnabled,
     i18nEnabled,
+    pwaEnabled,
     unreadCount,
     recentNotifications,
   } = useLoaderData<typeof loader>();
@@ -118,6 +123,12 @@ export default function DashboardLayout() {
         </div>
       </SidebarInset>
       <Toaster />
+      {pwaEnabled && (
+        <>
+          <InstallPrompt />
+          <SwUpdatePrompt />
+        </>
+      )}
     </SidebarProvider>
   );
 }

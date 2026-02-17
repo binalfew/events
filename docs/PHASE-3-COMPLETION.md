@@ -308,3 +308,46 @@ Implemented analytics dashboard with live metrics from actual data tables, recha
 - Recent activity line chart pulls from `AnalyticsSnapshot` records with metric `registrations` or `approvals` and period `daily` for the last 14 days.
 - CSV export includes all four metric sections: summary, status distribution, per-event counts, and daily activity.
 - Chart components use `ResponsiveContainer` for responsive sizing and theme-aware tooltip styling.
+
+---
+
+## P3-09: PWA Shell & Responsive Views
+
+**Status:** Complete
+
+### Summary
+
+Implemented Progressive Web App shell with service worker, web app manifest, install prompt, update prompt, and responsive mobile layout improvements. All PWA features are gated behind the `FF_PWA` feature flag. The service worker implements three caching strategies: cache-first for static assets, network-first for API routes, and stale-while-revalidate for HTML pages.
+
+### Files Created
+
+- `public/manifest.json` — Web app manifest with app metadata, standalone display mode, theme color, and icon references (192x192, 512x512, maskable 512x512).
+- `public/sw.js` — Service worker with cache-first (statics), network-first (API), stale-while-revalidate (pages) strategies. Includes precaching for shell assets, old cache cleanup on activation, and SKIP_WAITING message handler for updates.
+- `public/icons/icon-192.png` — Placeholder 192x192 icon.
+- `public/icons/icon-512.png` — Placeholder 512x512 icon.
+- `public/icons/icon-maskable-512.png` — Placeholder maskable 512x512 icon.
+- `public/icons/apple-touch-icon.png` — Placeholder 180x180 Apple touch icon.
+- `app/components/pwa/install-prompt.tsx` — PWA install prompt component. Listens for `beforeinstallprompt` event, shows dismissible banner with install button. Respects standalone mode detection and session-based dismissal via `sessionStorage`.
+- `app/components/pwa/sw-update-prompt.tsx` — Service worker update prompt. Detects when a new SW version is waiting and shows a "Reload" banner. Posts `SKIP_WAITING` message to activate the new worker.
+- `app/services/__tests__/pwa.server.test.ts` — 17 unit tests covering feature flag keys, static asset detection logic, manifest validation, icon file existence, and install prompt logic.
+
+### Files Modified
+
+- `app/entry.client.tsx` — Added service worker registration on page load, gated by `data-pwa="true"` attribute on `<html>` element.
+- `app/root.tsx` — Loader now async, checks `FF_PWA` flag. Layout conditionally renders manifest link, theme-color meta, apple-mobile-web-app-capable meta, apple-touch-icon link, and sets `data-pwa` attribute.
+- `app/routes/admin/_layout.tsx` — Checks `FF_PWA` flag in loader, passes to layout. Renders `InstallPrompt` and `SwUpdatePrompt` components when PWA is enabled.
+- `app/components/layout/top-navbar.tsx` — Mobile responsive improvements: search icon button on mobile (md:hidden), full search bar on desktop. Language switcher and color theme selector hidden on small screens (hidden sm:flex). Tighter gaps/padding on mobile.
+- `package.json` / `package-lock.json` — Installed missing i18n dependencies (`i18next`, `react-i18next`, `i18next-browser-languagedetector`).
+
+### Verification
+
+- `npm run typecheck` — Passes
+- `npm run test` — 38 test files, 515 tests passing (17 new + 498 existing)
+
+### Notes
+
+- Placeholder icons are minimal 1x1 PNGs — should be replaced with properly designed icons before production.
+- The sidebar already uses a Sheet overlay on mobile (< 768px) via `useIsMobile()` hook and the ShadCN sidebar component, so no additional mobile sidebar work was needed.
+- The dialog component already uses `max-w-[calc(100%-2rem)]` for responsive behavior on small screens.
+- The table component already has `overflow-x-auto` on its container for horizontal scrolling on mobile.
+- Service worker registration uses a `data-pwa` HTML attribute as a bridge between server-side feature flag and client-side registration logic, avoiding the need to pass the flag through React context to `entry.client.tsx`.

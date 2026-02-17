@@ -17,6 +17,7 @@ import { getColorTheme } from "~/lib/color-theme.server";
 import { useOptimisticThemeMode } from "~/routes/resources/theme-switch";
 import { useOptimisticColorTheme } from "~/routes/resources/color-theme";
 import { initI18n, getLanguageDir } from "~/lib/i18n";
+import { isFeatureEnabled, FEATURE_FLAG_KEYS } from "~/lib/feature-flags.server";
 import type { Theme } from "~/lib/theme.server";
 import type { ColorTheme } from "~/lib/color-theme";
 import "./app.css";
@@ -40,12 +41,15 @@ function getLanguageFromCookie(request: Request): string {
   return match?.[1] ?? "en";
 }
 
-export function loader({ request }: Route.LoaderArgs) {
+export async function loader({ request }: Route.LoaderArgs) {
+  const pwaEnabled = await isFeatureEnabled(FEATURE_FLAG_KEYS.PWA);
+
   return {
     sentryDsn: process.env.SENTRY_DSN || "",
     theme: getTheme(request),
     colorTheme: getColorTheme(request),
     language: getLanguageFromCookie(request),
+    pwaEnabled,
   };
 }
 
@@ -69,12 +73,18 @@ function useLanguage(): string {
   return data?.language ?? "en";
 }
 
+function usePwaEnabled(): boolean {
+  const data = useRouteLoaderData("root") as { pwaEnabled: boolean } | undefined;
+  return data?.pwaEnabled ?? false;
+}
+
 export function Layout({ children }: { children: React.ReactNode }) {
   const nonce = useNonce();
   const themeClass = useThemeClass();
   const colorTheme = useColorThemeData();
   const language = useLanguage();
   const dir = getLanguageDir(language);
+  const pwaEnabled = usePwaEnabled();
 
   // Initialize i18n with server-detected language
   initI18n(language);
@@ -85,10 +95,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
       dir={dir}
       className={themeClass}
       data-theme={colorTheme !== "default" ? colorTheme : undefined}
+      data-pwa={pwaEnabled ? "true" : undefined}
     >
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        {pwaEnabled && (
+          <>
+            <link rel="manifest" href="/manifest.json" />
+            <meta name="theme-color" content="#0f172a" />
+            <meta name="mobile-web-app-capable" content="yes" />
+            <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+          </>
+        )}
         <Meta />
         <Links />
       </head>
