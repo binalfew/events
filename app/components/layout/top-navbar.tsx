@@ -29,6 +29,7 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { NotificationBell } from "~/components/notification-bell";
+import { OfflineIndicator } from "~/components/offline-indicator";
 import { LanguageSwitcher } from "~/components/layout/language-switcher";
 import { ThemeSwitch } from "~/routes/resources/theme-switch";
 import { ColorThemeSelector } from "~/routes/resources/color-theme";
@@ -54,6 +55,7 @@ type TopNavbarProps = {
   searchEnabled?: boolean;
   shortcutsEnabled?: boolean;
   i18nEnabled?: boolean;
+  offlineEnabled?: boolean;
 };
 
 type BreadcrumbEntry = {
@@ -100,6 +102,7 @@ export function TopNavbar({
   searchEnabled = false,
   shortcutsEnabled = false,
   i18nEnabled = false,
+  offlineEnabled = false,
 }: TopNavbarProps) {
   const breadcrumbs = useBreadcrumbs();
   const navigate = useNavigate();
@@ -346,6 +349,9 @@ export function TopNavbar({
         <div className="hidden sm:flex">
           <ColorThemeSelector currentTheme={colorTheme} />
         </div>
+
+        {/* Offline indicator */}
+        {offlineEnabled && <OfflineIndicator />}
 
         {/* Notifications */}
         <NotificationBell

@@ -351,3 +351,41 @@ Implemented Progressive Web App shell with service worker, web app manifest, ins
 - The dialog component already uses `max-w-[calc(100%-2rem)]` for responsive behavior on small screens.
 - The table component already has `overflow-x-auto` on its container for horizontal scrolling on mobile.
 - Service worker registration uses a `data-pwa` HTML attribute as a bridge between server-side feature flag and client-side registration logic, avoiding the need to pass the flag through React context to `entry.client.tsx`.
+
+---
+
+## P3-10: Offline Mode & Sync
+
+**Status:** Complete
+
+### Summary
+
+Implemented offline mutation queue with IndexedDB (via `idb-keyval`), a SyncManager that replays queued mutations when connectivity returns, an offline-aware fetch wrapper, a conflict resolution system (last-write-wins with server timestamps), and an offline indicator component in the top navbar. All features gated behind `FF_OFFLINE_MODE`.
+
+### Files Created
+
+- `app/lib/offline-store.ts` — IndexedDB-backed mutation queue using `idb-keyval`. Provides `enqueue()`, `getPending()`, `getByStatus()`, `markSyncing()`, `markSynced()`, `markFailed()`, `resetToPending()`, `getStats()`, `cleanup()`, `clearAll()`. Each mutation has id, type, entityType, entityId, payload, timestamp, retryCount, and status.
+- `app/lib/sync-manager.ts` — `SyncManager` class that listens for online/offline events, processes the pending queue, sends mutations to `/api/offline-sync`, handles conflict resolution (409 = server wins, discards mutation, records conflict), enforces max 3 retries, and provides status/result callbacks. Includes `ConflictError` class and singleton `getSyncManager()`.
+- `app/lib/offline-fetch.ts` — `offlineFetch()` wrapper: when online, makes a normal fetch; when offline, enqueues the mutation and returns a synthetic 202 response. Supports `optimisticUpdate` callback for immediate UI updates. Skips queuing for GET requests.
+- `app/components/offline-indicator.tsx` — Popover-based indicator in the top navbar. Shows online (green Wifi), offline (red WifiOff), or syncing (spinning RefreshCw) status. Expands to show pending/syncing/failed counts, last sync time, and manual "Sync Now" button. Displays toast notifications for sync conflicts, successes, and failures.
+- `app/routes/api/offline-sync.ts` — Server-side API endpoint for processing synced mutations. Validates `FF_OFFLINE_MODE` flag, performs conflict detection by comparing client timestamp vs `participant.updatedAt` (server wins on tie), applies approve/reject status changes, and creates audit logs.
+- `app/services/__tests__/offline-sync.server.test.ts` — 15 unit tests covering mutation structure, SyncManager API, offlineFetch export, conflict resolution logic (server-wins, client-wins, tie), max retry enforcement, cleanup cutoff calculation, and feature flag integration.
+
+### Files Modified
+
+- `app/routes/admin/_layout.tsx` — Checks `FF_OFFLINE_MODE` flag, passes `offlineEnabled` to TopNavbar.
+- `app/components/layout/top-navbar.tsx` — Accepts `offlineEnabled` prop, renders `OfflineIndicator` when enabled.
+- `package.json` / `package-lock.json` — Added `idb-keyval` dependency.
+
+### Verification
+
+- `npm run typecheck` — Passes
+- `npm run test` — 39 test files, 530 tests passing (15 new + 515 existing)
+
+### Notes
+
+- Conflict resolution strategy: last-write-wins with server timestamps. Server wins on equal timestamps (safer default). Conflicts show toast notifications to the user.
+- The SyncManager starts periodic cleanup of synced mutations older than 24 hours (runs every hour).
+- The `applyMutation` function currently supports approve/reject status changes. Print/collect are logged but don't change participant fields (badge fields will be added in a later phase).
+- The offline indicator refreshes queue stats every 5 seconds to keep counts current.
+- SyncManager is a singleton to prevent multiple instances competing for the same queue.

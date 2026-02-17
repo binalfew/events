@@ -13,6 +13,7 @@ import { Toaster } from "~/components/ui/toaster";
 import { SSEProvider } from "~/components/sse-provider";
 import { InstallPrompt } from "~/components/pwa/install-prompt";
 import { SwUpdatePrompt } from "~/components/pwa/sw-update-prompt";
+import { OfflineIndicator } from "~/components/offline-indicator";
 import type { Route } from "./+types/_layout";
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -31,6 +32,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   );
   const i18nEnabled = await isFeatureEnabled(FEATURE_FLAG_KEYS.I18N, flagContext);
   const pwaEnabled = await isFeatureEnabled(FEATURE_FLAG_KEYS.PWA, flagContext);
+  const offlineEnabled = await isFeatureEnabled(FEATURE_FLAG_KEYS.OFFLINE_MODE, flagContext);
 
   let unreadCount = 0;
   let recentNotifications: Array<{
@@ -71,6 +73,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     shortcutsEnabled,
     i18nEnabled,
     pwaEnabled,
+    offlineEnabled,
     unreadCount,
     recentNotifications,
   };
@@ -90,6 +93,7 @@ export default function DashboardLayout() {
     shortcutsEnabled,
     i18nEnabled,
     pwaEnabled,
+    offlineEnabled,
     unreadCount,
     recentNotifications,
   } = useLoaderData<typeof loader>();
@@ -113,6 +117,7 @@ export default function DashboardLayout() {
           searchEnabled={searchEnabled}
           shortcutsEnabled={shortcutsEnabled}
           i18nEnabled={i18nEnabled}
+          offlineEnabled={offlineEnabled}
           unreadCount={unreadCount}
           notifications={recentNotifications}
         />
