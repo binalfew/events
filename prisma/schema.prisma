@@ -67,6 +67,7 @@ enum StepType {
   NOTIFICATION
   CUSTOM
   FORK
+  JOIN
 }
 
 enum AssignmentStrategy {
@@ -141,6 +142,132 @@ enum AuditAction {
   FILE_UPLOAD_BLOCKED
 }
 
+enum ApiKeyStatus {
+  ACTIVE
+  ROTATED
+  REVOKED
+  EXPIRED
+}
+
+enum RateLimitTier {
+  STANDARD
+  ELEVATED
+  PREMIUM
+  CUSTOM
+}
+
+enum WebhookStatus {
+  ACTIVE
+  PAUSED
+  DISABLED
+  SUSPENDED
+}
+
+enum DeliveryStatus {
+  PENDING
+  DELIVERED
+  FAILED
+  RETRYING
+  DEAD_LETTER
+}
+
+enum ScanType {
+  QR_SCAN
+  NFC_TAP
+  MANUAL_ENTRY
+}
+
+enum ScanResult {
+  VALID
+  INVALID
+  EXPIRED
+  REVOKED
+  ALREADY_SCANNED
+  MANUAL_OVERRIDE
+}
+
+enum BulkOperationType {
+  IMPORT_PARTICIPANTS
+  EXPORT_PARTICIPANTS
+  STATUS_CHANGE
+  BULK_APPROVE
+  BULK_REJECT
+  BULK_BYPASS
+  FIELD_UPDATE
+  DELETE
+}
+
+enum BulkOperationStatus {
+  VALIDATING
+  PREVIEW
+  CONFIRMED
+  PROCESSING
+  COMPLETED
+  FAILED
+  ROLLED_BACK
+}
+
+enum DuplicateStatus {
+  PENDING_REVIEW
+  CONFIRMED_DUPLICATE
+  NOT_DUPLICATE
+  MERGED
+}
+
+enum WaitlistStatus {
+  ACTIVE
+  PROMOTED
+  EXPIRED
+  WITHDRAWN
+  CANCELLED
+}
+
+enum WaitlistPriority {
+  STANDARD
+  HIGH
+  VIP
+}
+
+enum MessageChannel {
+  EMAIL
+  SMS
+  PUSH
+  IN_APP
+}
+
+enum MessageStatus {
+  QUEUED
+  SENDING
+  SENT
+  DELIVERED
+  BOUNCED
+  FAILED
+}
+
+enum BroadcastStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  CANCELLED
+}
+
+enum CloneStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  ROLLED_BACK
+}
+
+enum QueueStatus {
+  WAITING
+  CALLED
+  SERVING
+  COMPLETED
+  CANCELLED
+}
+
 // ─── Identity & Access Domain ────────────────────────────
 
 model Tenant {
@@ -171,6 +298,13 @@ model Tenant {
   formTemplates    FormTemplate[]
   sectionTemplates SectionTemplate[]
   notifications    Notification[]
+
+  // Phase 4 reverse relations
+  apiKeys              ApiKey[]
+  webhookSubscriptions WebhookSubscription[]
+  messageTemplates     MessageTemplate[]
+  broadcastMessages    BroadcastMessage[]
+  eventSeries          EventSeries[]
 
   @@index([name, email])
 }
@@ -247,6 +381,16 @@ model Event {
   formTemplates    FormTemplate[]
   userRoles        UserRole[]
   delegationQuotas DelegationQuota[]
+
+  // Phase 4 reverse relations
+  checkpoints       Checkpoint[]
+  venueOccupancies  VenueOccupancy[]
+  kioskDevices      KioskDevice[]
+  queueTickets      QueueTicket[]
+  bulkOperations    BulkOperation[]
+  waitlistEntries   WaitlistEntry[]
+  broadcastMessages BroadcastMessage[]
+  eventEdition      EventEdition?
 
   @@unique([tenantId, name])
   @@index([tenantId, status])
@@ -384,6 +528,9 @@ model Step {
   assignments     StepAssignment[]
   autoActionRules AutoActionRule[]
 
+  // Phase 4 reverse relations
+  parallelBranches ParallelBranch[]
+
   @@unique([workflowId, order])
   @@index([workflowId])
 }
@@ -433,6 +580,13 @@ model Participant {
   deletedAt         DateTime?
 
   approvals Approval[]
+
+  // Phase 4 reverse relations
+  accessLogs        AccessLog[]
+  queueTickets      QueueTicket[]
+  waitlistEntry     WaitlistEntry?
+  messageDeliveries MessageDelivery[]
+  parallelBranches  ParallelBranch[]
 
   @@unique([tenantId, eventId, registrationCode])
   @@index([tenantId, eventId])
@@ -774,4 +928,519 @@ model AnalyticsSnapshot {
   @@index([tenantId, metric, period])
   @@index([tenantId, eventId, metric])
   @@index([timestamp])
+}
+
+// ─── API & Webhooks Domain (Phase 4) ────────────────────
+
+model ApiKey {
+  id               String        @id @default(cuid())
+  tenantId         String
+  tenant           Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name             String
+  description      String?
+  keyHash          String        @unique
+  keyPrefix        String
+  permissions      String[]
+  scopes           Json?
+  rateLimitTier    RateLimitTier @default(STANDARD)
+  rateLimitCustom  Int?
+  status           ApiKeyStatus  @default(ACTIVE)
+  expiresAt        DateTime?
+  lastUsedAt       DateTime?
+  lastUsedIp       String?
+  usageCount       Int           @default(0)
+  allowedIps       String[]
+  allowedOrigins   String[]
+  rotatedFromId    String?       @unique
+  rotatedFrom      ApiKey?       @relation("KeyRotation", fields: [rotatedFromId], references: [id])
+  rotatedTo        ApiKey?       @relation("KeyRotation")
+  rotationGraceEnd DateTime?
+  createdBy        String
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  revokedAt        DateTime?
+
+  @@index([tenantId, status])
+  @@index([keyHash])
+  @@index([keyPrefix])
+}
+
+model WebhookSubscription {
+  id                    String        @id @default(cuid())
+  tenantId              String
+  tenant                Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  url                   String
+  description           String?
+  events                String[]
+  secret                String
+  status                WebhookStatus @default(ACTIVE)
+  version               String        @default("v1")
+  maxRetries            Int           @default(5)
+  retryBackoffMs        Int[]         @default([1000, 5000, 30000, 300000, 1800000])
+  timeoutMs             Int           @default(10000)
+  consecutiveFailures   Int           @default(0)
+  circuitBreakerOpen    Boolean       @default(false)
+  circuitBreakerResetAt DateTime?
+  headers               Json?
+  metadata              Json?
+  createdBy             String
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  deliveries WebhookDelivery[]
+
+  @@index([tenantId, status])
+}
+
+model WebhookDelivery {
+  id              String              @id @default(cuid())
+  tenantId        String
+  subscriptionId  String
+  subscription    WebhookSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  eventType       String
+  eventId         String
+  payload         Json
+  status          DeliveryStatus      @default(PENDING)
+  attempts        Int                 @default(0)
+  maxAttempts     Int                 @default(5)
+  nextRetryAt     DateTime?
+  responseCode    Int?
+  responseBody    String?
+  responseHeaders Json?
+  latencyMs       Int?
+  errorMessage    String?
+  errorType       String?
+  deliveredAt     DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([subscriptionId, status])
+  @@index([tenantId, eventType, createdAt])
+  @@index([status, nextRetryAt])
+  @@index([eventId])
+}
+
+// ─── Check-in & Access Control Domain (Phase 4) ─────────
+
+model Checkpoint {
+  id        String   @id @default(cuid())
+  tenantId  String
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name      String
+  location  String?
+  type      String
+  direction String
+  isActive  Boolean  @default(true)
+  capacity  Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accessLogs AccessLog[]
+
+  @@unique([tenantId, eventId, name])
+  @@index([eventId, isActive])
+}
+
+model AccessLog {
+  id             String       @id @default(cuid())
+  checkpointId   String
+  checkpoint     Checkpoint   @relation(fields: [checkpointId], references: [id], onDelete: Cascade)
+  participantId  String?
+  participant    Participant? @relation(fields: [participantId], references: [id])
+  scanType       ScanType
+  scanResult     ScanResult
+  qrPayload      String
+  scannedBy      String
+  deviceId       String?
+  overrideReason String?
+  scannedAt      DateTime     @default(now())
+
+  @@index([checkpointId, scannedAt])
+  @@index([participantId, scannedAt])
+  @@index([scanResult, scannedAt])
+}
+
+model VenueOccupancy {
+  id           String   @id @default(cuid())
+  eventId      String
+  event        Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  zoneId       String?
+  currentCount Int      @default(0)
+  maxCapacity  Int
+  lastUpdated  DateTime @default(now())
+
+  @@unique([eventId, zoneId])
+}
+
+// ─── Kiosk Domain (Phase 4) ─────────────────────────────
+
+model KioskDevice {
+  id            String   @id @default(cuid())
+  tenantId      String
+  eventId       String
+  event         Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name          String
+  location      String
+  isOnline      Boolean  @default(true)
+  lastHeartbeat DateTime @default(now())
+  language      String   @default("en")
+  mode          String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sessions KioskSession[]
+
+  @@unique([tenantId, eventId, name])
+}
+
+model KioskSession {
+  id            String      @id @default(cuid())
+  kioskDeviceId String
+  kioskDevice   KioskDevice @relation(fields: [kioskDeviceId], references: [id], onDelete: Cascade)
+  participantId String?
+  sessionType   String
+  language      String      @default("en")
+  startedAt     DateTime    @default(now())
+  endedAt       DateTime?
+  timedOut      Boolean     @default(false)
+  metadata      Json?
+
+  @@index([kioskDeviceId, startedAt])
+  @@index([participantId])
+}
+
+model QueueTicket {
+  id            String      @id @default(cuid())
+  tenantId      String
+  eventId       String
+  event         Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  participantId String
+  participant   Participant @relation(fields: [participantId], references: [id])
+  ticketNumber  String
+  counterNumber Int?
+  status        QueueStatus @default(WAITING)
+  priority      Int         @default(0)
+  estimatedWait Int?
+  joinedAt      DateTime    @default(now())
+  calledAt      DateTime?
+  servedAt      DateTime?
+  completedAt   DateTime?
+
+  @@unique([tenantId, eventId, ticketNumber])
+  @@index([eventId, status, priority])
+  @@index([participantId])
+}
+
+// ─── Bulk Operations Domain (Phase 4) ───────────────────
+
+model BulkOperation {
+  id             String              @id @default(cuid())
+  tenantId       String
+  eventId        String
+  event          Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  type           BulkOperationType
+  status         BulkOperationStatus @default(VALIDATING)
+  description    String
+  filters        Json?
+  totalItems     Int                 @default(0)
+  processedItems Int                 @default(0)
+  successCount   Int                 @default(0)
+  failureCount   Int                 @default(0)
+  inputFileUrl   String?
+  outputFileUrl  String?
+  snapshotData   Json?
+  undoDeadline   DateTime?
+  errorLog       Json?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  rolledBackAt   DateTime?
+  createdBy      String
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  items BulkOperationItem[]
+
+  @@index([tenantId, eventId, status])
+  @@index([tenantId, eventId, type, createdAt])
+}
+
+model BulkOperationItem {
+  id            String        @id @default(cuid())
+  operationId   String
+  operation     BulkOperation @relation(fields: [operationId], references: [id], onDelete: Cascade)
+  participantId String?
+  rowNumber     Int?
+  status        String
+  inputData     Json?
+  previousState Json?
+  errorMessage  String?
+  processedAt   DateTime?
+
+  @@index([operationId, status])
+}
+
+// ─── Duplicate Detection & Blacklist Domain (Phase 4) ───
+
+model DuplicateCandidate {
+  id              String          @id @default(cuid())
+  tenantId        String
+  eventId         String?
+  participantAId  String
+  participantBId  String
+  confidenceScore Float
+  matchFields     Json
+  status          DuplicateStatus @default(PENDING_REVIEW)
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  reviewNotes     String?
+  createdAt       DateTime        @default(now())
+
+  @@unique([participantAId, participantBId])
+  @@index([tenantId, eventId, status])
+  @@index([confidenceScore])
+}
+
+model MergeHistory {
+  id                String   @id @default(cuid())
+  tenantId          String
+  survivingId       String
+  mergedId          String
+  fieldResolution   Json
+  approvalsMigrated Int
+  mergedBy          String
+  mergedAt          DateTime @default(now())
+
+  @@index([survivingId])
+  @@index([mergedId])
+}
+
+model Blacklist {
+  id             String    @id @default(cuid())
+  tenantId       String?
+  type           String
+  name           String?
+  nameVariations String[]
+  passportNumber String?
+  email          String?
+  dateOfBirth    DateTime?
+  nationality    String?
+  organization   String?
+  reason         String
+  source         String?
+  addedBy        String
+  expiresAt      DateTime?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([passportNumber])
+  @@index([email])
+  @@index([isActive])
+  @@index([name])
+}
+
+// ─── Waitlist Domain (Phase 4) ──────────────────────────
+
+model WaitlistEntry {
+  id                String           @id @default(cuid())
+  tenantId          String
+  eventId           String
+  event             Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  participantId     String           @unique
+  participant       Participant      @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  participantType   String
+  priority          WaitlistPriority @default(STANDARD)
+  position          Int
+  status            WaitlistStatus   @default(ACTIVE)
+  registrationData  Json
+  promotedAt        DateTime?
+  promotionDeadline DateTime?
+  expiredAt         DateTime?
+  withdrawnAt       DateTime?
+  notificationsSent Int              @default(0)
+  lastNotifiedAt    DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  promotions WaitlistPromotion[]
+
+  @@unique([eventId, participantId])
+  @@index([eventId, participantType, priority, position])
+  @@index([eventId, status])
+  @@index([status, promotionDeadline])
+}
+
+model WaitlistPromotion {
+  id              String        @id @default(cuid())
+  waitlistEntryId String
+  waitlistEntry   WaitlistEntry @relation(fields: [waitlistEntryId], references: [id], onDelete: Cascade)
+  triggeredBy     String
+  triggerEntityId String?
+  promotedBy      String?
+  slotAvailableAt DateTime
+  promotedAt      DateTime      @default(now())
+  confirmedAt     DateTime?
+  declinedAt      DateTime?
+
+  @@index([waitlistEntryId])
+}
+
+// ─── Communication Hub Domain (Phase 4) ─────────────────
+
+model MessageTemplate {
+  id        String         @id @default(cuid())
+  tenantId  String
+  tenant    Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name      String
+  subject   String?
+  body      String
+  channel   MessageChannel
+  isSystem  Boolean        @default(false)
+  variables String[]
+  createdBy String?
+  updatedBy String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  broadcasts BroadcastMessage[]
+
+  @@unique([tenantId, name, channel])
+  @@index([tenantId])
+  @@index([channel])
+}
+
+model BroadcastMessage {
+  id             String           @id @default(cuid())
+  tenantId       String
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId        String?
+  event          Event?           @relation(fields: [eventId], references: [id])
+  templateId     String?
+  template       MessageTemplate? @relation(fields: [templateId], references: [id])
+  subject        String?
+  body           String
+  channel        MessageChannel
+  status         BroadcastStatus  @default(DRAFT)
+  filters        Json
+  recipientCount Int              @default(0)
+  sentCount      Int              @default(0)
+  failedCount    Int              @default(0)
+  deliveredCount Int              @default(0)
+  bouncedCount   Int              @default(0)
+  isEmergency    Boolean          @default(false)
+  priority       Int              @default(5)
+  scheduledAt    DateTime?
+  sentAt         DateTime?
+  completedAt    DateTime?
+  createdBy      String?
+  cancelledBy    String?
+  cancelledAt    DateTime?
+  cancelReason   String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  deliveries MessageDelivery[]
+
+  @@index([tenantId])
+  @@index([eventId])
+  @@index([status])
+  @@index([scheduledAt])
+}
+
+model MessageDelivery {
+  id            String           @id @default(cuid())
+  broadcastId   String
+  broadcast     BroadcastMessage @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  participantId String
+  participant   Participant      @relation(fields: [participantId], references: [id])
+  channel       MessageChannel
+  recipient     String
+  status        MessageStatus    @default(QUEUED)
+  externalId    String?
+  sentAt        DateTime?
+  deliveredAt   DateTime?
+  bouncedAt     DateTime?
+  errorMessage  String?
+  errorCode     String?
+  retryCount    Int              @default(0)
+  nextRetryAt   DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@unique([broadcastId, participantId, channel])
+  @@index([broadcastId])
+  @@index([participantId])
+  @@index([status])
+}
+
+// ─── Event Cloning Domain (Phase 4) ─────────────────────
+
+model EventSeries {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  editions EventEdition[]
+
+  @@unique([tenantId, name])
+}
+
+model EventEdition {
+  id            String      @id @default(cuid())
+  seriesId      String
+  series        EventSeries @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  eventId       String      @unique
+  event         Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  editionNumber Int
+  year          Int
+  hostCountry   String?
+  hostCity      String?
+  notes         String?
+  createdAt     DateTime    @default(now())
+
+  @@unique([seriesId, editionNumber])
+  @@index([seriesId, year])
+}
+
+model CloneOperation {
+  id             String      @id @default(cuid())
+  tenantId       String
+  sourceEventId  String
+  targetEventId  String?
+  status         CloneStatus @default(PENDING)
+  options        Json
+  elementsCopied Json?
+  errorLog       String?
+  startedAt      DateTime    @default(now())
+  completedAt    DateTime?
+  createdBy      String
+
+  @@index([tenantId, status])
+}
+
+// ─── Parallel Workflow Domain (Phase 4) ─────────────────
+
+model ParallelBranch {
+  id            String      @id @default(cuid())
+  participantId String
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  forkStepId    String
+  branchStepId  String
+  branchStep    Step        @relation(fields: [branchStepId], references: [id])
+  status        String      @default("PENDING")
+  completedAt   DateTime?
+  completedBy   String?
+  action        String?
+  remarks       String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([participantId, forkStepId, branchStepId])
+  @@index([participantId, forkStepId])
+  @@index([status])
 }

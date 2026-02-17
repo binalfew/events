@@ -72,6 +72,16 @@ async function main() {
     { resource: "views", action: "create" },
     { resource: "custom-objects", action: "manage" },
     { resource: "analytics", action: "view" },
+    { resource: "api-keys", action: "manage" },
+    { resource: "webhooks", action: "manage" },
+    { resource: "check-in", action: "scan" },
+    { resource: "kiosk", action: "manage" },
+    { resource: "bulk-operations", action: "execute" },
+    { resource: "duplicates", action: "review" },
+    { resource: "blacklist", action: "manage" },
+    { resource: "waitlist", action: "manage" },
+    { resource: "communication", action: "broadcast" },
+    { resource: "event-clone", action: "execute" },
   ];
 
   const permissions = await Promise.all(
@@ -381,6 +391,13 @@ async function main() {
     { key: "FF_ANALYTICS_DASHBOARD", description: "Analytics dashboard with charts and metrics" },
     { key: "FF_PWA", description: "Progressive Web App shell and service worker" },
     { key: "FF_OFFLINE_MODE", description: "Offline mode with IndexedDB mutation queue and sync" },
+    { key: "FF_REST_API", description: "REST API with API key authentication" },
+    { key: "FF_WEBHOOKS", description: "Webhook subscriptions and event delivery" },
+    { key: "FF_BULK_OPERATIONS", description: "Bulk import/export and batch status changes" },
+    { key: "FF_EVENT_CLONE", description: "Event cloning with selective element copy" },
+    { key: "FF_WAITLIST", description: "Waitlist management with auto-promotion" },
+    { key: "FF_COMMUNICATION_HUB", description: "Broadcast messaging via email/SMS/push" },
+    { key: "FF_KIOSK_MODE", description: "Self-service kiosk terminals for events" },
   ];
 
   for (const flag of defaultFlags) {
