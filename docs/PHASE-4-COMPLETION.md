@@ -441,3 +441,78 @@ Built the kiosk mode system with self-service status lookup, queue management, f
 - **Sequential ticket numbering** — `A001`, `A002`, etc. resets daily per event using a count of tickets joined today.
 - **Device heartbeat** — 30-second interval via fetcher in the kiosk shell. `markStaleDevicesOffline()` marks devices offline after 3 minutes without heartbeat.
 - **Auto-reset** — 120-second inactivity timer with countdown display in the last 30 seconds. Resets on touch, click, or keypress events.
+
+---
+
+## P4-06: Bulk Operations Framework
+
+**Status**: Completed
+**Date**: 2026-02-17
+
+### Summary
+
+Built the bulk operations framework with CSV/XLSX file parsing (auto-delimiter detection), column mapping (exact match, aliases, Levenshtein), row-level validation with preview, batch processing in groups of 50 with progress reporting, error logging, 24-hour undo window with snapshot-based rollback, and CSV export with UTF-8 BOM for Excel compatibility.
+
+### Files Created
+
+1. **`app/lib/schemas/bulk-operation.ts`** — Zod schemas (zod/v4) for create operation (eventId, type, description), column mapping (sourceColumn, targetField, transform), and confirm operation (operationId, skipErrors).
+
+2. **`app/services/bulk-import/parser.server.ts`** — CSV/XLSX file parsing service. CSV: auto-detects delimiter (comma, semicolon, tab) by counting occurrences in first line, handles quoted fields with escaped quotes (`""`), strips UTF-8 BOM. XLSX: uses `xlsx.read()` + `sheet_to_json()` on first sheet. Limits: 10,000 rows, 10MB file size.
+
+3. **`app/services/bulk-import/column-mapper.server.ts`** — Column mapping service with three-step auto-suggestion: (1) exact match (case-insensitive), (2) common alias map (30+ aliases for 7 fixed fields), (3) Levenshtein distance ≤ 2. `applyMappings()` applies transforms (uppercase, lowercase, trim, date-parse).
+
+4. **`app/services/bulk-import/validator.server.ts`** — Row validation with required field checks (firstName, lastName), email format validation, intra-file duplicate detection (email, registrationCode), and batch DB duplicate detection. Returns per-row status (valid/warning/error) with detailed error messages.
+
+5. **`app/services/bulk-import/undo.server.ts`** — Snapshot capture stores participant state in `BulkOperationItem.previousState` and summary in `BulkOperation.snapshotData`. Restore handles IMPORT (delete participants) and STATUS_CHANGE/FIELD_UPDATE (restore previous values), batched in groups of 50.
+
+6. **`app/services/bulk-operations.server.ts`** — Main orchestration service with `BulkOperationError` class and feature flag gate. Functions: `createBulkOperation` (VALIDATING + audit log), `validateOperation` (parse file → auto-map columns → validate rows → create items → PREVIEW), `confirmOperation` (PREVIEW → CONFIRMED → execute), `executeOperation` (batch-50 processing with progress updates, auto-generates registrationCode if missing, captures snapshot, sets 24h undo deadline), `undoOperation` (checks deadline, restores snapshot, ROLLED_BACK), `getOperation` (paginated items), `listOperations` (paginated list), `cancelOperation` (deletes items and operation).
+
+7. **`app/services/bulk-export.server.ts`** — Participant CSV export following `exportAccessLogsCsv` pattern. Supports field selection (10 fixed + dynamic FieldDefinition fields), status/participantType/date filters, UTF-8 BOM prefix for Excel compatibility, proper CSV escaping. Max 10,000 rows.
+
+8. **`app/components/bulk-operations/operation-list.tsx`** — Table component with type badge, description, color-coded status badge (VALIDATING=blue, PREVIEW=yellow, PROCESSING=blue-animated, COMPLETED=green, FAILED=red, ROLLED_BACK=gray), progress bar with counts, results summary, timestamps, and undo action button.
+
+9. **`app/components/bulk-operations/import-wizard.tsx`** — 5-step wizard component: Upload (drag-and-drop + file input), Column Mapping (auto-suggested with NativeSelect override, unmapped highlighted yellow, required marked with \*), Validation Preview (summary cards + row table with color-coded status), Processing (progress bar with 2s polling via useRevalidator), Results (summary cards + undo button with deadline). Uses `useFetcher` for all step transitions.
+
+10. **`app/components/bulk-operations/export-form.tsx`** — Export form with field selector checkboxes (select all/clear all), fixed + dynamic fields, status and participantType filter dropdowns, CSV export button.
+
+11. **`app/routes/admin/events/$eventId/bulk-operations.tsx`** — Layout route with `<Outlet>` for nested routes.
+
+12. **`app/routes/admin/events/$eventId/bulk-operations/index.tsx`** — Operations list page. Loader: permission + feature flag check, `listOperations()`. Action: undo. Component: page header with Import/Export buttons + OperationList.
+
+13. **`app/routes/admin/events/$eventId/bulk-operations/import.tsx`** — Import wizard route. Actions: upload (parse + create + validate), updateMappings, confirm (execute), cancel, undo. Loader: loads target fields (fixed + dynamic FieldDefinition) and operation state if operationId in search params.
+
+14. **`app/routes/admin/events/$eventId/bulk-operations/export.tsx`** — Export route. Loader: loads field definitions + participant types. Action: calls `exportParticipants()`, returns CSV Response with Content-Disposition header.
+
+15. **`app/routes/admin/events/bulk-operations.tsx`** — Cross-event selector following kiosks.tsx pattern. Grid of event cards with participant count, operation count, and links to Operations/Import/Export pages.
+
+16. **`app/services/__tests__/bulk-operations.server.test.ts`** — 16 test cases covering: CSV parsing (comma-delimited, semicolon auto-detection, quoted fields with escaped quotes, UTF-8 BOM stripping), XLSX parsing (basic sheet), column mapping (exact match, alias matching, transform application), row validation (missing required fields, intra-file duplicate emails, email format), bulk operation service (create with audit log, list with pagination), undo (snapshot capture, snapshot restore), export (CSV with BOM).
+
+### Files Modified
+
+1. **`app/config/navigation.ts`** — Added `Upload` icon import. Added "Bulk Operations" child to Management > Events children.
+
+2. **`package.json`** — Added `xlsx` dependency for Excel file parsing.
+
+3. **`docs/PHASE-4-COMPLETION.md`** — Added P4-06 entry.
+
+### Dependencies Installed
+
+- `xlsx` — Excel XLSX file parsing and generation
+
+### Verification Results
+
+| Check               | Result                                   |
+| ------------------- | ---------------------------------------- |
+| `npm run typecheck` | No type errors                           |
+| `npm run test`      | 57 test files, 734 tests passed (16 new) |
+
+### Notable Decisions
+
+- **Hand-rolled CSV parser** — Matches the project's minimal-dependency pattern. Auto-detects delimiter by counting occurrences in the header line (comma > semicolon > tab).
+- **XLSX first sheet only** — `xlsx.read()` processes only the first sheet, matching the typical bulk import use case.
+- **Auto-generated registration codes** — When `registrationCode` is not mapped or empty, generates `BULK-{opId-suffix}-{paddedRowNumber}` format to satisfy the unique constraint.
+- **Default participantType and workflow** — Import uses the first available participantType and workflow for the event. Future enhancement: allow selection in the wizard.
+- **Feature flag gated** — All service functions check `FF_BULK_OPERATIONS`. Routes check both feature flag and `bulk-operations:execute` permission.
+- **24-hour undo window** — `undoDeadline` set on completion. For IMPORT operations, undo deletes created participants. For STATUS_CHANGE/FIELD_UPDATE, undo restores from `previousState` snapshots.
+- **Batch processing in groups of 50** — Matches the broadcast delivery job batch size pattern, with progress updates after each batch.
+- **UTF-8 BOM in export** — Prepends `\uFEFF` for Excel auto-detection of UTF-8 encoding.

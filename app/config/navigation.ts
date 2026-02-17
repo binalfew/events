@@ -15,6 +15,7 @@ import {
   ScanLine,
   MessageSquare,
   Monitor,
+  Upload,
 } from "lucide-react";
 
 export type NavChild = {
@@ -79,6 +80,11 @@ export const navigationGroups: NavGroup[] = [
           { title: "Categories", tKey: "categories", url: "/admin/events/categories" },
           { title: "Templates", tKey: "templates", url: "/admin/events/templates" },
           { title: "Delegations", tKey: "delegations", url: "/admin/events/delegations" },
+          {
+            title: "Bulk Operations",
+            tKey: "bulkOperations",
+            url: "/admin/events/bulk-operations",
+          },
         ],
       },
       {
