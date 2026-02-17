@@ -8,6 +8,10 @@ vi.mock("~/lib/logger.server", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
+vi.mock("~/lib/env.server", () => ({
+  env: { BCRYPT_ROUNDS: 10 },
+}));
+
 import { formatErrorResponse } from "../api-error.server";
 import {
   ConflictError,

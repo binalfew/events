@@ -7,6 +7,7 @@ import {
 import { FieldError } from "~/services/fields.server";
 import { FormTemplateError } from "~/services/form-templates.server";
 import { WorkflowError } from "~/services/workflow-engine/serializer.server";
+import { ApiKeyError } from "~/services/api-keys.server";
 
 export function formatErrorResponse(error: unknown): Response {
   if (error instanceof ConflictError) {
@@ -48,6 +49,13 @@ export function formatErrorResponse(error: unknown): Response {
   if (error instanceof WorkflowError) {
     return Response.json(
       { error: "WORKFLOW_ERROR", message: error.message },
+      { status: error.status },
+    );
+  }
+
+  if (error instanceof ApiKeyError) {
+    return Response.json(
+      { error: "API_KEY_ERROR", message: error.message },
       { status: error.status },
     );
   }

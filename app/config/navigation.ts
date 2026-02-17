@@ -169,6 +169,7 @@ export const navigationGroups: NavGroup[] = [
           { title: "Feature Flags", tKey: "featureFlags", url: "/admin/settings/feature-flags" },
           { title: "Security", tKey: "security", url: "/admin/settings/security" },
           { title: "Integrations", tKey: "integrations", url: "/admin/settings/integrations" },
+          { title: "API Keys", tKey: "apiKeys", url: "/admin/settings/api-keys" },
         ],
       },
     ],
