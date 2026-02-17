@@ -389,3 +389,43 @@ Implemented offline mutation queue with IndexedDB (via `idb-keyval`), a SyncMana
 - The `applyMutation` function currently supports approve/reject status changes. Print/collect are logged but don't change participant fields (badge fields will be added in a later phase).
 - The offline indicator refreshes queue stats every 5 seconds to keep counts current.
 - SyncManager is a singleton to prevent multiple instances competing for the same queue.
+
+---
+
+## P3-11: Integration Testing & Quality Gate
+
+**Status:** Complete
+
+### Summary
+
+Added comprehensive integration tests across all Phase 3 services and features, performance benchmarks for critical paths, accessibility audit tests for WCAG compliance, and end-to-end test specs for Phase 3 user flows. All tests are pure logic tests that validate service exports, type contracts, and algorithmic correctness without requiring database connectivity.
+
+### Files Created
+
+- `app/services/__tests__/integration-conditional-routing.test.ts` — 12 tests: simple/compound condition evaluation with correct `VisibilityCondition` types (`type: "simple"`, operators `eq`/`contains`/`gt`), AND/OR compound conditions, undefined condition handling, default route fallback, priority ordering, operator metadata.
+- `app/services/__tests__/integration-step-assignment.test.ts` — 10 tests: all 6 exported functions verified, MANUAL/ROUND_ROBIN/LEAST_LOADED strategy logic, equal-load tie-breaking.
+- `app/services/__tests__/integration-auto-action.test.ts` — 7 tests: service exports (evaluateAutoActions, executeAutoActionsChain, CRUD), ACTION_TYPE_MAP mapping, MAX_CHAIN_DEPTH enforcement, SYSTEM_USER_ID constant, priority ordering logic.
+- `app/services/__tests__/integration-delegation.test.ts` — 15 tests: quota exports (upsertQuota, listQuotas, getQuota, deleteQuota), invite exports (sendInvite, acceptInvite, cancelInvite, resendInvite), quota enforcement, QUOTA_WARNING_THRESHOLD, invite expiry detection, DEFAULT_EXPIRY_DAYS constant, accept count increment.
+- `app/services/__tests__/integration-custom-objects.test.ts` — 5 tests: definition CRUD exports (including getDefinitionBySlug), record CRUD exports, CustomObjectError class, deactivation logic, slug format validation.
+- `app/services/__tests__/integration-analytics.test.ts` — 6 tests: service exports, CSV generation with correct `DashboardMetrics` type (registrationsByStatus, participantsByEvent with eventName/count), empty data handling, recent activity format.
+- `app/services/__tests__/integration-offline.test.ts` — 11 tests: offline store exports, SyncManager lifecycle, status/result subscriptions, mutation timestamp ordering, conflict resolution (server-wins, client-wins, tie), retry limit enforcement, offlineFetch export.
+- `app/services/__tests__/integration-i18n.test.ts` — 22 tests: locale file existence for all 4 locales × 3 namespaces, translation key consistency across locales, RTL direction detection (ar→rtl, en/fr/am→ltr), language cookie parsing.
+- `app/services/__tests__/integration-saved-views.test.ts` — 5 tests: CRUD exports, personal vs shared visibility filtering, default view selection, layout type support (table/kanban/calendar/gallery).
+- `app/services/__tests__/integration-performance.test.ts` — 12 tests: condition evaluation perf (1000 simple < 100ms, 100 compound < 50ms), CSV generation perf (large dataset < 100ms), accessibility audit (aria-labels, touch targets 44px, RTL support, focus management, WCAG AA/AAA color contrast).
+- `tests/e2e/phase-3/delegation-flow.spec.ts` — 3 E2E specs: admin view delegation page, quota information, invite form.
+- `tests/e2e/phase-3/conditional-workflow.spec.ts` — 2 E2E specs: workflow editor loads, dashboard displays workflow stats.
+- `tests/e2e/phase-3/saved-views.spec.ts` — 2 E2E specs: views page loads, layout options visible.
+- `tests/e2e/phase-3/analytics.spec.ts` — 2 E2E specs: analytics page loads, export capability.
+
+### Verification
+
+- `npm run typecheck` — Passes
+- `npm run test` — 49 test files, 635 tests passing (105 new integration + 530 existing)
+
+### Notes
+
+- All integration tests use correct type signatures matching actual service exports (e.g., `VisibilityCondition` with `type: "simple"/"compound"` discriminator, `ConditionOperator` values `eq`/`neq`/`gt`/`contains` etc., `DashboardMetrics` with `registrationsByStatus`/`participantsByEvent`).
+- Tests are grouped into: service export verification, algorithmic logic validation, and boundary condition checks.
+- E2E tests are lightweight smoke tests (page loads, elements visible) suitable for CI/CD gates without requiring full application state.
+- Performance benchmarks verify that core operations stay within acceptable latency bounds for production use.
+- Accessibility audit covers WCAG 2.5.8 touch targets, AA/AAA color contrast, RTL support, focus management, and ARIA labels.
