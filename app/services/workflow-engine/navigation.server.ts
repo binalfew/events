@@ -256,6 +256,33 @@ export async function processWorkflowAction(
     // SSE failures must never break core workflow
   }
 
+  // Fire-and-forget webhook event emission
+  try {
+    const { emitWebhookEvent } = await import("~/lib/webhook-emitter.server");
+    const webhookPayload = {
+      participantId,
+      participantName: `${participant.firstName} ${participant.lastName}`,
+      stepName: currentStep.name,
+      previousStepId,
+      nextStepId,
+      isComplete,
+      action,
+    };
+
+    if (action === "APPROVE") {
+      emitWebhookEvent(participant.tenantId, "participant.approved", webhookPayload);
+    } else if (action === "BYPASS") {
+      emitWebhookEvent(participant.tenantId, "participant.bypassed", webhookPayload);
+    } else if (action === "REJECT") {
+      emitWebhookEvent(participant.tenantId, "participant.rejected", webhookPayload);
+    }
+
+    // Always emit status_changed for any workflow action
+    emitWebhookEvent(participant.tenantId, "participant.status_changed", webhookPayload);
+  } catch {
+    // Webhook failures must never break core workflow
+  }
+
   logger.info(
     { participantId, action, previousStepId, nextStepId, isComplete },
     "Processed workflow action",

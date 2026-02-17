@@ -58,6 +58,21 @@ export async function sendSLAWarningNotification(
   } catch {
     // SSE failures must never break SLA notifications
   }
+
+  // Fire-and-forget webhook event
+  try {
+    const { emitWebhookEvent } = await import("~/lib/webhook-emitter.server");
+    emitWebhookEvent(participant.tenantId, "sla.warning", {
+      participantId: participant.id,
+      participantName: `${participant.firstName} ${participant.lastName}`,
+      registrationCode: participant.registrationCode,
+      stepId: step.id,
+      stepName: step.name,
+      remainingMinutes,
+    });
+  } catch {
+    // Webhook failures must never break SLA notifications
+  }
 }
 
 export async function sendSLABreachNotification(
@@ -102,5 +117,20 @@ export async function sendSLABreachNotification(
     });
   } catch {
     // SSE failures must never break SLA notifications
+  }
+
+  // Fire-and-forget webhook event
+  try {
+    const { emitWebhookEvent } = await import("~/lib/webhook-emitter.server");
+    emitWebhookEvent(participant.tenantId, "sla.breached", {
+      participantId: participant.id,
+      participantName: `${participant.firstName} ${participant.lastName}`,
+      registrationCode: participant.registrationCode,
+      stepId: step.id,
+      stepName: step.name,
+      overdueMinutes,
+    });
+  } catch {
+    // Webhook failures must never break SLA notifications
   }
 }

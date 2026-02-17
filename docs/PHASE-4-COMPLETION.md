@@ -9,6 +9,7 @@
 
 1. [P4-00 — Foundation: Models, Migrations, Feature Flags](#p4-00-foundation--models-migrations-feature-flags)
 2. [P4-01 — REST API Layer & API Key Authentication](#p4-01-rest-api-layer--api-key-authentication)
+3. [P4-02 — Webhook System](#p4-02-webhook-system)
 
 ---
 
@@ -132,3 +133,57 @@ Built a versioned REST API (`/api/v1/`) authenticated via API keys with tier-bas
 - Used Dialog component for confirmations since AlertDialog is not in the project's UI component library
 - Router uses `as any` casts for Prisma calls that need `includeDeleted` (custom soft-delete extension property)
 - Response envelope follows `{ data, meta? }` for success, `{ error: { code, message } }` for errors
+
+---
+
+## P4-02: Webhook System
+
+**Status**: Completed
+**Date**: 2026-02-17
+
+### Summary
+
+Built a webhook delivery system with HMAC-SHA256 signing, exponential backoff retry, circuit breaker protection, and a management UI. External systems receive real-time HTTP POST notifications when platform events occur (participant approved, SLA breached, etc.).
+
+### Files Created
+
+1. **`app/lib/webhook-events.ts`** — Event type catalog with 10 event types across 5 domains (participant, sla, workflow, scan, bulk_operation). Includes `validateEventTypes()` helper (supports `"*"` wildcard) and `getEventsByDomain()` for UI grouping.
+
+2. **`app/services/webhooks.server.ts`** — Subscription CRUD service following `api-keys.server.ts` pattern. Functions: `createWebhookSubscription` (generates 64-char hex secret), `listWebhookSubscriptions` (paginated), `getWebhookSubscription`, `updateWebhookSubscription`, `deleteWebhookSubscription` (hard delete with cascade), `pauseWebhookSubscription`, `resumeWebhookSubscription` (resets circuit breaker), `testWebhookEndpoint` (synchronous test.ping delivery), `getDeliveryLog` (paginated history). All mutations create audit log entries.
+
+3. **`app/services/webhook-delivery.server.ts`** — Core delivery engine with `signPayload()` (HMAC-SHA256), `deliverWebhook()` (fetch with timeout, circuit breaker, retry scheduling), and `retryFailedDeliveries()` (processes up to 50 RETRYING deliveries). Circuit breaker opens after 10 consecutive failures (1hr reset), suspends subscription after 3 breaker trips.
+
+4. **`app/services/webhook-dispatcher.server.ts`** — Routes events to matching ACTIVE subscriptions (exact event type or `"*"` wildcard). Skips subscriptions with open circuit breaker. Creates delivery records and fires deliveries asynchronously.
+
+5. **`app/lib/webhook-emitter.server.ts`** — Feature-flag-gated entry point. Checks `FF_WEBHOOKS` flag, generates UUID event ID, calls dispatcher. All errors are caught and logged — webhook failures never propagate to callers.
+
+6. **`server/webhook-retry-job.js`** — Background retry job following `sla-job.js` pattern. Runs every 60 seconds (configurable via `WEBHOOK_RETRY_INTERVAL_MS`), calls `retryFailedDeliveries()`. Skips in test environment.
+
+7. **`app/routes/admin/settings/webhooks.tsx`** — Management UI following `api-keys.tsx` pattern. Loader checks `FF_WEBHOOKS` + `webhooks:manage` permission. Action handles create/pause/resume/delete/test. UI includes: subscription list with URL, event count badge, status badge, circuit breaker indicator; CreateWebhookDialog with URL input and event checkboxes grouped by domain; SecretAlert for one-time HMAC secret display; DeliveryLogPanel with paginated table; Test/Pause/Resume/Delete buttons.
+
+8. **`app/services/__tests__/webhooks.server.test.ts`** — 14 test cases covering: secret generation (64-char hex), event type validation (valid/invalid/wildcard), audit log creation, paginated listing, pause/resume with circuit breaker reset, HMAC-SHA256 signing, delivery success (DELIVERED on 2xx), retry scheduling with backoff, dead letter after max attempts, circuit breaker opening after 10 failures, and dispatcher skipping open circuit breaker subscriptions.
+
+### Files Modified
+
+1. **`app/services/workflow-engine/navigation.server.ts`** — Added fire-and-forget webhook emission after SSE block. Emits `participant.approved`/`participant.bypassed`/`participant.rejected` based on action, plus `participant.status_changed` for all actions. Uses dynamic import to avoid circular dependencies.
+
+2. **`app/services/workflow-engine/sla-notifications.server.ts`** — Added fire-and-forget webhook emission after each SSE block: `sla.warning` in `sendSLAWarningNotification()` and `sla.breached` in `sendSLABreachNotification()`.
+
+3. **`server.js`** — Imported and started `webhookRetryJob` alongside SLA job. Added `WEBHOOK_DELIVERY_DEV`/`WEBHOOK_DELIVERY_PROD` path constants, `webhookLoader` for both dev (Vite ssrLoadModule) and prod (dynamic import), and cleanup in shutdown handler.
+
+4. **`app/config/navigation.ts`** — Added "Webhooks" child to Settings nav group after "API Keys".
+
+### Verification Results
+
+| Check               | Result                                   |
+| ------------------- | ---------------------------------------- |
+| `npm run typecheck` | No type errors                           |
+| `npm run test`      | 51 test files, 667 tests passed (14 new) |
+
+### Notable Decisions
+
+- Used dynamic `import()` for webhook emitter in workflow/SLA files to avoid circular dependency issues and keep the emitter lazily loaded
+- Circuit breaker uses 3-trip suspension: after 10 consecutive failures the breaker opens (1hr reset), and after 3 total trips the subscription is permanently SUSPENDED
+- Test webhook endpoint uses `test.ping` event type (not in the catalog) to distinguish test deliveries from real events
+- Webhook secret is shown once on creation (like API keys) — not retrievable afterward
+- Delivery response body is truncated to 1KB to prevent storage issues

@@ -7,6 +7,7 @@ import { logger } from "./server/logger.js";
 import { correlationMiddleware, getCorrelationId } from "./server/correlation.js";
 import { requestLogger } from "./server/request-logger.js";
 import { startSLACheckJob, stopSLACheckJob } from "./server/sla-job.js";
+import { startWebhookRetryJob, stopWebhookRetryJob } from "./server/webhook-retry-job.js";
 
 // Fail fast if required environment variables are missing
 const required = ["DATABASE_URL", "SESSION_SECRET"];
@@ -24,6 +25,8 @@ for (const name of required) {
 const BUILD_PATH = "./build/server/index.js";
 const SLA_CHECKER_DEV = "./app/services/workflow-engine/sla-checker.server.ts";
 const SLA_CHECKER_PROD = "./build/server/services/workflow-engine/sla-checker.server.js";
+const WEBHOOK_DELIVERY_DEV = "./app/services/webhook-delivery.server.ts";
+const WEBHOOK_DELIVERY_PROD = "./build/server/services/webhook-delivery.server.js";
 const DEVELOPMENT = process.env.NODE_ENV === "development";
 const PORT = Number.parseInt(process.env.PORT || "3000");
 
@@ -46,6 +49,8 @@ app.use(requestLogger);
 
 /** @type {() => Promise<any>} */
 let slaLoader;
+/** @type {() => Promise<any>} */
+let webhookLoader;
 
 if (DEVELOPMENT) {
   logger.info("Starting development server");
@@ -69,6 +74,7 @@ if (DEVELOPMENT) {
   });
   // Use Vite's ssrLoadModule so ~ aliases and TypeScript resolve correctly
   slaLoader = () => viteDevServer.ssrLoadModule(SLA_CHECKER_DEV);
+  webhookLoader = () => viteDevServer.ssrLoadModule(WEBHOOK_DELIVERY_DEV);
 } else {
   logger.info("Starting production server");
   app.use(
@@ -78,16 +84,19 @@ if (DEVELOPMENT) {
   app.use(express.static("build/client", { maxAge: "1h" }));
   app.use(await import(BUILD_PATH).then((mod) => mod.app));
   slaLoader = () => import(SLA_CHECKER_PROD);
+  webhookLoader = () => import(WEBHOOK_DELIVERY_PROD);
 }
 
 app.listen(PORT, () => {
   logger.info({ port: PORT }, `Server is running on http://localhost:${PORT}`);
 
-  // Start SLA background job
+  // Start background jobs
   startSLACheckJob(slaLoader);
+  startWebhookRetryJob(webhookLoader);
 
   const shutdown = () => {
     stopSLACheckJob();
+    stopWebhookRetryJob();
     process.exit(0);
   };
   process.on("SIGTERM", shutdown);

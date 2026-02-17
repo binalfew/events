@@ -170,6 +170,7 @@ export const navigationGroups: NavGroup[] = [
           { title: "Security", tKey: "security", url: "/admin/settings/security" },
           { title: "Integrations", tKey: "integrations", url: "/admin/settings/integrations" },
           { title: "API Keys", tKey: "apiKeys", url: "/admin/settings/api-keys" },
+          { title: "Webhooks", tKey: "webhooks", url: "/admin/settings/webhooks" },
         ],
       },
     ],
