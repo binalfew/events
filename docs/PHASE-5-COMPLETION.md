@@ -398,3 +398,42 @@ Built companion registration with auto-generated registration codes, companion t
 | ------------------- | ---------------------------------------- |
 | `npm run typecheck` | Passed                                   |
 | `npm run test`      | All tests passed, 12 new companion tests |
+
+---
+
+## P5-09: Gift Protocol & Welcome Packages
+
+**Status:** Completed
+**Date:** 2026-02-18
+
+### Summary
+
+Built gift inventory management with stock tracking, welcome package templates with participant type eligibility, individual and bulk package assignment, delivery lifecycle (PENDING → ASSEMBLED → DELIVERED), and completion dashboard. 12 test cases.
+
+### Files Created
+
+1. **`app/lib/schemas/gift-protocol.ts`** — Zod schemas for `createGiftItem`, `createWelcomePackage`, `assignPackage`
+2. **`app/services/gift-protocol.server.ts`** — Service layer with `GiftError`, 11 functions: `createGiftItem`, `listGiftItems`, `updateStock`, `createWelcomePackage`, `listWelcomePackages`, `assignPackage`, `bulkAssignPackages`, `markAssembled`, `markDelivered`, `getDeliveryDashboard`, `listDeliveries`
+3. **`app/routes/admin/events/$eventId/gifts.tsx`** — Admin route with dashboard stats, gift inventory with inline stock adjustment, welcome package cards, individual/bulk assignment, delivery table with lifecycle actions, status filter
+4. **`app/services/__tests__/gift-protocol.server.test.ts`** — 12 test cases covering item creation, stock adjustment (including below-zero guard), package creation with JSON contents, assignment with allocated increment, assembled/delivered lifecycle transitions with invalid status guards, dashboard stats, and bulk assignment
+
+### Files Modified
+
+1. **`app/routes/admin/events/index.tsx`** — Added "Gifts" link in Protocol section
+
+### Key Design Decisions
+
+- Stock tracking via `quantity` (total) and `allocated` (assigned) fields; available = quantity - allocated
+- `updateStock` accepts positive/negative adjustments, prevents going below zero
+- `bulkAssignPackages` matches packages to participants by `forParticipantType`; falls back to packages with no type restriction
+- Delivery lifecycle: PENDING → ASSEMBLED → DELIVERED (strict transitions)
+- `markDelivered` records timestamp and delivering user
+- Welcome package contents stored as JSON array
+- Uses `protocol:manage` permission
+
+### Verification Results
+
+| Check               | Result                                       |
+| ------------------- | -------------------------------------------- |
+| `npm run typecheck` | Passed                                       |
+| `npm run test`      | All tests passed, 12 new gift protocol tests |
