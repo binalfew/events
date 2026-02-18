@@ -16,6 +16,10 @@ import {
   startBranchTimeoutJob,
   stopBranchTimeoutJob,
 } from "./server/branch-timeout-job.js";
+import {
+  startWaitlistExpiryJob,
+  stopWaitlistExpiryJob,
+} from "./server/waitlist-expiry-job.js";
 
 // Fail fast if required environment variables are missing
 const required = ["DATABASE_URL", "SESSION_SECRET"];
@@ -39,6 +43,8 @@ const BROADCAST_DELIVERY_DEV = "./app/services/jobs/broadcast-delivery-job.serve
 const BROADCAST_DELIVERY_PROD = "./build/server/services/jobs/broadcast-delivery-job.server.js";
 const BRANCH_TIMEOUT_DEV = "./app/services/workflow-engine/branch-timeout.server.ts";
 const BRANCH_TIMEOUT_PROD = "./build/server/services/workflow-engine/branch-timeout.server.js";
+const WAITLIST_EXPIRY_DEV = "./app/services/waitlist.server.ts";
+const WAITLIST_EXPIRY_PROD = "./build/server/services/waitlist.server.js";
 const DEVELOPMENT = process.env.NODE_ENV === "development";
 const PORT = Number.parseInt(process.env.PORT || "3000");
 
@@ -67,6 +73,8 @@ let webhookLoader;
 let broadcastLoader;
 /** @type {() => Promise<any>} */
 let branchTimeoutLoader;
+/** @type {() => Promise<any>} */
+let waitlistExpiryLoader;
 
 if (DEVELOPMENT) {
   logger.info("Starting development server");
@@ -93,6 +101,7 @@ if (DEVELOPMENT) {
   webhookLoader = () => viteDevServer.ssrLoadModule(WEBHOOK_DELIVERY_DEV);
   broadcastLoader = () => viteDevServer.ssrLoadModule(BROADCAST_DELIVERY_DEV);
   branchTimeoutLoader = () => viteDevServer.ssrLoadModule(BRANCH_TIMEOUT_DEV);
+  waitlistExpiryLoader = () => viteDevServer.ssrLoadModule(WAITLIST_EXPIRY_DEV);
 } else {
   logger.info("Starting production server");
   app.use(
@@ -105,6 +114,7 @@ if (DEVELOPMENT) {
   webhookLoader = () => import(WEBHOOK_DELIVERY_PROD);
   broadcastLoader = () => import(BROADCAST_DELIVERY_PROD);
   branchTimeoutLoader = () => import(BRANCH_TIMEOUT_PROD);
+  waitlistExpiryLoader = () => import(WAITLIST_EXPIRY_PROD);
 }
 
 app.listen(PORT, () => {
@@ -115,12 +125,14 @@ app.listen(PORT, () => {
   startWebhookRetryJob(webhookLoader);
   startBroadcastDeliveryJob(broadcastLoader);
   startBranchTimeoutJob(branchTimeoutLoader);
+  startWaitlistExpiryJob(waitlistExpiryLoader);
 
   const shutdown = () => {
     stopSLACheckJob();
     stopWebhookRetryJob();
     stopBroadcastDeliveryJob();
     stopBranchTimeoutJob();
+    stopWaitlistExpiryJob();
     process.exit(0);
   };
   process.on("SIGTERM", shutdown);

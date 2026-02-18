@@ -82,6 +82,14 @@ export interface ParallelJoinedEvent {
   action: string;
 }
 
+export interface WaitlistPromotedEvent {
+  type: "waitlist:promoted";
+  waitlistEntryId: string;
+  participantName: string;
+  promotionId: string;
+  deadline: string;
+}
+
 export type SSEEvent =
   | ParticipantApprovedEvent
   | ParticipantRejectedEvent
@@ -91,7 +99,8 @@ export type SSEEvent =
   | OccupancyUpdatedEvent
   | BroadcastProgressEvent
   | ParallelForkedEvent
-  | ParallelJoinedEvent;
+  | ParallelJoinedEvent
+  | WaitlistPromotedEvent;
 
 export type SSEEventType = SSEEvent["type"];
 

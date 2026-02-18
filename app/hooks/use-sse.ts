@@ -11,6 +11,7 @@ const SSE_EVENT_TYPES: SSEEventType[] = [
   "broadcast:progress",
   "parallel:forked",
   "parallel:joined",
+  "waitlist:promoted",
 ];
 
 interface SSEEventData {

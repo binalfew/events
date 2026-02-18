@@ -16,6 +16,7 @@
 7. [P4-08 — Parallel Workflow Paths](#p4-08-parallel-workflow-paths)
 8. [P4-09 — Duplicate Detection & Merge](#p4-09-duplicate-detection--merge)
 9. [P4-10 — Event Cloning](#p4-10-event-cloning)
+10. [P4-11 — Waitlist Management](#p4-11-waitlist-management)
 
 ---
 
@@ -743,3 +744,47 @@ Built an event cloning engine that deep-copies selected configuration elements f
 - **DelegationQuota.usedCount = 0** — Quotas cloned but usage reset.
 - **Feature flag gated** — `FF_EVENT_CLONE` + `event-clone:execute` permission (both seeded in P4-00).
 - **FKRemapper immutable walks** — `remapJson()` returns new objects without mutating input, safe for Prisma JSON fields.
+
+---
+
+## P4-11: Waitlist Management
+
+**Status**: Completed
+**Date**: 2026-02-18
+
+### Summary
+
+Implemented a full waitlist management system with entry tracking, priority-based promotion engine, 48-hour confirmation deadlines, automatic expiry with cascade promotions, and an admin management UI.
+
+### Files Created
+
+1. **`app/lib/schemas/waitlist.ts`** — Zod schemas for waitlist operations (addToWaitlist, updatePriority, waitlistFilters)
+2. **`app/services/waitlist.server.ts`** — Waitlist service with entry management (add, get, withdraw, remove, updatePriority, getPosition, getStats) and promotion engine (checkAndPromote, confirmPromotion, declinePromotion, expireStalePromotions)
+3. **`server/waitlist-expiry-job.js`** — Background job running every 5 minutes to expire stale promotions and cascade to next eligible entries
+4. **`app/routes/admin/events/$eventId/waitlist.tsx`** — Admin management page with stats cards, filterable table, priority updates, manual promotion, withdraw, and remove actions
+5. **`app/services/__tests__/waitlist.server.test.ts`** — 16 test cases covering all service functions
+
+### Files Modified
+
+1. **`app/routes/admin/events/index.tsx`** — Added "Waitlist" link in the Ops section of event cards
+2. **`server.js`** — Registered waitlist expiry background job with dev/prod loaders and shutdown cleanup
+3. **`app/types/sse-events.ts`** — Added `WaitlistPromotedEvent` interface to SSE event union
+4. **`app/hooks/use-sse.ts`** — Added `"waitlist:promoted"` to the SSE event type listener array
+5. **`docs/PHASE-4-COMPLETION.md`** — This entry
+
+### Verification
+
+| Check               | Result                                   |
+| ------------------- | ---------------------------------------- |
+| `npm run typecheck` | No type errors                           |
+| `npm run test`      | 62 test files, 805 tests passed (16 new) |
+
+### Notable Decisions
+
+- **Position computed dynamically** — Uses count query rather than stored position to avoid expensive rebalancing when entries are removed.
+- **Promotion priority order** — VIP > HIGH > STANDARD, then FIFO within same priority tier.
+- **48-hour promotion deadline** — Hardcoded default. Expired offers cascade to next eligible entry automatically.
+- **Single service file** — Entry management and promotion logic in one file since they are tightly coupled.
+- **Notifications via createNotification()** — Leverages existing notification system with SSE push for real-time updates.
+- **No participant portal** — Notifications serve the purpose since no participant portal exists yet.
+- **Feature flag gated** — `FF_WAITLIST` + `waitlist:manage` permission (both seeded in P4-00).
