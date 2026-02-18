@@ -196,6 +196,12 @@ export default function EventsListPage() {
                   >
                     Venue
                   </Link>
+                  <Link
+                    to={`/admin/events/${event.id}/incidents`}
+                    className="text-primary hover:underline"
+                  >
+                    Incidents
+                  </Link>
                 </div>
                 <div className="flex flex-wrap gap-x-3 gap-y-1">
                   <span className="text-muted-foreground font-medium">Protocol:</span>

@@ -437,3 +437,44 @@ Built gift inventory management with stock tracking, welcome package templates w
 | ------------------- | -------------------------------------------- |
 | `npm run typecheck` | Passed                                       |
 | `npm run test`      | All tests passed, 12 new gift protocol tests |
+
+---
+
+## P5-10: Incident Management
+
+**Status:** Completed
+**Date:** 2026-02-18
+
+### Summary
+
+Built a structured incident management system for logging security issues, medical emergencies, technical failures, and other event disruptions. Supports severity-based categorization (LOW/MEDIUM/HIGH/CRITICAL), responder assignment, escalation tracking, timeline updates, resolution with verification close, and SLA-based overdue detection. 15 test cases.
+
+### Files Created
+
+1. **`app/lib/schemas/incident.ts`** — Zod schemas for `reportIncident`, `addUpdate`, `escalate`, `incidentFilters`
+2. **`app/services/incidents.server.ts`** — Service layer with `IncidentError`, 11 functions: `reportIncident`, `listIncidents`, `getIncident`, `assignIncident`, `addUpdate`, `escalateIncident`, `resolveIncident`, `closeIncident`, `reopenIncident`, `getIncidentStats`, `checkOverdueIncidents`
+3. **`app/routes/admin/events/$eventId/incidents.tsx`** — Admin route with stats cards (total, open, reported, investigating, escalated, resolved, avg resolution time, overdue), severity breakdown badges, report incident form, severity/status filters, incident list with expandable action panels (assign, add update, escalate, resolve, close, reopen)
+4. **`app/services/__tests__/incidents.server.test.ts`** — 15 test cases covering reporting, assignment (with auto status transition), updates (including closed incident guard), escalation (including resolved guard), resolve (with timestamp), close (only from resolved), reopen (only from resolved/closed), stats with avg resolution time, and SLA-based overdue detection
+
+### Files Modified
+
+1. **`app/routes/admin/events/index.tsx`** — Added "Incidents" link in Ops section
+
+### Key Design Decisions
+
+- Incident lifecycle: REPORTED → INVESTIGATING → ESCALATED → RESOLVED → CLOSED (with reopen back to INVESTIGATING)
+- `assignIncident` auto-transitions REPORTED → INVESTIGATING when first responder is assigned
+- SLA thresholds: CRITICAL 15min, HIGH 1hr, MEDIUM 4hr, LOW 24hr
+- `checkOverdueIncidents` compares elapsed time against severity-based SLA thresholds
+- Category stored in incident `metadata.category` JSON field
+- Timeline entries (IncidentUpdate) auto-created for assignment, escalation, resolution, close, and reopen
+- Escalation creates IncidentEscalation record + updates incident status and assignee
+- Feature flag `FF_INCIDENT_MANAGEMENT` gates all functionality
+- Uses `event:manage` permission (incidents are operational, not protocol)
+
+### Verification Results
+
+| Check               | Result                                  |
+| ------------------- | --------------------------------------- |
+| `npm run typecheck` | Passed                                  |
+| `npm run test`      | All tests passed, 15 new incident tests |
