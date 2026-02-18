@@ -322,3 +322,42 @@ Built protocol seating management with rank-based seating plans, manual and auto
 | ------------------- | ------------------------------------------------- |
 | `npm run typecheck` | Passed                                            |
 | `npm run test`      | 891 tests passed (68 files), 14 new seating tests |
+
+---
+
+## P5-07: Bilateral Meeting Scheduler
+
+**Status:** Completed
+**Date:** 2026-02-18
+
+### Summary
+
+Built the bilateral meeting scheduler with request/confirm/decline/cancel/complete lifecycle, time-slot management, room assignment from venue system, daily briefing view, and availability detection. 14 test cases.
+
+### Files Created
+
+1. **`app/lib/schemas/bilateral.ts`** — Zod schemas for `requestMeeting`, `confirmMeeting`, `bilateralFilters`
+2. **`app/services/bilateral.server.ts`** — Service layer with `BilateralError`, 11 functions: `requestMeeting`, `confirmMeeting`, `declineMeeting`, `cancelMeeting`, `completeMeeting`, `getAvailableSlots`, `createMeetingSlot`, `getMeetingSchedule`, `listMeetings`, `getParticipantMeetings`, `getDailyBriefing`, `getBilateralStats`
+3. **`app/routes/admin/events/$eventId/bilaterals.tsx`** — Admin route with stats cards, meeting request form, time-slot creation, confirm meeting with room/time picker, daily briefing panel, meetings table with lifecycle actions, status/date filters
+4. **`app/services/__tests__/bilateral.server.test.ts`** — 14 test cases covering request, confirm (with slot booking), decline, cancel (with slot release), complete, available slots filtering, stats, and daily briefing
+
+### Files Modified
+
+1. **`app/routes/admin/events/index.tsx`** — Added "Bilaterals" link in Protocol section
+
+### Key Design Decisions
+
+- Meeting lifecycle: REQUESTED → CONFIRMED → COMPLETED (or DECLINED from REQUESTED, CANCELLED from REQUESTED/CONFIRMED)
+- `confirmMeeting` accepts scheduledAt time and optional roomId + slotId; marks slot as booked
+- `cancelMeeting` releases any booked meeting slots
+- `getAvailableSlots` filters out slots that overlap with confirmed meetings for the specified participants
+- `getDailyBriefing` provides a summary of confirmed meetings, pending requests, and available slots for a given date
+- Feature flag `FF_BILATERAL_SCHEDULER` gates all functionality
+- Room selection uses venue rooms from P5-05
+
+### Verification Results
+
+| Check               | Result                                   |
+| ------------------- | ---------------------------------------- |
+| `npm run typecheck` | Passed                                   |
+| `npm run test`      | All tests passed, 14 new bilateral tests |
