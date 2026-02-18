@@ -66,6 +66,22 @@ export interface BroadcastProgressEvent {
   status: string;
 }
 
+export interface ParallelForkedEvent {
+  type: "parallel:forked";
+  participantId: string;
+  participantName: string;
+  forkStepName: string;
+  branchCount: number;
+}
+
+export interface ParallelJoinedEvent {
+  type: "parallel:joined";
+  participantId: string;
+  participantName: string;
+  joinStepName: string;
+  action: string;
+}
+
 export type SSEEvent =
   | ParticipantApprovedEvent
   | ParticipantRejectedEvent
@@ -73,7 +89,9 @@ export type SSEEvent =
   | SLABreachedEvent
   | NotificationNewEvent
   | OccupancyUpdatedEvent
-  | BroadcastProgressEvent;
+  | BroadcastProgressEvent
+  | ParallelForkedEvent
+  | ParallelJoinedEvent;
 
 export type SSEEventType = SSEEvent["type"];
 

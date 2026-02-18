@@ -13,6 +13,8 @@
 4. [P4-03 — Check-in & QR Code System](#p4-03-check-in--qr-code-system)
 5. [P4-04 — Communication Hub](#p4-04-communication-hub)
 6. [P4-07 — Batch Workflow Actions](#p4-07-batch-workflow-actions)
+7. [P4-08 — Parallel Workflow Paths](#p4-08-parallel-workflow-paths)
+8. [P4-09 — Duplicate Detection & Merge](#p4-09-duplicate-detection--merge)
 
 ---
 
@@ -573,3 +575,124 @@ Built batch workflow actions enabling reviewers and admins to approve, reject, o
 - **Undo restores `currentStepId`** — Extended the undo service to also capture and restore `currentStepId`, ensuring workflow state rollback is complete.
 - **Native checkbox instead of Radix Checkbox** — No Checkbox component exists in the UI library, so used native `<input type="checkbox">` with appropriate styling for the participant table.
 - **Keyboard shortcuts** — Ctrl+A selects all on current page, Ctrl+Shift+A selects all matching the current filter, Escape clears selection. Uses the existing `useKeyboardShortcuts` hook.
+
+---
+
+## P4-08: Parallel Workflow Paths
+
+**Status**: Completed
+**Date**: 2026-02-18
+
+### Summary
+
+Built the fork/join execution logic for parallel workflow branches. A participant reaching a FORK step is split into independent `ParallelBranch` records that can be approved/rejected separately by different reviewers. When join conditions are met (ALL, ANY, or MAJORITY strategy), the participant converges at the JOIN step and continues through the standard workflow engine. Includes a background timeout job for overdue branches.
+
+### Files Created
+
+1. **`app/services/workflow-engine/parallel-types.ts`** — Type definitions: `ForkConfig`, `JoinConfig`, `JoinStrategy`, `JoinSummary`, `JoinEvaluationResult`, `BranchActionResult`.
+
+2. **`app/services/workflow-engine/fork-executor.server.ts`** — `parseForkConfig()` validates FORK step config, `executeFork()` creates `ParallelBranch` records, updates participant to FORK step, creates audit log, emits SSE + webhook events.
+
+3. **`app/services/workflow-engine/join-evaluator.server.ts`** — `parseJoinConfig()` validates JOIN step config, `evaluateStrategy()` pure function implements ALL/ANY/MAJORITY logic, `evaluateJoin()` queries branches and applies strategy.
+
+4. **`app/services/workflow-engine/branch-action.server.ts`** — `processBranchAction()` handles APPROVE/REJECT on individual branches, creates Approval + AuditLog, evaluates join condition, and advances participant via dynamic `import("./navigation.server")` when satisfied.
+
+5. **`app/services/workflow-engine/branch-timeout.server.ts`** — `processTimedOutBranches()` finds overdue PENDING branches and applies the configured timeout action (APPROVE/REJECT/ESCALATE).
+
+6. **`server/branch-timeout-job.js`** — Background job shell following `sla-job.js` pattern. Runs every 5 minutes (configurable via `BRANCH_TIMEOUT_CHECK_INTERVAL_MS`).
+
+7. **`app/components/workflow/parallel-branch-view.tsx`** — Reusable component showing all branches for a participant at a fork: labels, status badges, duration, completion info.
+
+8. **`app/components/workflow/branch-action-panel.tsx`** — Reusable component for reviewers to APPROVE/REJECT a branch with optional remarks, showing other branches as read-only context.
+
+9. **`app/services/workflow-engine/__tests__/parallel-workflow.server.test.ts`** — 14 test cases covering: parseForkConfig validation, executeFork branch creation, executeFork participant status, evaluateStrategy ALL/ANY/MAJORITY (7 scenarios), processBranchAction with approval, processBranchAction triggering join, and processTimedOutBranches.
+
+### Files Modified
+
+1. **`app/services/workflow-engine/serializer.server.ts`** — Added `forkConfig?` and `joinConfig?` optional fields to `StepSnapshot` interface. In `serializeWorkflow()`, extracts config when `stepType === "FORK"` or `"JOIN"`.
+
+2. **`app/services/workflow-engine/navigation.server.ts`** — Added FORK guard (throws if `processWorkflowAction` called on FORK step), added FORK detection (when next step is FORK and `FF_PARALLEL_WORKFLOWS` enabled, creates pre-fork approval/audit and calls `executeFork`).
+
+3. **`app/types/sse-events.ts`** — Added `ParallelForkedEvent` and `ParallelJoinedEvent` interfaces, added to `SSEEvent` union.
+
+4. **`app/hooks/use-sse.ts`** — Added `"parallel:forked"` and `"parallel:joined"` to `SSE_EVENT_TYPES`.
+
+5. **`app/lib/webhook-events.ts`** — Added `"parallel.forked"` and `"parallel.joined"` to `WEBHOOK_EVENTS` catalog.
+
+6. **`app/lib/feature-flags.server.ts`** — Added `PARALLEL_WORKFLOWS: "FF_PARALLEL_WORKFLOWS"` to `FEATURE_FLAG_KEYS`.
+
+7. **`server.js`** — Imported and registered `branchTimeoutJob`. Added `BRANCH_TIMEOUT_DEV`/`BRANCH_TIMEOUT_PROD` path constants, `branchTimeoutLoader` for both dev and prod, startup call, and shutdown cleanup.
+
+### Verification Results
+
+| Check               | Result                                   |
+| ------------------- | ---------------------------------------- |
+| `npm run typecheck` | No type errors                           |
+| `npm run test`      | 59 test files, 758 tests passed (14 new) |
+
+### Notable Decisions
+
+- **Circular dependency via dynamic import** — `branch-action.server.ts` uses `await import("./navigation.server")` to call `processWorkflowAction()` after join evaluation, following the same pattern as `sla-checker.server.ts`.
+- **FORK guard in navigation** — `processWorkflowAction()` throws a 400 error if called on a FORK step, ensuring only `processBranchAction()` is used for branch actions.
+- **Feature flag gated** — Fork execution only triggers when `FF_PARALLEL_WORKFLOWS` is enabled. Without the flag, the workflow engine skips FORK steps (treating them as regular steps).
+- **ESCALATE maps to REJECT** — Branch timeout with `timeoutAction: "ESCALATE"` applies REJECT with "Branch timed out (escalated)" remarks, since ESCALATE is not a valid branch action.
+- **UI components are reusable** — `ParallelBranchView` and `BranchActionPanel` are standalone components ready for integration into participant detail routes when built.
+- **No workflow designer UI** — Deferred entirely as no visual workflow designer exists yet in the codebase.
+
+---
+
+## P4-09: Duplicate Detection & Merge
+
+**Status**: Completed
+**Date**: 2026-02-18
+
+### Summary
+
+Built a multi-layered duplicate detection engine with 4-layer scoring (exact identifiers, fuzzy name matching via Levenshtein/Soundex, cross-field boosting, threshold classification), blacklist screening, atomic participant merge with relation migration, and three admin UI pages: duplicate review queue, blacklist management, and merge audit trail.
+
+### Files Created
+
+1. **`app/utils/levenshtein.ts`** — Shared utility functions: `levenshtein()` (extracted from column-mapper), `soundex()` (American Soundex algorithm), `normalizePhone()` (strips non-digits).
+
+2. **`app/lib/schemas/duplicate-merge.ts`** — Zod schemas (zod/v4) for blacklist create/update (type, name, nameVariations, passport, email, reason, source, expiresAt) and merge participants (survivingId, mergedId, fieldResolution record, reviewNotes).
+
+3. **`app/services/duplicate-detection.server.ts`** — 4-layer scoring engine. Pure functions: `scoreParticipantPair()` (L1: exact passport/email/phone, L2: Levenshtein/Soundex/name+DOB, L3: cross-field boost capped at +0.15, L4: threshold), `classifyScore()` (BLOCK ≥0.90, WARN ≥0.70, PASS). DB functions: `findCandidatesInScope()` (same event + concurrent events), `runDuplicateDetection()` (scores all candidates, upserts DuplicateCandidate for ≥0.70).
+
+4. **`app/services/blacklist.server.ts`** — Blacklist service with `BlacklistError` class. `screenAgainstBlacklist()` loads active non-expired entries (tenant + global), checks exact passport, exact email, fuzzy name vs nameVariations. CRUD: create, list (paginated), get, update, deactivate, delete. All mutations create audit log entries.
+
+5. **`app/services/pre-registration-checks.server.ts`** — Orchestration hook: `preRegistrationChecks()` calls `screenAgainstBlacklist()` then `runDuplicateDetection()`, returns `{ allowed, risk, blacklistMatches, duplicateCandidates }`. Standalone — not wired into bulk import (documented as integration point).
+
+6. **`app/services/participant-merge.server.ts`** — Atomic merge via `prisma.$transaction()`: load both participants, apply fieldResolution (fixed + extras), migrate approvals/accessLogs/queueTickets/messageDeliveries, update DuplicateCandidate records to MERGED, soft-delete merged participant, create MergeHistory + audit log. Also includes `reviewDuplicateCandidate()`, `listDuplicateCandidates()` (paginated), `listMergeHistory()` (paginated).
+
+7. **`app/routes/admin/events/$eventId/duplicates.tsx`** — Review queue with status filter (NativeSelect), confidence badge (red ≥0.90), participant comparison, inline review (confirm/dismiss), and merge dialog with side-by-side field resolution via radio groups.
+
+8. **`app/routes/admin/events/$eventId/settings/blacklist.tsx`** — Blacklist CRUD page following checkpoints.tsx pattern. Table with name, type, passport, email, reason, status, expiry. Create/edit dialogs with NativeSelect for type, nameVariations as comma-separated input.
+
+9. **`app/routes/admin/events/$eventId/merge-history.tsx`** — Read-only merge audit trail with expandable field resolution details, surviving/merged participant names, relation migration count, merged-by user.
+
+10. **`app/services/__tests__/duplicate-detection.server.test.ts`** — 18 test cases covering: exact passport (1.0), exact email (0.95), normalized phone (0.90), name Levenshtein (0.85), name Soundex (0.80), name+DOB (0.90), cross-field boost cap (1.0), no match (0.0), classifyScore BLOCK/WARN/PASS, blacklist passport/name/expired, merge transaction, levenshtein/soundex/normalizePhone utilities.
+
+### Files Modified
+
+1. **`app/services/bulk-import/column-mapper.server.ts`** — Replaced inline `levenshtein()` with import from `~/utils/levenshtein`.
+
+2. **`app/routes/admin/events/index.tsx`** — Added Duplicates and Merge History links to People group, Blacklist link to Settings group.
+
+3. **`docs/PHASE-4-COMPLETION.md`** — Added P4-09 entry.
+
+### Verification Results
+
+| Check               | Result                                   |
+| ------------------- | ---------------------------------------- |
+| `npm run typecheck` | No type errors                           |
+| `npm run test`      | 60 test files, 776 tests passed (18 new) |
+
+### Notable Decisions
+
+- **Extras JSONB access** — `passportNumber`, `dateOfBirth`, `phone` are read from `participant.extras` cast to `Record<string, unknown>`, not from fixed columns.
+- **DuplicateCandidate ID ordering** — Always `participantAId = min(id1, id2)`, `participantBId = max(id1, id2)` to satisfy the `@@unique([participantAId, participantBId])` constraint.
+- **Concurrent events scope** — `findCandidatesInScope()` queries participants from events where `startDate ≤ currentEvent.endDate AND endDate ≥ currentEvent.startDate`.
+- **Soundex + Levenshtein in app code** — Fuzzy matching runs in JavaScript after loading candidates from the database, not in SQL.
+- **Atomic merge** — The entire merge operation (field resolution, relation migration, DuplicateCandidate update, soft-delete, MergeHistory creation) runs inside `prisma.$transaction()`.
+- **Extracted levenshtein utility** — Moved the Levenshtein function from `column-mapper.server.ts` to shared `utils/levenshtein.ts` and updated the import.
+- **No auto-wiring** — `preRegistrationChecks()` is standalone and not auto-inserted into bulk import or registration flows (integration documented as future step).

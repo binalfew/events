@@ -4,11 +4,7 @@ import {
   Bell,
   ClipboardList,
   CalendarDays,
-  Users,
-  GitBranch,
-  Truck,
   BarChart3,
-  UserCog,
   Settings,
   Eye,
   Database,
@@ -73,71 +69,6 @@ export const navigationGroups: NavGroup[] = [
         children: [
           { title: "All Events", tKey: "allEvents", url: "/admin/events", end: true },
           { title: "Forms", tKey: "forms", url: "/admin/events/forms" },
-          { title: "Categories", tKey: "categories", url: "/admin/events/categories" },
-          { title: "Templates", tKey: "templates", url: "/admin/events/templates" },
-          { title: "Delegations", tKey: "delegations", url: "/admin/events/delegations" },
-        ],
-      },
-      {
-        title: "Participants",
-        tKey: "participants",
-        url: "/admin/participants",
-        icon: Users,
-        roles: ["ADMIN", "REVIEWER"],
-        children: [
-          {
-            title: "All Participants",
-            tKey: "allParticipants",
-            url: "/admin/participants",
-            end: true,
-          },
-          { title: "Import", tKey: "import", url: "/admin/participants/import" },
-          { title: "Groups", tKey: "groups", url: "/admin/participants/groups" },
-        ],
-      },
-      {
-        title: "Workflows",
-        tKey: "workflows",
-        url: "/admin/workflows",
-        icon: GitBranch,
-        roles: ["ADMIN"],
-        children: [
-          { title: "All Workflows", tKey: "allWorkflows", url: "/admin/workflows", end: true },
-          { title: "Templates", tKey: "templates", url: "/admin/workflows/templates" },
-        ],
-      },
-    ],
-  },
-  {
-    label: "Operations",
-    tKey: "operations",
-    items: [
-      {
-        title: "Logistics",
-        tKey: "logistics",
-        url: "/admin/logistics",
-        icon: Truck,
-        roles: ["ADMIN"],
-        children: [
-          { title: "Venues", tKey: "venues", url: "/admin/logistics/venues" },
-          { title: "Accommodation", tKey: "accommodation", url: "/admin/logistics/accommodation" },
-          {
-            title: "Transportation",
-            tKey: "transportation",
-            url: "/admin/logistics/transportation",
-          },
-        ],
-      },
-      {
-        title: "Reports",
-        tKey: "reports",
-        url: "/admin/reports",
-        icon: BarChart3,
-        roles: ["ADMIN", "REVIEWER"],
-        children: [
-          { title: "Overview", tKey: "overview", url: "/admin/reports", end: true },
-          { title: "Analytics", tKey: "analytics", url: "/admin/reports/analytics" },
-          { title: "Export", tKey: "export", url: "/admin/reports/export" },
         ],
       },
     ],
@@ -147,18 +78,6 @@ export const navigationGroups: NavGroup[] = [
     tKey: "administration",
     items: [
       {
-        title: "Users",
-        tKey: "users",
-        url: "/admin/users",
-        icon: UserCog,
-        roles: ["ADMIN"],
-        children: [
-          { title: "All Users", tKey: "allUsers", url: "/admin/users", end: true },
-          { title: "Roles", tKey: "roles", url: "/admin/users/roles" },
-          { title: "Invitations", tKey: "invitations", url: "/admin/users/invitations" },
-        ],
-      },
-      {
         title: "Settings",
         tKey: "settings",
         url: "/admin/settings",
@@ -167,8 +86,6 @@ export const navigationGroups: NavGroup[] = [
         children: [
           { title: "General", tKey: "general", url: "/admin/settings", end: true },
           { title: "Feature Flags", tKey: "featureFlags", url: "/admin/settings/feature-flags" },
-          { title: "Security", tKey: "security", url: "/admin/settings/security" },
-          { title: "Integrations", tKey: "integrations", url: "/admin/settings/integrations" },
           { title: "API Keys", tKey: "apiKeys", url: "/admin/settings/api-keys" },
           { title: "Webhooks", tKey: "webhooks", url: "/admin/settings/webhooks" },
         ],

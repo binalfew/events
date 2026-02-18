@@ -9,6 +9,8 @@ const SSE_EVENT_TYPES: SSEEventType[] = [
   "notification:new",
   "occupancy:updated",
   "broadcast:progress",
+  "parallel:forked",
+  "parallel:joined",
 ];
 
 interface SSEEventData {

@@ -30,6 +30,8 @@ export interface StepSnapshot {
   rejectionConditionalRoutes?: ConditionalRoute[];
   slaWarningMinutes: number | null;
   assignedRoleId: string | null;
+  forkConfig?: { branches: { branchStepId: string; label?: string }[]; joinStepId: string };
+  joinConfig?: { strategy: string; timeoutMinutes?: number; timeoutAction?: string };
 }
 
 export interface WorkflowSnapshot {
@@ -99,6 +101,27 @@ export function serializeWorkflow(workflow: WorkflowInput): WorkflowSnapshot {
           : undefined,
         slaWarningMinutes: null,
         assignedRoleId: null,
+        ...(step.stepType === "FORK" && config.branches
+          ? {
+              forkConfig: {
+                branches: config.branches as { branchStepId: string; label?: string }[],
+                joinStepId: config.joinStepId as string,
+              },
+            }
+          : {}),
+        ...(step.stepType === "JOIN" && config.strategy
+          ? {
+              joinConfig: {
+                strategy: config.strategy as string,
+                ...(config.timeoutMinutes != null
+                  ? { timeoutMinutes: config.timeoutMinutes as number }
+                  : {}),
+                ...(config.timeoutAction != null
+                  ? { timeoutAction: config.timeoutAction as string }
+                  : {}),
+              },
+            }
+          : {}),
       };
     });
 

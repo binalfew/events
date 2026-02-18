@@ -55,6 +55,7 @@ export const FEATURE_FLAG_KEYS = {
   WAITLIST: "FF_WAITLIST",
   COMMUNICATION_HUB: "FF_COMMUNICATION_HUB",
   KIOSK_MODE: "FF_KIOSK_MODE",
+  PARALLEL_WORKFLOWS: "FF_PARALLEL_WORKFLOWS",
 } as const;
 
 // ─── SDK Functions ────────────────────────────────────────

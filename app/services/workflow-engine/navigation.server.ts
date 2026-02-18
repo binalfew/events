@@ -4,6 +4,8 @@ import { eventBus } from "~/lib/event-bus.server";
 import { evaluateCondition } from "~/lib/condition-evaluator";
 import { ConflictError, isPrismaNotFoundError } from "~/services/optimistic-lock.server";
 import { deserializeWorkflow, WorkflowError } from "./serializer.server";
+import { executeFork } from "./fork-executor.server";
+import { isFeatureEnabled, FEATURE_FLAG_KEYS } from "~/lib/feature-flags.server";
 import type { StepSnapshot, ConditionalRoute } from "./serializer.server";
 import type { ApprovalAction } from "../../generated/prisma/client.js";
 
@@ -145,6 +147,14 @@ export async function processWorkflowAction(
     throw new WorkflowError("Current step not found in workflow version snapshot", 400);
   }
 
+  // FORK guard: standard actions cannot be processed on a FORK step
+  if (currentStep.stepType === "FORK") {
+    throw new WorkflowError(
+      "Cannot process standard action on FORK step. Use processBranchAction.",
+      400,
+    );
+  }
+
   const previousStepId = participant.currentStepId!;
   let nextStepId: string | null = null;
 
@@ -157,6 +167,51 @@ export async function processWorkflowAction(
   } else {
     const participantData = buildParticipantData(participant);
     nextStepId = resolveNextStep(currentStep, action, participantData, conditionalRoutingEnabled);
+  }
+
+  // FORK detection: if next step is a FORK, execute fork instead of normal transition
+  if (nextStepId) {
+    const nextStep = snapshot.steps.find((s) => s.id === nextStepId);
+    if (nextStep?.stepType === "FORK") {
+      const parallelEnabled = await isFeatureEnabled(FEATURE_FLAG_KEYS.PARALLEL_WORKFLOWS, {
+        tenantId: participant.tenantId,
+      });
+      if (parallelEnabled) {
+        // Create approval for current step (pre-fork)
+        await prisma.approval.create({
+          data: {
+            participantId,
+            stepId: previousStepId,
+            userId,
+            action,
+            remarks: comment ?? null,
+          },
+        });
+        await prisma.auditLog.create({
+          data: {
+            userId,
+            action:
+              action === "APPROVE" || action === "BYPASS"
+                ? "APPROVE"
+                : action === "REJECT"
+                  ? "REJECT"
+                  : "UPDATE",
+            entityType: "Participant",
+            entityId: participantId,
+            description: `${action} on step "${currentStep.name}" (pre-fork)`,
+            metadata: {
+              previousStepId,
+              nextStepId,
+              preFork: true,
+              workflowVersionId: participant.workflowVersion.id,
+            },
+          },
+        });
+        // Execute fork
+        await executeFork(participantId, nextStep, participant.tenantId, userId);
+        return { previousStepId, nextStepId, isComplete: false };
+      }
+    }
   }
 
   let isComplete = false;

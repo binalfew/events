@@ -12,6 +12,10 @@ import {
   startBroadcastDeliveryJob,
   stopBroadcastDeliveryJob,
 } from "./server/broadcast-delivery-job.js";
+import {
+  startBranchTimeoutJob,
+  stopBranchTimeoutJob,
+} from "./server/branch-timeout-job.js";
 
 // Fail fast if required environment variables are missing
 const required = ["DATABASE_URL", "SESSION_SECRET"];
@@ -33,6 +37,8 @@ const WEBHOOK_DELIVERY_DEV = "./app/services/webhook-delivery.server.ts";
 const WEBHOOK_DELIVERY_PROD = "./build/server/services/webhook-delivery.server.js";
 const BROADCAST_DELIVERY_DEV = "./app/services/jobs/broadcast-delivery-job.server.ts";
 const BROADCAST_DELIVERY_PROD = "./build/server/services/jobs/broadcast-delivery-job.server.js";
+const BRANCH_TIMEOUT_DEV = "./app/services/workflow-engine/branch-timeout.server.ts";
+const BRANCH_TIMEOUT_PROD = "./build/server/services/workflow-engine/branch-timeout.server.js";
 const DEVELOPMENT = process.env.NODE_ENV === "development";
 const PORT = Number.parseInt(process.env.PORT || "3000");
 
@@ -59,6 +65,8 @@ let slaLoader;
 let webhookLoader;
 /** @type {() => Promise<any>} */
 let broadcastLoader;
+/** @type {() => Promise<any>} */
+let branchTimeoutLoader;
 
 if (DEVELOPMENT) {
   logger.info("Starting development server");
@@ -84,6 +92,7 @@ if (DEVELOPMENT) {
   slaLoader = () => viteDevServer.ssrLoadModule(SLA_CHECKER_DEV);
   webhookLoader = () => viteDevServer.ssrLoadModule(WEBHOOK_DELIVERY_DEV);
   broadcastLoader = () => viteDevServer.ssrLoadModule(BROADCAST_DELIVERY_DEV);
+  branchTimeoutLoader = () => viteDevServer.ssrLoadModule(BRANCH_TIMEOUT_DEV);
 } else {
   logger.info("Starting production server");
   app.use(
@@ -95,6 +104,7 @@ if (DEVELOPMENT) {
   slaLoader = () => import(SLA_CHECKER_PROD);
   webhookLoader = () => import(WEBHOOK_DELIVERY_PROD);
   broadcastLoader = () => import(BROADCAST_DELIVERY_PROD);
+  branchTimeoutLoader = () => import(BRANCH_TIMEOUT_PROD);
 }
 
 app.listen(PORT, () => {
@@ -104,11 +114,13 @@ app.listen(PORT, () => {
   startSLACheckJob(slaLoader);
   startWebhookRetryJob(webhookLoader);
   startBroadcastDeliveryJob(broadcastLoader);
+  startBranchTimeoutJob(branchTimeoutLoader);
 
   const shutdown = () => {
     stopSLACheckJob();
     stopWebhookRetryJob();
     stopBroadcastDeliveryJob();
+    stopBranchTimeoutJob();
     process.exit(0);
   };
   process.on("SIGTERM", shutdown);

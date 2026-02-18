@@ -11,6 +11,8 @@ export const WEBHOOK_EVENTS = {
   "workflow.published": "A workflow version has been published",
   "scan.completed": "A badge scan has been completed",
   "bulk_operation.completed": "A bulk operation has finished processing",
+  "parallel.forked": "A participant has entered a parallel workflow fork",
+  "parallel.joined": "A participant has completed a parallel workflow join",
 } as const;
 
 export type WebhookEventType = keyof typeof WEBHOOK_EVENTS;

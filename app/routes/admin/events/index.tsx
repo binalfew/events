@@ -127,6 +127,18 @@ export default function EventsListPage() {
                   >
                     Export
                   </Link>
+                  <Link
+                    to={`/admin/events/${event.id}/duplicates`}
+                    className="text-primary hover:underline"
+                  >
+                    Duplicates
+                  </Link>
+                  <Link
+                    to={`/admin/events/${event.id}/merge-history`}
+                    className="text-primary hover:underline"
+                  >
+                    Merge History
+                  </Link>
                 </div>
                 <div className="flex flex-wrap gap-x-3 gap-y-1">
                   <span className="text-muted-foreground font-medium">Ops:</span>
@@ -177,6 +189,12 @@ export default function EventsListPage() {
                     className="text-primary hover:underline"
                   >
                     Kiosks
+                  </Link>
+                  <Link
+                    to={`/admin/events/${event.id}/settings/blacklist`}
+                    className="text-primary hover:underline"
+                  >
+                    Blacklist
                   </Link>
                 </div>
               </div>
