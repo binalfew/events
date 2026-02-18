@@ -197,6 +197,15 @@ export default function EventsListPage() {
                     Blacklist
                   </Link>
                 </div>
+                <div className="flex flex-wrap gap-x-3 gap-y-1">
+                  <span className="text-muted-foreground font-medium">Actions:</span>
+                  <Link
+                    to={`/admin/events/${event.id}/clone`}
+                    className="text-primary hover:underline"
+                  >
+                    Clone
+                  </Link>
+                </div>
               </div>
             </div>
           ))}

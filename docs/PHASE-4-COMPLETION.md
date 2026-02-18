@@ -15,6 +15,7 @@
 6. [P4-07 — Batch Workflow Actions](#p4-07-batch-workflow-actions)
 7. [P4-08 — Parallel Workflow Paths](#p4-08-parallel-workflow-paths)
 8. [P4-09 — Duplicate Detection & Merge](#p4-09-duplicate-detection--merge)
+9. [P4-10 — Event Cloning](#p4-10-event-cloning)
 
 ---
 
@@ -696,3 +697,49 @@ Built a multi-layered duplicate detection engine with 4-layer scoring (exact ide
 - **Atomic merge** — The entire merge operation (field resolution, relation migration, DuplicateCandidate update, soft-delete, MergeHistory creation) runs inside `prisma.$transaction()`.
 - **Extracted levenshtein utility** — Moved the Levenshtein function from `column-mapper.server.ts` to shared `utils/levenshtein.ts` and updated the import.
 - **No auto-wiring** — `preRegistrationChecks()` is standalone and not auto-inserted into bulk import or registration flows (integration documented as future step).
+
+---
+
+## P4-10: Event Cloning
+
+**Status**: Completed
+**Date**: 2026-02-18
+
+### Summary
+
+Built an event cloning engine that deep-copies selected configuration elements from a source event to a new target event with FK remapping. Includes event series management for grouping editions, a 4-step clone wizard UI, and an FKRemapper utility for deep JSON ID replacement.
+
+### Files Created
+
+1. **`app/lib/schemas/event-clone.ts`** — Zod schemas (zod/v4) for clone options (sourceEventId, targetEventName, dates, element toggles, optional seriesId/editionNumber), series CRUD (create/update), and edition CRUD (add/update).
+
+2. **`app/services/event-clone/fk-remapper.server.ts`** — `FKRemapper` class with `register()`, `remap()`, `remapJson()` (deep JSON walker replacing registered old IDs), and `stats` getter. Handles nested objects, arrays, nulls, and non-string primitives.
+
+3. **`app/services/event-clone.server.ts`** — Clone engine + Series/Edition CRUD service with `EventCloneError` class. Series: create, list (with edition count), get (with editions + events), update, delete (only if no editions). Edition: add, remove, update. Clone: `startCloneOperation()` runs in `prisma.$transaction()` with 60s timeout. Clones elements in dependency order: ParticipantTypes → FieldDefinitions → Workflows (two-pass: create steps with null refs, then update remapped IDs) + StepAssignments + AutoActionRules → FormTemplates → DelegationQuotas (usedCount=0) → Checkpoints. Records elementsCopied JSON, optionally links to series. Status tracked via CloneOperation model (PENDING → IN_PROGRESS → COMPLETED/FAILED).
+
+4. **`app/routes/admin/events/$eventId/clone.tsx`** — Clone wizard page with 4-step inline UI. Permission: `event-clone:execute`. Feature flag: `FF_EVENT_CLONE`. Step 1: Source event summary with element counts. Step 2: Target name, date pickers (ShadCN DatePicker), optional series select + edition number. Step 3: Element checkboxes with Select All toggle and dependency note. Step 4: Success/failure result with element counts and "View New Event" link. State managed with `useState`, form submission via `useFetcher`.
+
+5. **`app/services/__tests__/event-clone.server.test.ts`** — 13 test cases covering: FKRemapper register+remap, remap unknown ID, remap null/undefined, remapJson nested objects, remapJson arrays, remapJson non-matching strings, remapJson null/undefined, stats count, cloneOptionsSchema valid input, cloneOptionsSchema missing fields, createSeriesSchema validation, addEditionSchema validation, clone element dependency order verification.
+
+### Files Modified
+
+1. **`app/routes/admin/events/index.tsx`** — Added "Actions" group to event card with "Clone" link to `/admin/events/${event.id}/clone`.
+
+### Verification Results
+
+| Check               | Result                                   |
+| ------------------- | ---------------------------------------- |
+| `npm run typecheck` | No type errors                           |
+| `npm run test`      | 61 test files, 789 tests passed (13 new) |
+
+### Notable Decisions
+
+- **Synchronous transaction** — Clone runs in a single `$transaction()` with 60s timeout. For typical events (~100 elements), this completes in seconds.
+- **Two-pass step cloning** — Steps created first with null FK refs (nextStepId, etc.), then updated with remapped IDs to avoid ordering dependencies.
+- **WorkflowVersions NOT cloned** — Snapshots contain old IDs. Cloned workflows start as DRAFT; versions will be created when published.
+- **FormVersions NOT cloned** — Same rationale. Current definition is in FormTemplate.definition.
+- **MessageTemplates skipped** — Tenant-scoped (no eventId FK), not event-scoped.
+- **Workflows always DRAFT** — Regardless of source status, cloned workflows start as DRAFT for review.
+- **DelegationQuota.usedCount = 0** — Quotas cloned but usage reset.
+- **Feature flag gated** — `FF_EVENT_CLONE` + `event-clone:execute` permission (both seeded in P4-00).
+- **FKRemapper immutable walks** — `remapJson()` returns new objects without mutating input, safe for Prisma JSON fields.
