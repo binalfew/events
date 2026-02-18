@@ -517,3 +517,42 @@ Built a real-time operational command center dashboard that aggregates data from
 | ------------------- | --------------------------------------------- |
 | `npm run typecheck` | Passed                                        |
 | `npm run test`      | All tests passed, 10 new command center tests |
+
+---
+
+## P5-12: Staff & Volunteer Management
+
+**Status:** Completed
+**Date:** 2026-02-18
+
+### Summary
+
+Built staff and volunteer management with role-based registration (8 roles), shift scheduling with capacity tracking, shift assignment with role matching and capacity validation, check-in/check-out lifecycle, auto-assign engine that matches staff to shifts by role, and operational dashboard with role/status breakdowns. 13 test cases.
+
+### Files Created
+
+1. **`app/lib/schemas/staff.ts`** — Zod schemas for `registerStaff` (8 roles), `createShift`, `staffFilters`
+2. **`app/services/staff.server.ts`** — Service layer with `StaffError`, 13 functions: `registerStaff`, `listStaff`, `updateStaff`, `deactivateStaff`, `createShift`, `listShifts`, `assignToShift` (capacity + role checks), `unassignFromShift`, `checkInStaff` (SCHEDULED → CHECKED_IN), `checkOutStaff` (CHECKED_IN → CHECKED_OUT), `autoAssignShifts`, `getStaffDashboard`, `getStaffSchedule`
+3. **`app/routes/admin/events/$eventId/staff.tsx`** — Admin route with dashboard stats (total, active, checked in, no-shows), register staff form, create shift form, role filter, staff roster table with deactivate action, shifts with fill rate progress bars, inline assignment management with check-in/check-out/unassign actions, auto-assign button
+4. **`app/services/__tests__/staff.server.test.ts`** — 13 test cases covering registration, deactivation (including not-found guard), shift creation, assignment (including full capacity and role mismatch guards), check-in/check-out lifecycle (including invalid status transitions), dashboard stats, and auto-assign with role matching
+
+### Files Modified
+
+1. **`app/routes/admin/events/index.tsx`** — Added "Staff" link in Ops section
+
+### Key Design Decisions
+
+- 8 staff roles: COORDINATOR, USHER, SECURITY, PROTOCOL, TECHNICAL, MEDICAL, TRANSPORT, CATERING
+- `assignToShift` validates: staff exists, staff is active, shift has capacity, role matches (if required)
+- Check-in only from SCHEDULED, check-out only from CHECKED_IN
+- `autoAssignShifts` matches eligible staff by role, skips already-assigned staff, respects shift capacity
+- `deactivateStaff` soft-deactivates (sets `isActive: false`) rather than deleting
+- Feature flag `FF_STAFF_MANAGEMENT` gates all functionality
+- Uses `staff:manage` permission
+
+### Verification Results
+
+| Check               | Result                               |
+| ------------------- | ------------------------------------ |
+| `npm run typecheck` | Passed                               |
+| `npm run test`      | All tests passed, 13 new staff tests |
