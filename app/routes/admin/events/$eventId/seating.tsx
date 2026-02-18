@@ -225,6 +225,380 @@ const layoutLabels: Record<string, string> = {
   classroom: "Classroom",
 };
 
+// ─── Visual Seat Map ─────────────────────────────────────
+
+interface SeatData {
+  id: string;
+  seatLabel: string;
+  tableNumber: number | null;
+  priority: string;
+  participantId: string;
+  participantName: string;
+}
+
+const priorityBorderColors: Record<string, string> = {
+  HEAD_OF_STATE: "border-purple-400",
+  MINISTER: "border-blue-400",
+  AMBASSADOR: "border-indigo-400",
+  SENIOR_OFFICIAL: "border-cyan-400",
+  DELEGATE: "border-green-400",
+  OBSERVER: "border-gray-400",
+  MEDIA: "border-yellow-400",
+};
+
+function SeatCell({ seat, empty }: { seat?: SeatData; empty?: string }) {
+  if (!seat) {
+    return (
+      <div className="flex h-16 w-20 flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted bg-muted/20 text-[10px] text-muted-foreground">
+        <span className="font-mono">{empty}</span>
+        <span>Empty</span>
+      </div>
+    );
+  }
+  const borderColor = priorityBorderColors[seat.priority] ?? "border-gray-300";
+  const bgColor = priorityColors[seat.priority] ?? "bg-gray-50";
+  return (
+    <div
+      className={`flex h-16 w-20 flex-col items-center justify-center rounded-lg border-2 ${borderColor} ${bgColor} p-1 text-[10px] leading-tight`}
+      title={`${seat.seatLabel}: ${seat.participantName} (${seat.priority.replace(/_/g, " ")})`}
+    >
+      <span className="font-mono font-bold">{seat.seatLabel}</span>
+      <span className="max-w-full truncate">{seat.participantName.split(" ")[0]}</span>
+    </div>
+  );
+}
+
+function TheaterLayout({
+  totalSeats,
+  assignments,
+}: {
+  totalSeats: number;
+  assignments: SeatData[];
+}) {
+  const seatsPerRow = Math.min(Math.ceil(Math.sqrt(totalSeats * 2)), 12);
+  const seatMap = new Map(assignments.map((a) => [a.seatLabel, a]));
+
+  const rows: Array<Array<{ label: string; seat?: SeatData }>> = [];
+  for (let i = 0; i < totalSeats; i++) {
+    const rowIdx = Math.floor(i / seatsPerRow);
+    if (!rows[rowIdx]) rows[rowIdx] = [];
+    const label = `S${String(i + 1).padStart(3, "0")}`;
+    rows[rowIdx].push({ label, seat: seatMap.get(label) });
+  }
+
+  // Also map non-sequential labels
+  for (const a of assignments) {
+    if (!seatMap.has(a.seatLabel)) continue;
+    // Check if already in grid
+    const inGrid = rows.flat().some((s) => s.label === a.seatLabel);
+    if (!inGrid) {
+      const lastRow = rows[rows.length - 1];
+      if (lastRow && lastRow.length < seatsPerRow) {
+        lastRow.push({ label: a.seatLabel, seat: a });
+      } else {
+        rows.push([{ label: a.seatLabel, seat: a }]);
+      }
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Stage */}
+      <div className="mx-auto w-48 rounded-t-3xl border-2 border-b-0 border-muted bg-muted/30 py-2 text-center text-xs font-medium text-muted-foreground">
+        STAGE / PODIUM
+      </div>
+      {/* Rows */}
+      <div className="space-y-2">
+        {rows.map((row, rIdx) => (
+          <div key={rIdx} className="flex items-center justify-center gap-1.5">
+            <span className="w-8 text-right text-[10px] text-muted-foreground">R{rIdx + 1}</span>
+            {row.map((s) => (
+              <SeatCell key={s.label} seat={s.seat} empty={s.label} />
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RoundTableLayout({
+  totalSeats,
+  assignments,
+}: {
+  totalSeats: number;
+  assignments: SeatData[];
+}) {
+  const seatMap = new Map(assignments.map((a) => [a.seatLabel, a]));
+
+  // Group assigned seats by tableNumber, and generate all seat slots
+  const tables = new Map<number | string, Array<{ label: string; seat?: SeatData }>>();
+
+  // First, place assigned seats into their tables
+  for (const a of assignments) {
+    const key = a.tableNumber ?? 0;
+    if (!tables.has(key)) tables.set(key, []);
+    tables.get(key)!.push({ label: a.seatLabel, seat: a });
+  }
+
+  // Fill remaining empty seats into tables (distribute evenly, ~8 per table)
+  const seatsPerTable = 8;
+  const assignedCount = assignments.length;
+  const emptyCount = totalSeats - assignedCount;
+
+  if (emptyCount > 0) {
+    // Determine next table number
+    const existingTableNums = [...tables.keys()].filter((k) => typeof k === "number") as number[];
+    let nextTable = existingTableNums.length > 0 ? Math.max(...existingTableNums) + 1 : 1;
+
+    // Fill existing tables up to seatsPerTable, then create new ones
+    let remaining = emptyCount;
+    let seatIdx = assignedCount + 1;
+
+    for (const [key, seats] of tables) {
+      while (seats.length < seatsPerTable && remaining > 0) {
+        const label = `S${String(seatIdx).padStart(3, "0")}`;
+        seats.push({ label });
+        seatIdx++;
+        remaining--;
+      }
+    }
+
+    while (remaining > 0) {
+      const tableSeats: Array<{ label: string; seat?: SeatData }> = [];
+      const count = Math.min(remaining, seatsPerTable);
+      for (let i = 0; i < count; i++) {
+        const label = `S${String(seatIdx).padStart(3, "0")}`;
+        tableSeats.push({ label });
+        seatIdx++;
+        remaining--;
+      }
+      tables.set(nextTable, tableSeats);
+      nextTable++;
+    }
+  }
+
+  // If no tables at all (0 assignments, totalSeats > 0), create empty tables
+  if (tables.size === 0 && totalSeats > 0) {
+    let seatIdx = 1;
+    let tableNum = 1;
+    let remaining = totalSeats;
+    while (remaining > 0) {
+      const tableSeats: Array<{ label: string; seat?: SeatData }> = [];
+      const count = Math.min(remaining, seatsPerTable);
+      for (let i = 0; i < count; i++) {
+        const label = `S${String(seatIdx).padStart(3, "0")}`;
+        tableSeats.push({ label });
+        seatIdx++;
+        remaining--;
+      }
+      tables.set(tableNum, tableSeats);
+      tableNum++;
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-start justify-center gap-8">
+      {[...tables.entries()].map(([tableNum, seats]) => {
+        const radius = Math.max(seats.length * 14, 60);
+        return (
+          <div key={String(tableNum)} className="flex flex-col items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground">Table {tableNum}</span>
+            <div className="relative" style={{ width: radius * 2 + 100, height: radius * 2 + 100 }}>
+              {/* Table circle */}
+              <div
+                className="absolute rounded-full border-2 border-muted bg-muted/10"
+                style={{
+                  width: radius * 1.2,
+                  height: radius * 1.2,
+                  left: "50%",
+                  top: "50%",
+                  transform: "translate(-50%, -50%)",
+                }}
+              />
+              {/* Seats around the table */}
+              {seats.map((s, i) => {
+                const angle = (2 * Math.PI * i) / seats.length - Math.PI / 2;
+                const x = Math.cos(angle) * radius;
+                const y = Math.sin(angle) * radius;
+                return (
+                  <div
+                    key={s.label}
+                    className="absolute"
+                    style={{
+                      left: `calc(50% + ${x}px - 40px)`,
+                      top: `calc(50% + ${y}px - 32px)`,
+                    }}
+                  >
+                    <SeatCell seat={s.seat} empty={s.label} />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function UShapeLayout({
+  totalSeats,
+  assignments,
+}: {
+  totalSeats: number;
+  assignments: SeatData[];
+}) {
+  const seatMap = new Map(assignments.map((a) => [a.seatLabel, a]));
+
+  // Generate all seat slots
+  const allSeats: Array<{ label: string; seat?: SeatData }> = [];
+  for (let i = 0; i < totalSeats; i++) {
+    const label = `S${String(i + 1).padStart(3, "0")}`;
+    allSeats.push({ label, seat: seatMap.get(label) });
+  }
+
+  // Distribute: left side, bottom, right side
+  const sideCount = Math.max(1, Math.floor(totalSeats / 3));
+  const bottomCount = totalSeats - sideCount * 2;
+  const leftSide = allSeats.slice(0, sideCount);
+  const bottom = allSeats.slice(sideCount, sideCount + bottomCount);
+  const rightSide = allSeats.slice(sideCount + bottomCount);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-center gap-6">
+        {/* Left column */}
+        <div className="flex flex-col gap-1.5">
+          {leftSide.map((s) => (
+            <SeatCell key={s.label} seat={s.seat} empty={s.label} />
+          ))}
+        </div>
+        {/* Center space */}
+        <div className="flex w-40 items-center justify-center text-xs text-muted-foreground">
+          Center
+        </div>
+        {/* Right column */}
+        <div className="flex flex-col gap-1.5">
+          {rightSide.map((s) => (
+            <SeatCell key={s.label} seat={s.seat} empty={s.label} />
+          ))}
+        </div>
+      </div>
+      {/* Bottom row */}
+      <div className="flex items-center justify-center gap-1.5">
+        {bottom.map((s) => (
+          <SeatCell key={s.label} seat={s.seat} empty={s.label} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ClassroomLayout({
+  totalSeats,
+  assignments,
+}: {
+  totalSeats: number;
+  assignments: SeatData[];
+}) {
+  const cols = Math.min(Math.ceil(Math.sqrt(totalSeats * 1.5)), 8);
+  const seatMap = new Map(assignments.map((a) => [a.seatLabel, a]));
+
+  const rows: Array<Array<{ label: string; seat?: SeatData }>> = [];
+  for (let i = 0; i < totalSeats; i++) {
+    const rowIdx = Math.floor(i / cols);
+    if (!rows[rowIdx]) rows[rowIdx] = [];
+    const label = `S${String(i + 1).padStart(3, "0")}`;
+    rows[rowIdx].push({ label, seat: seatMap.get(label) });
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="mx-auto w-64 rounded-lg border-2 border-muted bg-muted/30 py-2 text-center text-xs font-medium text-muted-foreground">
+        INSTRUCTOR / PRESENTER
+      </div>
+      <div className="space-y-2">
+        {rows.map((row, rIdx) => (
+          <div key={rIdx} className="flex items-center justify-center gap-3">
+            <span className="w-8 text-right text-[10px] text-muted-foreground">R{rIdx + 1}</span>
+            {/* Add a gap in the middle for an aisle */}
+            {row.map((s, sIdx) => (
+              <div key={s.label} className="flex gap-1.5">
+                {sIdx === Math.floor(row.length / 2) && sIdx > 0 && <div className="w-6" />}
+                <SeatCell seat={s.seat} empty={s.label} />
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function VisualSeatMap({
+  layoutType,
+  totalSeats,
+  assignments,
+  isFinalized,
+  isSubmitting,
+}: {
+  layoutType: string;
+  totalSeats: number;
+  assignments: SeatData[];
+  isFinalized: boolean;
+  isSubmitting: boolean;
+}) {
+  const [showGrid, setShowGrid] = useState(true);
+
+  return (
+    <div className="rounded-lg border bg-card">
+      <div className="flex items-center justify-between border-b px-4 py-3">
+        <h4 className="text-sm font-semibold">
+          Visual Layout ({layoutLabels[layoutType] ?? layoutType}) —{" "}
+          <span className="font-normal text-muted-foreground">
+            {assignments.length} / {totalSeats} seats assigned
+          </span>
+        </h4>
+        <Button variant="ghost" size="sm" onClick={() => setShowGrid(!showGrid)}>
+          {showGrid ? "Hide Map" : "Show Map"}
+        </Button>
+      </div>
+      {showGrid && (
+        <div className="overflow-x-auto p-6">
+          {/* Priority Legend */}
+          <div className="mb-4 flex flex-wrap gap-2">
+            {Object.entries(priorityColors).map(([key, cls]) => (
+              <span
+                key={key}
+                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${cls}`}
+              >
+                {key.replace(/_/g, " ")}
+              </span>
+            ))}
+            <span className="inline-flex items-center rounded-full border-2 border-dashed border-muted bg-muted/20 px-2 py-0.5 text-[10px] text-muted-foreground">
+              Empty
+            </span>
+          </div>
+
+          {layoutType === "theater" && (
+            <TheaterLayout totalSeats={totalSeats} assignments={assignments} />
+          )}
+          {layoutType === "table" && (
+            <RoundTableLayout totalSeats={totalSeats} assignments={assignments} />
+          )}
+          {layoutType === "u-shape" && (
+            <UShapeLayout totalSeats={totalSeats} assignments={assignments} />
+          )}
+          {layoutType === "classroom" && (
+            <ClassroomLayout totalSeats={totalSeats} assignments={assignments} />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SeatingPage() {
   const { eventId, plans, stats, participants, selectedPlan, validation, conflicts, filters } =
     useLoaderData<typeof loader>();
@@ -560,12 +934,17 @@ export default function SeatingPage() {
             </div>
           )}
 
-          {/* Seating Grid */}
-          {selectedPlan.assignments.length === 0 ? (
-            <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
-              No seats assigned yet.
-            </div>
-          ) : (
+          {/* Visual Seat Map — always shown */}
+          <VisualSeatMap
+            layoutType={selectedPlan.layoutType}
+            totalSeats={selectedPlan.totalSeats}
+            assignments={selectedPlan.assignments}
+            isFinalized={selectedPlan.isFinalized}
+            isSubmitting={isSubmitting}
+          />
+
+          {/* Assignment Table */}
+          {selectedPlan.assignments.length > 0 && (
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-sm">
                 <thead className="border-b bg-muted/50">
