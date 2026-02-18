@@ -268,6 +268,186 @@ enum QueueStatus {
   CANCELLED
 }
 
+// ─── Phase 5 Enums ──────────────────────────────────────
+
+// Accommodation
+enum RoomBlockStatus {
+  AVAILABLE
+  RESERVED
+  OCCUPIED
+  RELEASED
+}
+
+enum AccommodationAssignmentStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+}
+
+// Transport
+enum TransferType {
+  AIRPORT_ARRIVAL
+  AIRPORT_DEPARTURE
+  INTER_VENUE
+  CUSTOM
+}
+
+enum VehicleType {
+  SEDAN
+  SUV
+  VAN
+  BUS
+  MINIBUS
+}
+
+enum TransferStatus {
+  SCHEDULED
+  EN_ROUTE
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+// Catering
+enum MealType {
+  BREAKFAST
+  LUNCH
+  DINNER
+  RECEPTION
+  COFFEE_BREAK
+  SNACK
+}
+
+enum DietaryCategory {
+  REGULAR
+  VEGETARIAN
+  VEGAN
+  HALAL
+  KOSHER
+  GLUTEN_FREE
+  CUSTOM
+}
+
+// Parking
+enum ParkingPermitStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+  SUSPENDED
+}
+
+// Venue
+enum RoomBookingStatus {
+  TENTATIVE
+  CONFIRMED
+  CANCELLED
+}
+
+// Protocol
+enum SeatingPriority {
+  HEAD_OF_STATE
+  MINISTER
+  AMBASSADOR
+  SENIOR_OFFICIAL
+  DELEGATE
+  OBSERVER
+  MEDIA
+}
+
+enum BilateralStatus {
+  REQUESTED
+  CONFIRMED
+  DECLINED
+  CANCELLED
+  COMPLETED
+}
+
+// Companion
+enum CompanionType {
+  SPOUSE
+  FAMILY
+  AIDE
+  SECURITY
+  INTERPRETER
+}
+
+// Gift
+enum GiftDeliveryStatus {
+  PENDING
+  ASSEMBLED
+  DELIVERED
+  RETURNED
+}
+
+// Incident
+enum IncidentSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IncidentStatus {
+  REPORTED
+  INVESTIGATING
+  ESCALATED
+  RESOLVED
+  CLOSED
+}
+
+// Staff
+enum ShiftStatus {
+  SCHEDULED
+  CHECKED_IN
+  ACTIVE
+  CHECKED_OUT
+  NO_SHOW
+}
+
+enum StaffRole {
+  COORDINATOR
+  USHER
+  SECURITY
+  PROTOCOL
+  TECHNICAL
+  MEDICAL
+  TRANSPORT
+  CATERING
+}
+
+// Compliance
+enum ComplianceStatus {
+  VALID
+  EXPIRING_SOON
+  EXPIRED
+  NOT_PROVIDED
+}
+
+enum DataRetentionAction {
+  RETAIN
+  ANONYMIZE
+  DELETE
+}
+
+// Survey
+enum SurveyStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+  ARCHIVED
+}
+
+// Certificate
+enum CertificateStatus {
+  DRAFT
+  GENERATED
+  SENT
+  DOWNLOADED
+  REVOKED
+}
+
 // ─── Identity & Access Domain ────────────────────────────
 
 model Tenant {
@@ -306,6 +486,37 @@ model Tenant {
   broadcastMessages    BroadcastMessage[]
   eventSeries          EventSeries[]
 
+  // Phase 5 reverse relations
+  hotels                   Hotel[]
+  accommodationAssignments AccommodationAssignment[]
+  transportRoutes          TransportRoute[]
+  vehicles                 Vehicle[]
+  transfers                Transfer[]
+  mealPlans                MealPlan[]
+  parkingZones             ParkingZone[]
+  parkingPermits           ParkingPermit[]
+  venueMaps                VenueMap[]
+  roomBookings             RoomBooking[]
+  seatingPlans             SeatingPlan[]
+  bilateralMeetings        BilateralMeeting[]
+  meetingSlots             MeetingSlot[]
+  companions               Companion[]
+  companionActivities      CompanionActivity[]
+  giftItems                GiftItem[]
+  welcomePackages          WelcomePackage[]
+  giftDeliveries           GiftDelivery[]
+  incidents                Incident[]
+  commandCenterWidgets     CommandCenterWidget[]
+  alertRules               AlertRule[]
+  staffMembers             StaffMember[]
+  staffShifts              StaffShift[]
+  surveys                  Survey[]
+  certificateTemplates     CertificateTemplate[]
+  certificates             Certificate[]
+  documentRequirements     DocumentRequirement[]
+  participantDocuments     ParticipantDocument[]
+  dataRetentionPolicies    DataRetentionPolicy[]
+
   @@index([name, email])
 }
 
@@ -335,6 +546,22 @@ model User {
   notifications   Notification[]
   stepAssignments StepAssignment[] @relation("StepAssignments")
   savedViews      SavedView[]      @relation("SavedViews")
+
+  // Phase 5 named reverse relations
+  roomBookings                RoomBooking[]         @relation("RoomBookingBookedBy")
+  seatingAssignments          SeatingAssignment[]   @relation("SeatingAssignedBy")
+  bilateralRequests           BilateralMeeting[]    @relation("BilateralRequestedBy")
+  incidentsReported           Incident[]            @relation("IncidentReportedBy")
+  incidentsAssigned           Incident[]            @relation("IncidentAssignedTo")
+  incidentsResolved           Incident[]            @relation("IncidentResolvedBy")
+  incidentUpdates             IncidentUpdate[]      @relation("IncidentUpdateBy")
+  escalationsReceived         IncidentEscalation[]  @relation("EscalatedTo")
+  escalationsInitiated        IncidentEscalation[]  @relation("EscalatedBy")
+  seatingConflictsResolved    SeatingConflict[]     @relation("SeatingConflictResolvedBy")
+  shiftAssignmentsMade        ShiftAssignment[]     @relation("ShiftAssignedBy")
+  giftDeliveriesMade          GiftDelivery[]        @relation("GiftDeliveredBy")
+  participantDocVerifications ParticipantDocument[] @relation("DocumentVerifiedBy")
+  staffMembers                StaffMember[]
 
   @@index([deletedAt])
   @@index([tenantId])
@@ -391,6 +618,35 @@ model Event {
   waitlistEntries   WaitlistEntry[]
   broadcastMessages BroadcastMessage[]
   eventEdition      EventEdition?
+
+  // Phase 5 reverse relations
+  hotels                   Hotel[]
+  accommodationAssignments AccommodationAssignment[]
+  transportRoutes          TransportRoute[]
+  vehicles                 Vehicle[]
+  transfers                Transfer[]
+  mealPlans                MealPlan[]
+  parkingZones             ParkingZone[]
+  parkingPermits           ParkingPermit[]
+  venueMaps                VenueMap[]
+  roomBookings             RoomBooking[]
+  seatingPlans             SeatingPlan[]
+  bilateralMeetings        BilateralMeeting[]
+  meetingSlots             MeetingSlot[]
+  companions               Companion[]
+  companionActivities      CompanionActivity[]
+  giftItems                GiftItem[]
+  welcomePackages          WelcomePackage[]
+  giftDeliveries           GiftDelivery[]
+  incidents                Incident[]
+  commandCenterWidgets     CommandCenterWidget[]
+  alertRules               AlertRule[]
+  staffMembers             StaffMember[]
+  staffShifts              StaffShift[]
+  surveys                  Survey[]
+  certificateTemplates     CertificateTemplate[]
+  certificates             Certificate[]
+  documentRequirements     DocumentRequirement[]
 
   @@unique([tenantId, name])
   @@index([tenantId, status])
@@ -588,6 +844,20 @@ model Participant {
   messageDeliveries MessageDelivery[]
   parallelBranches  ParallelBranch[]
 
+  // Phase 5 reverse relations
+  accommodationAssignment AccommodationAssignment?
+  transferPassengers      TransferPassenger[]
+  mealVouchers            MealVoucher[]
+  parkingPermits          ParkingPermit[]
+  seatingAssignments      SeatingAssignment[]
+  bilateralRequests       BilateralMeeting[]       @relation("BilateralRequester")
+  bilateralInvitations    BilateralMeeting[]       @relation("BilateralRequestee")
+  companions              Companion[]
+  giftDeliveries          GiftDelivery[]
+  surveyResponses         SurveyResponse[]
+  certificates            Certificate[]
+  participantDocuments    ParticipantDocument[]
+
   @@unique([tenantId, eventId, registrationCode])
   @@index([tenantId, eventId])
   @@index([eventId, status])
@@ -666,6 +936,7 @@ model FormTemplate {
   updatedAt         DateTime         @updatedAt
 
   versions FormVersion[]
+  surveys  Survey[]
 
   @@unique([tenantId, eventId, participantTypeId, name])
   @@index([tenantId, eventId])
@@ -1443,4 +1714,897 @@ model ParallelBranch {
   @@unique([participantId, forkStepId, branchStepId])
   @@index([participantId, forkStepId])
   @@index([status])
+}
+
+// ─── Accommodation Domain (Phase 5) ─────────────────────
+
+model Hotel {
+  id              String   @id @default(cuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId         String
+  event           Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name            String
+  address         String
+  starRating      Int?
+  totalRooms      Int
+  contactName     String?
+  contactPhone    String?
+  distanceToVenue String?
+  amenities       String[]
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  roomBlocks RoomBlock[]
+
+  @@unique([tenantId, eventId, name])
+  @@index([eventId])
+}
+
+model RoomBlock {
+  id                String          @id @default(cuid())
+  hotelId           String
+  hotel             Hotel           @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  participantTypeId String?
+  roomType          String
+  quantity          Int
+  pricePerNight     Float?
+  status            RoomBlockStatus @default(AVAILABLE)
+  checkInDate       DateTime
+  checkOutDate      DateTime
+  contactEmail      String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  assignments AccommodationAssignment[]
+
+  @@index([hotelId])
+  @@index([status])
+}
+
+model AccommodationAssignment {
+  id              String                        @id @default(cuid())
+  tenantId        String
+  tenant          Tenant                        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId         String
+  event           Event                         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  roomBlockId     String
+  roomBlock       RoomBlock                     @relation(fields: [roomBlockId], references: [id], onDelete: Cascade)
+  participantId   String                        @unique
+  participant     Participant                   @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  roomNumber      String?
+  checkInDate     DateTime
+  checkOutDate    DateTime
+  status          AccommodationAssignmentStatus @default(PENDING)
+  specialRequests String?
+  notes           String?
+  assignedBy      String?
+  createdAt       DateTime                      @default(now())
+  updatedAt       DateTime                      @updatedAt
+
+  @@index([eventId, status])
+  @@index([roomBlockId])
+}
+
+// ─── Transportation Domain (Phase 5) ────────────────────
+
+model TransportRoute {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name      String
+  stops     Json     @default("[]")
+  frequency Int?
+  startTime String?
+  endTime   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transfers Transfer[]
+
+  @@unique([tenantId, eventId, name])
+  @@index([eventId, isActive])
+}
+
+model Vehicle {
+  id            String      @id @default(cuid())
+  tenantId      String
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId       String
+  event         Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  plateNumber   String
+  type          VehicleType
+  capacity      Int
+  assignedTo    String?
+  driverName    String?
+  driverPhone   String?
+  gpsTrackingId String?
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  transfers Transfer[]
+
+  @@unique([tenantId, eventId, plateNumber])
+  @@index([eventId, isActive])
+}
+
+model Transfer {
+  id          String          @id @default(cuid())
+  tenantId    String
+  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId     String
+  event       Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  routeId     String?
+  route       TransportRoute? @relation(fields: [routeId], references: [id])
+  vehicleId   String?
+  vehicle     Vehicle?        @relation(fields: [vehicleId], references: [id])
+  type        TransferType
+  origin      String
+  destination String
+  scheduledAt DateTime
+  completedAt DateTime?
+  status      TransferStatus  @default(SCHEDULED)
+  notes       String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  passengers TransferPassenger[]
+
+  @@index([eventId, scheduledAt])
+  @@index([status])
+  @@index([vehicleId])
+}
+
+model TransferPassenger {
+  id            String      @id @default(cuid())
+  transferId    String
+  transfer      Transfer    @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  participantId String
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  seatNumber    Int?
+  boardedAt     DateTime?
+  droppedAt     DateTime?
+  createdAt     DateTime    @default(now())
+
+  @@unique([transferId, participantId])
+  @@index([participantId])
+}
+
+// ─── Catering Domain (Phase 5) ──────────────────────────
+
+model MealPlan {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name      String
+  date      DateTime @db.Date
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions MealSession[]
+
+  @@unique([tenantId, eventId, name, date])
+  @@index([eventId])
+}
+
+model MealSession {
+  id         String   @id @default(cuid())
+  mealPlanId String
+  mealPlan   MealPlan @relation(fields: [mealPlanId], references: [id], onDelete: Cascade)
+  mealType   MealType
+  venue      String
+  startTime  DateTime
+  endTime    DateTime
+  capacity   Int?
+  menuNotes  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  vouchers MealVoucher[]
+
+  @@index([mealPlanId, mealType])
+}
+
+model MealVoucher {
+  id              String          @id @default(cuid())
+  tenantId        String
+  eventId         String
+  mealSessionId   String
+  mealSession     MealSession     @relation(fields: [mealSessionId], references: [id], onDelete: Cascade)
+  participantId   String
+  participant     Participant     @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  dietaryCategory DietaryCategory @default(REGULAR)
+  qrCode          String          @unique
+  isRedeemed      Boolean         @default(false)
+  redeemedAt      DateTime?
+  redeemedBy      String?
+  cancelledReason String?
+  issuedAt        DateTime        @default(now())
+
+  @@unique([mealSessionId, participantId])
+  @@index([participantId])
+  @@index([eventId])
+}
+
+// ─── Parking Domain (Phase 5) ───────────────────────────
+
+model ParkingZone {
+  id             String   @id @default(cuid())
+  tenantId       String
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId        String
+  event          Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name           String
+  code           String
+  capacity       Int
+  occupancy      Int      @default(0)
+  latitude       Float?
+  longitude      Float?
+  color          String?
+  accessRules    Json     @default("[]")
+  operatingHours Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  permits ParkingPermit[]
+
+  @@unique([tenantId, eventId, code])
+  @@index([eventId])
+}
+
+model ParkingPermit {
+  id            String              @id @default(cuid())
+  tenantId      String
+  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId       String
+  event         Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  zoneId        String
+  zone          ParkingZone         @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  participantId String?
+  participant   Participant?        @relation(fields: [participantId], references: [id])
+  permitNumber  String
+  vehiclePlate  String?
+  status        ParkingPermitStatus @default(ACTIVE)
+  validFrom     DateTime
+  validUntil    DateTime
+  issuedBy      String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@unique([tenantId, eventId, permitNumber])
+  @@index([eventId, status])
+  @@index([participantId])
+  @@index([zoneId])
+}
+
+// ─── Venue & Floor Plan Domain (Phase 5) ────────────────
+
+model VenueMap {
+  id           String   @id @default(cuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId      String
+  event        Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  floorPlanUrl String?
+  mapData      Json     @default("{}")
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  rooms VenueRoom[]
+
+  @@unique([tenantId, eventId, name])
+  @@index([eventId])
+}
+
+model VenueRoom {
+  id         String   @id @default(cuid())
+  venueMapId String
+  venueMap   VenueMap @relation(fields: [venueMapId], references: [id], onDelete: Cascade)
+  name       String
+  floor      String?
+  capacity   Int?
+  roomType   String?
+  equipment  Json     @default("[]")
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  bookings RoomBooking[]
+
+  @@index([venueMapId])
+}
+
+model RoomBooking {
+  id           String            @id @default(cuid())
+  tenantId     String
+  tenant       Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId      String
+  event        Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  roomId       String
+  room         VenueRoom         @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  title        String
+  description  String?
+  startTime    DateTime
+  endTime      DateTime
+  status       RoomBookingStatus @default(TENTATIVE)
+  bookedBy     String
+  bookedByUser User              @relation("RoomBookingBookedBy", fields: [bookedBy], references: [id])
+  setup        Json?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([eventId, startTime, endTime])
+  @@index([roomId, startTime])
+}
+
+// ─── Protocol — Seating Domain (Phase 5) ────────────────
+
+model SeatingPlan {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId       String
+  event         Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name          String
+  layoutType    String
+  layout        Json     @default("{}")
+  totalSeats    Int
+  assignedSeats Int      @default(0)
+  isFinalized   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  assignments SeatingAssignment[]
+
+  @@unique([tenantId, eventId, name])
+  @@index([eventId])
+}
+
+model SeatingAssignment {
+  id             String          @id @default(cuid())
+  seatingPlanId  String
+  seatingPlan    SeatingPlan     @relation(fields: [seatingPlanId], references: [id], onDelete: Cascade)
+  participantId  String
+  participant    Participant     @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  seatLabel      String
+  tableNumber    Int?
+  priority       SeatingPriority
+  assignedBy     String
+  assignedByUser User            @relation("SeatingAssignedBy", fields: [assignedBy], references: [id])
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@unique([seatingPlanId, seatLabel])
+  @@unique([seatingPlanId, participantId])
+  @@index([participantId])
+}
+
+model SeatingConflict {
+  id             String    @id @default(cuid())
+  tenantId       String
+  eventId        String
+  seatingPlanId  String?
+  participantAId String
+  participantBId String
+  conflictType   String
+  description    String?
+  isResolved     Boolean   @default(false)
+  resolvedBy     String?
+  resolvedByUser User?     @relation("SeatingConflictResolvedBy", fields: [resolvedBy], references: [id])
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@unique([tenantId, eventId, participantAId, participantBId])
+  @@index([eventId, isResolved])
+}
+
+// ─── Protocol — Bilateral Domain (Phase 5) ──────────────
+
+model BilateralMeeting {
+  id              String          @id @default(cuid())
+  tenantId        String
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId         String
+  event           Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  requesterId     String
+  requester       Participant     @relation("BilateralRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  requesteeId     String
+  requestee       Participant     @relation("BilateralRequestee", fields: [requesteeId], references: [id], onDelete: Cascade)
+  status          BilateralStatus @default(REQUESTED)
+  requestedBy     String
+  requestedByUser User            @relation("BilateralRequestedBy", fields: [requestedBy], references: [id])
+  priority        Int             @default(0)
+  notes           String?
+  roomId          String?
+  scheduledAt     DateTime?
+  duration        Int             @default(30)
+  confirmedAt     DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  slots MeetingSlot[]
+
+  @@unique([tenantId, eventId, requesterId, requesteeId])
+  @@index([eventId, status])
+  @@index([requesterId])
+  @@index([requesteeId])
+}
+
+model MeetingSlot {
+  id        String            @id @default(cuid())
+  tenantId  String
+  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId   String
+  event     Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  meetingId String?
+  meeting   BilateralMeeting? @relation(fields: [meetingId], references: [id])
+  roomId    String?
+  startTime DateTime
+  endTime   DateTime
+  isBooked  Boolean           @default(false)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@index([eventId, startTime])
+  @@index([meetingId])
+  @@index([isBooked])
+}
+
+// ─── Companion Domain (Phase 5) ─────────────────────────
+
+model Companion {
+  id                   String        @id @default(cuid())
+  tenantId             String
+  tenant               Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId              String
+  event                Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  primaryParticipantId String
+  primaryParticipant   Participant   @relation(fields: [primaryParticipantId], references: [id], onDelete: Cascade)
+  firstName            String
+  lastName             String
+  type                 CompanionType
+  email                String?
+  phone                String?
+  passportNumber       String?
+  nationality          String?
+  dateOfBirth          DateTime?
+  photoUrl             String?
+  registrationCode     String        @unique
+  badgeTemplateId      String?
+  extras               Json          @default("{}")
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  activities CompanionActivity[] @relation("CompanionActivities")
+
+  @@index([eventId, primaryParticipantId])
+  @@index([tenantId, eventId])
+}
+
+model CompanionActivity {
+  id                String     @id @default(cuid())
+  tenantId          String
+  tenant            Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId           String
+  event             Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  companionId       String?
+  companion         Companion? @relation("CompanionActivities", fields: [companionId], references: [id])
+  name              String
+  description       String?
+  date              DateTime   @db.Date
+  startTime         DateTime
+  endTime           DateTime
+  location          String
+  capacity          Int
+  currentSignups    Int        @default(0)
+  transportIncluded Boolean    @default(true)
+  cost              Float?     @default(0)
+  notes             String?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  @@index([eventId, date])
+  @@index([companionId])
+}
+
+// ─── Gift Protocol Domain (Phase 5) ─────────────────────
+
+model GiftItem {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  category    String
+  value       Float?
+  currency    String   @default("USD")
+  quantity    Int
+  allocated   Int      @default(0)
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  deliveries GiftDelivery[]
+
+  @@index([eventId, category])
+}
+
+model WelcomePackage {
+  id                 String   @id @default(cuid())
+  tenantId           String
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId            String
+  event              Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name               String
+  forParticipantType String?
+  contents           Json     @default("[]")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  deliveries GiftDelivery[]
+
+  @@unique([tenantId, eventId, name])
+  @@index([eventId])
+}
+
+model GiftDelivery {
+  id               String             @id @default(cuid())
+  tenantId         String
+  tenant           Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId          String
+  event            Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  giftItemId       String?
+  giftItem         GiftItem?          @relation(fields: [giftItemId], references: [id])
+  welcomePackageId String?
+  welcomePackage   WelcomePackage?    @relation(fields: [welcomePackageId], references: [id])
+  participantId    String?
+  participant      Participant?       @relation(fields: [participantId], references: [id])
+  recipientName    String
+  status           GiftDeliveryStatus @default(PENDING)
+  deliveredAt      DateTime?
+  deliveredBy      String?
+  deliveredByUser  User?              @relation("GiftDeliveredBy", fields: [deliveredBy], references: [id])
+  deliveryMethod   String?
+  notes            String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([eventId, status])
+  @@index([participantId])
+  @@index([giftItemId])
+}
+
+// ─── Incident Management Domain (Phase 5) ───────────────
+
+model Incident {
+  id             String           @id @default(cuid())
+  tenantId       String
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId        String
+  event          Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  title          String
+  description    String
+  severity       IncidentSeverity
+  status         IncidentStatus   @default(REPORTED)
+  location       String?
+  reportedBy     String
+  reportedByUser User             @relation("IncidentReportedBy", fields: [reportedBy], references: [id])
+  assignedTo     String?
+  assignedToUser User?            @relation("IncidentAssignedTo", fields: [assignedTo], references: [id])
+  resolvedBy     String?
+  resolvedByUser User?            @relation("IncidentResolvedBy", fields: [resolvedBy], references: [id])
+  resolvedAt     DateTime?
+  metadata       Json?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  updates     IncidentUpdate[]
+  escalations IncidentEscalation[]
+
+  @@index([eventId, severity, status])
+  @@index([status])
+  @@index([reportedBy])
+  @@index([assignedTo])
+}
+
+model IncidentUpdate {
+  id            String   @id @default(cuid())
+  incidentId    String
+  incident      Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  message       String
+  updatedBy     String
+  updatedByUser User     @relation("IncidentUpdateBy", fields: [updatedBy], references: [id])
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  @@index([incidentId, createdAt])
+}
+
+model IncidentEscalation {
+  id              String    @id @default(cuid())
+  incidentId      String
+  incident        Incident  @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  escalatedTo     String
+  escalatedToUser User      @relation("EscalatedTo", fields: [escalatedTo], references: [id])
+  escalatedBy     String
+  escalatedByUser User      @relation("EscalatedBy", fields: [escalatedBy], references: [id])
+  reason          String
+  acknowledgedAt  DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([incidentId])
+  @@index([escalatedTo])
+}
+
+// ─── Command Center Domain (Phase 5) ────────────────────
+
+model CommandCenterWidget {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  widgetType  String
+  title       String
+  config      Json     @default("{}")
+  gridX       Int
+  gridY       Int
+  gridW       Int
+  gridH       Int
+  refreshRate Int      @default(5)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([eventId])
+}
+
+model AlertRule {
+  id              String           @id @default(cuid())
+  tenantId        String
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId         String
+  event           Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  metric          String
+  condition       String
+  threshold       Float
+  severity        IncidentSeverity @default(MEDIUM)
+  cooldownMinutes Int              @default(15)
+  isActive        Boolean          @default(true)
+  notifyRoles     String[]
+  notifyUsers     String[]
+  lastTriggered   DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([tenantId, eventId, name])
+  @@index([eventId, isActive])
+}
+
+// ─── Staff Management Domain (Phase 5) ──────────────────
+
+model StaffMember {
+  id        String    @id @default(cuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId   String
+  event     Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      StaffRole
+  zone      String?
+  phone     String?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  assignments ShiftAssignment[]
+
+  @@unique([userId, eventId])
+  @@index([eventId, role])
+  @@index([eventId, isActive])
+}
+
+model StaffShift {
+  id           String     @id @default(cuid())
+  tenantId     String
+  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId      String
+  event        Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name         String
+  date         DateTime   @db.Date
+  startTime    DateTime
+  endTime      DateTime
+  zone         String?
+  requiredRole StaffRole?
+  capacity     Int
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  assignments ShiftAssignment[]
+
+  @@index([eventId, date])
+}
+
+model ShiftAssignment {
+  id             String      @id @default(cuid())
+  shiftId        String
+  shift          StaffShift  @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  staffMemberId  String
+  staffMember    StaffMember @relation(fields: [staffMemberId], references: [id], onDelete: Cascade)
+  status         ShiftStatus @default(SCHEDULED)
+  checkedInAt    DateTime?
+  checkedOutAt   DateTime?
+  assignedBy     String
+  assignedByUser User        @relation("ShiftAssignedBy", fields: [assignedBy], references: [id])
+  notes          String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@unique([shiftId, staffMemberId])
+  @@index([staffMemberId])
+  @@index([status])
+}
+
+// ─── Survey Domain (Phase 5) ────────────────────────────
+
+model Survey {
+  id             String        @id @default(cuid())
+  tenantId       String
+  tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId        String
+  event          Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  formTemplateId String?
+  formTemplate   FormTemplate? @relation(fields: [formTemplateId], references: [id])
+  title          String
+  description    String?
+  status         SurveyStatus  @default(DRAFT)
+  opensAt        DateTime?
+  closesAt       DateTime?
+  isAnonymous    Boolean       @default(false)
+  createdBy      String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  responses SurveyResponse[]
+
+  @@index([eventId, status])
+}
+
+model SurveyResponse {
+  id            String       @id @default(cuid())
+  surveyId      String
+  survey        Survey       @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  participantId String?
+  participant   Participant? @relation(fields: [participantId], references: [id])
+  answers       Json         @default("{}")
+  submittedAt   DateTime     @default(now())
+
+  @@index([surveyId])
+  @@index([participantId])
+}
+
+// ─── Certificate Domain (Phase 5) ───────────────────────
+
+model CertificateTemplate {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId     String?
+  event       Event?   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  layout      Json     @default("{}")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  certificates Certificate[]
+
+  @@index([tenantId])
+  @@index([eventId])
+}
+
+model Certificate {
+  id            String              @id @default(cuid())
+  tenantId      String
+  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId       String
+  event         Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  templateId    String
+  template      CertificateTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  participantId String
+  participant   Participant         @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  status        CertificateStatus   @default(DRAFT)
+  fileUrl       String?
+  qrCode        String?             @unique
+  issuedAt      DateTime?
+  sentAt        DateTime?
+  downloadedAt  DateTime?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@unique([templateId, participantId])
+  @@index([eventId, status])
+  @@index([participantId])
+}
+
+// ─── Compliance Domain (Phase 5) ────────────────────────
+
+model DocumentRequirement {
+  id               String   @id @default(cuid())
+  tenantId         String
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId          String
+  event            Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name             String
+  description      String?
+  documentType     String
+  isRequired       Boolean  @default(true)
+  participantTypes String[]
+  validityDays     Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  documents ParticipantDocument[]
+
+  @@unique([tenantId, eventId, name])
+  @@index([eventId])
+}
+
+model ParticipantDocument {
+  id             String              @id @default(cuid())
+  tenantId       String
+  tenant         Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  requirementId  String
+  requirement    DocumentRequirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  participantId  String
+  participant    Participant         @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  fileName       String
+  fileSize       Int
+  mimeType       String
+  storageUrl     String
+  status         ComplianceStatus    @default(NOT_PROVIDED)
+  expiresAt      DateTime?
+  verifiedAt     DateTime?
+  verifiedBy     String?
+  verifiedByUser User?               @relation("DocumentVerifiedBy", fields: [verifiedBy], references: [id])
+  metadata       Json?
+  uploadedAt     DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@unique([requirementId, participantId])
+  @@index([participantId])
+  @@index([status])
+}
+
+model DataRetentionPolicy {
+  id            String              @id @default(cuid())
+  tenantId      String
+  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  entityType    String
+  retentionDays Int
+  action        DataRetentionAction @default(ANONYMIZE)
+  isActive      Boolean             @default(true)
+  lastRunAt     DateTime?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@unique([tenantId, entityType])
+  @@index([isActive])
 }

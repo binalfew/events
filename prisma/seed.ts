@@ -82,6 +82,22 @@ async function main() {
     { resource: "waitlist", action: "manage" },
     { resource: "communication", action: "broadcast" },
     { resource: "event-clone", action: "execute" },
+
+    // Phase 5 permissions
+    { resource: "accommodation", action: "manage" },
+    { resource: "transport", action: "manage" },
+    { resource: "catering", action: "manage" },
+    { resource: "parking", action: "manage" },
+    { resource: "venue", action: "manage" },
+    { resource: "protocol", action: "manage" },
+    { resource: "bilateral", action: "manage" },
+    { resource: "incident", action: "manage" },
+    { resource: "incident", action: "report" },
+    { resource: "staff", action: "manage" },
+    { resource: "compliance", action: "manage" },
+    { resource: "survey", action: "manage" },
+    { resource: "certificate", action: "manage" },
+    { resource: "command-center", action: "view" },
   ];
 
   const permissions = await Promise.all(
@@ -398,6 +414,26 @@ async function main() {
     { key: "FF_WAITLIST", description: "Waitlist management with auto-promotion" },
     { key: "FF_COMMUNICATION_HUB", description: "Broadcast messaging via email/SMS/push" },
     { key: "FF_KIOSK_MODE", description: "Self-service kiosk terminals for events" },
+    { key: "FF_PARALLEL_WORKFLOWS", description: "Parallel workflow branches with fork/join" },
+
+    // Phase 5 feature flags
+    {
+      key: "FF_ACCOMMODATION",
+      description: "Hotel and room block management with auto-assignment",
+    },
+    { key: "FF_TRANSPORT", description: "Transport routes, vehicles, and transfer scheduling" },
+    { key: "FF_CATERING", description: "Meal planning, dietary tracking, and voucher scanning" },
+    { key: "FF_PROTOCOL_SEATING", description: "Protocol-aware seating plans and assignments" },
+    {
+      key: "FF_BILATERAL_SCHEDULER",
+      description: "Bilateral meeting request and scheduling system",
+    },
+    { key: "FF_INCIDENT_MANAGEMENT", description: "Incident reporting, tracking, and escalation" },
+    { key: "FF_STAFF_MANAGEMENT", description: "Staff roster and shift scheduling" },
+    {
+      key: "FF_COMPLIANCE_DASHBOARD",
+      description: "Document compliance tracking and data retention policies",
+    },
   ];
 
   for (const flag of defaultFlags) {
