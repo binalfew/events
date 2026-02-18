@@ -256,6 +256,12 @@ export default function EventsListPage() {
                   >
                     Templates
                   </Link>
+                  <Link
+                    to={`/admin/events/${event.id}/surveys`}
+                    className="text-primary hover:underline"
+                  >
+                    Surveys
+                  </Link>
                 </div>
                 <div className="flex flex-wrap gap-x-3 gap-y-1">
                   <span className="text-muted-foreground font-medium">Settings:</span>

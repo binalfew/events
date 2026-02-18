@@ -597,3 +597,46 @@ Built document compliance management with configurable requirements per particip
 | ------------------- | ----------------------------------------- |
 | `npm run typecheck` | Passed                                    |
 | `npm run test`      | All tests passed, 14 new compliance tests |
+
+---
+
+## P5-14: Post-Event Surveys
+
+**Status:** Completed
+**Date:** 2026-02-18
+
+### Summary
+
+Built post-event survey system with survey lifecycle management (DRAFT → PUBLISHED → CLOSED → ARCHIVED), response submission with duplicate prevention and open/close window enforcement, question-by-question analytics (numeric averages, categorical distributions), CSV export, and form template integration. 12 test cases.
+
+### Files Created
+
+1. **`app/lib/schemas/survey.ts`** — Zod schemas for `createSurvey`, `submitResponse`, `surveyFilters`
+2. **`app/services/surveys.server.ts`** — Service layer with `SurveyError`, 10 functions: `createSurvey`, `listSurveys`, `getSurvey`, `publishSurvey`, `closeSurvey`, `archiveSurvey`, `submitResponse`, `getResponses`, `getSurveyAnalytics`, `exportSurveyResults`
+3. **`app/routes/admin/events/$eventId/surveys.tsx`** — Admin route with stats cards (total, published, responses, draft), create survey form with form template picker and open/close dates, survey cards with status badges and lifecycle actions (publish/close/archive), inline response submission form, CSV export button
+4. **`app/services/__tests__/surveys.server.test.ts`** — 12 test cases covering survey creation, publish (including non-DRAFT guard), close (including non-PUBLISHED guard), response submission (including not-published and duplicate guards), analytics with numeric/categorical breakdown, CSV export, and archive lifecycle
+
+### Files Modified
+
+1. **`app/routes/admin/events/index.tsx`** — Added "Surveys" link in Comms section
+2. **`app/lib/feature-flags.server.ts`** — Added `SURVEYS: "FF_SURVEYS"` to FEATURE_FLAG_KEYS
+3. **`prisma/seed.ts`** — Added `FF_SURVEYS` feature flag seed entry
+
+### Key Design Decisions
+
+- Survey lifecycle: DRAFT → PUBLISHED → CLOSED → ARCHIVED (strict one-way transitions)
+- Duplicate response prevention: checks for existing response by (surveyId, participantId)
+- Open/close window enforcement: validates against opensAt/closesAt timestamps
+- Analytics computes numeric averages for rating-style questions, categorical distributions for text/choice questions
+- CSV export collects all unique answer keys across responses as column headers
+- Anonymous surveys supported via `isAnonymous` flag (participantId optional)
+- Surveys can optionally link to FormTemplate for structured questions
+- Feature flag `FF_SURVEYS` gates all functionality
+- Uses `survey:manage` permission
+
+### Verification Results
+
+| Check               | Result                                |
+| ------------------- | ------------------------------------- |
+| `npm run typecheck` | Passed                                |
+| `npm run test`      | All tests passed, 12 new survey tests |

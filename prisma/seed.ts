@@ -434,6 +434,7 @@ async function main() {
       key: "FF_COMPLIANCE_DASHBOARD",
       description: "Document compliance tracking and data retention policies",
     },
+    { key: "FF_SURVEYS", description: "Post-event surveys and feedback collection" },
   ];
 
   for (const flag of defaultFlags) {

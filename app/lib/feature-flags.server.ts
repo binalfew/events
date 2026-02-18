@@ -66,6 +66,7 @@ export const FEATURE_FLAG_KEYS = {
   INCIDENT_MANAGEMENT: "FF_INCIDENT_MANAGEMENT",
   STAFF_MANAGEMENT: "FF_STAFF_MANAGEMENT",
   COMPLIANCE_DASHBOARD: "FF_COMPLIANCE_DASHBOARD",
+  SURVEYS: "FF_SURVEYS",
 } as const;
 
 // ─── SDK Functions ────────────────────────────────────────
