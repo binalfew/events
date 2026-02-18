@@ -248,3 +248,40 @@ Built parking zone management with capacity-tracked zones, permit generation wit
 | ------------------- | ------------------------------------------------- |
 | `npm run typecheck` | Passed                                            |
 | `npm run test`      | 864 tests passed (66 files), 11 new parking tests |
+
+---
+
+## P5-05: Venue & Room Management
+
+**Status:** Completed
+**Date:** 2026-02-18
+
+### Summary
+
+Built venue and room management with room booking including time slot conflict detection, daily schedule view, availability tracking, booking confirmation/cancellation lifecycle, and venue overview statistics. 13 test cases.
+
+### Files Created
+
+1. **`app/lib/schemas/venue.ts`** — Zod schemas for `createVenueMap`, `createRoom`, `bookRoom`, `venueFilters`
+2. **`app/services/venue.server.ts`** — Service layer with `VenueError`, 9 functions: `createVenueMap`, `listVenueMaps`, `createRoom`, `listRooms`, `bookRoom`, `confirmBooking`, `cancelBooking`, `getRoomAvailability`, `getRoomSchedule`, `getVenueOverview`
+3. **`app/routes/admin/events/$eventId/venue.tsx`** — Admin route with stats cards, venue/room CRUD, room booking with ShadCN DateTimePicker, daily schedule table with confirm/cancel actions, date filter
+4. **`app/services/__tests__/venue.server.test.ts`** — 13 test cases covering venue/room CRUD, booking with conflict detection, confirm/cancel lifecycle, availability, and stats
+
+### Files Modified
+
+1. **`app/routes/admin/events/index.tsx`** — Added "Venue" link in Ops section
+
+### Key Design Decisions
+
+- Booking conflict detection: checks for overlapping non-cancelled bookings using `startTime < endTime AND endTime > startTime`
+- Booking lifecycle: TENTATIVE → CONFIRMED (or CANCELLED from any non-cancelled state)
+- Equipment stored as JSON array, input as comma-separated string
+- Daily schedule defaults to today's date
+- No feature flag gating (uses permission-based access: `venue:manage`)
+
+### Verification Results
+
+| Check               | Result                                          |
+| ------------------- | ----------------------------------------------- |
+| `npm run typecheck` | Passed                                          |
+| `npm run test`      | 877 tests passed (67 files), 13 new venue tests |
