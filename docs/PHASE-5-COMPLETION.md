@@ -219,3 +219,32 @@ Built catering management with meal plan scheduling, dietary requirement trackin
 | ------------------- | -------------------------------------------------- |
 | `npm run typecheck` | Passed                                             |
 | `npm run test`      | 853 tests passed (65 files), 12 new catering tests |
+
+---
+
+## P5-04: Parking & Zone Access
+
+**Status:** Completed
+**Date:** 2026-02-18
+
+### Summary
+
+Built parking zone management with capacity-tracked zones, permit generation with unique permit numbers, gate scanning with validity/status verification, permit revocation with reason logging, and zone occupancy dashboard with per-zone progress bars. 11 test cases.
+
+### Files Created
+
+1. **`app/lib/schemas/parking.ts`** — Zod schemas for `createParkingZone`, `issuePermit`, `parkingFilters`
+2. **`app/services/parking.server.ts`** — Service layer with 6 functions: `createParkingZone`, `listParkingZones`, `issuePermit`, `revokePermit`, `scanPermit`, `getParkingStats`
+3. **`app/routes/admin/events/$eventId/parking.tsx`** — Admin route with zone occupancy dashboard, permit table with filters, zone/permit forms
+4. **`app/services/__tests__/parking.server.test.ts`** — 11 test cases covering zones, permits, scanning, revocation, and stats
+
+### Files Modified
+
+1. **`app/routes/admin/events/index.tsx`** — Added "Parking" link in Ops section
+
+### Verification Results
+
+| Check               | Result                                            |
+| ------------------- | ------------------------------------------------- |
+| `npm run typecheck` | Passed                                            |
+| `npm run test`      | 864 tests passed (66 files), 11 new parking tests |

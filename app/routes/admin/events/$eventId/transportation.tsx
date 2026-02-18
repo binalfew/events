@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { data, useLoaderData, Form, useNavigation } from "react-router";
+import { DateTimePicker } from "~/components/ui/date-time-picker";
 import { requirePermission } from "~/lib/require-auth.server";
 import { isFeatureEnabled, FEATURE_FLAG_KEYS } from "~/lib/feature-flags.server";
 import { prisma } from "~/lib/db.server";
@@ -442,12 +443,7 @@ export default function TransportationPage() {
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">Scheduled At *</label>
-              <input
-                name="scheduledAt"
-                type="datetime-local"
-                required
-                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-              />
+              <DateTimePicker name="scheduledAt" required placeholder="Select date & time" />
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">Notes</label>

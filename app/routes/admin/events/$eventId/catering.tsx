@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { data, useLoaderData, Form, useNavigation } from "react-router";
+import { DateTimePicker } from "~/components/ui/date-time-picker";
 import { requirePermission } from "~/lib/require-auth.server";
 import { isFeatureEnabled, FEATURE_FLAG_KEYS } from "~/lib/feature-flags.server";
 import { prisma } from "~/lib/db.server";
@@ -436,21 +437,15 @@ export default function CateringPage() {
                         </div>
                         <div>
                           <label className="mb-1 block text-sm font-medium">Start Time *</label>
-                          <input
+                          <DateTimePicker
                             name="startTime"
-                            type="datetime-local"
                             required
-                            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                            placeholder="Select start time"
                           />
                         </div>
                         <div>
                           <label className="mb-1 block text-sm font-medium">End Time *</label>
-                          <input
-                            name="endTime"
-                            type="datetime-local"
-                            required
-                            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                          />
+                          <DateTimePicker name="endTime" required placeholder="Select end time" />
                         </div>
                         <div>
                           <label className="mb-1 block text-sm font-medium">Menu Notes</label>
