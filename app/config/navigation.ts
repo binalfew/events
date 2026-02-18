@@ -12,10 +12,6 @@ import {
   Settings,
   Eye,
   Database,
-  ScanLine,
-  MessageSquare,
-  Monitor,
-  Upload,
 } from "lucide-react";
 
 export type NavChild = {
@@ -80,11 +76,6 @@ export const navigationGroups: NavGroup[] = [
           { title: "Categories", tKey: "categories", url: "/admin/events/categories" },
           { title: "Templates", tKey: "templates", url: "/admin/events/templates" },
           { title: "Delegations", tKey: "delegations", url: "/admin/events/delegations" },
-          {
-            title: "Bulk Operations",
-            tKey: "bulkOperations",
-            url: "/admin/events/bulk-operations",
-          },
         ],
       },
       {
@@ -121,49 +112,6 @@ export const navigationGroups: NavGroup[] = [
     label: "Operations",
     tKey: "operations",
     items: [
-      {
-        title: "Check-in",
-        tKey: "checkIn",
-        url: "/admin/events/check-in",
-        icon: ScanLine,
-        roles: ["ADMIN"],
-        children: [
-          { title: "Scanner", tKey: "scanner", url: "/admin/events/check-in", end: true },
-          { title: "Access Logs", tKey: "accessLogs", url: "/admin/events/access-logs" },
-          { title: "Checkpoints", tKey: "checkpoints", url: "/admin/events/checkpoints" },
-        ],
-      },
-      {
-        title: "Communications",
-        tKey: "communications",
-        url: "/admin/events/communications",
-        icon: MessageSquare,
-        roles: ["ADMIN"],
-        children: [
-          {
-            title: "Broadcasts",
-            tKey: "broadcasts",
-            url: "/admin/events/communications",
-            end: true,
-          },
-          {
-            title: "Templates",
-            tKey: "communicationTemplates",
-            url: "/admin/events/communications/templates",
-          },
-        ],
-      },
-      {
-        title: "Kiosks",
-        tKey: "kiosks",
-        url: "/admin/events/kiosks",
-        icon: Monitor,
-        roles: ["ADMIN"],
-        children: [
-          { title: "Devices", tKey: "devices", url: "/admin/events/kiosks", end: true },
-          { title: "Queue", tKey: "queue", url: "/admin/events/queue" },
-        ],
-      },
       {
         title: "Logistics",
         tKey: "logistics",

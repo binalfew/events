@@ -79,31 +79,106 @@ export default function EventsListPage() {
                 {event._count.formTemplates} form
                 {event._count.formTemplates !== 1 ? "s" : ""}
               </div>
-              <div className="mt-4 flex flex-wrap gap-3">
-                <Link
-                  to={`/admin/events/${event.id}/fields`}
-                  className="text-sm font-medium text-primary hover:underline"
-                >
-                  Fields
-                </Link>
-                <Link
-                  to={`/admin/events/${event.id}/forms`}
-                  className="text-sm font-medium text-primary hover:underline"
-                >
-                  Forms
-                </Link>
-                <Link
-                  to={`/admin/events/${event.id}/delegations`}
-                  className="text-sm font-medium text-primary hover:underline"
-                >
-                  Delegations
-                </Link>
-                <Link
-                  to={`/admin/events/${event.id}/check-in`}
-                  className="text-sm font-medium text-primary hover:underline"
-                >
-                  Check-in
-                </Link>
+              <div className="mt-4 space-y-2 text-sm">
+                <div className="flex flex-wrap gap-x-3 gap-y-1">
+                  <span className="text-muted-foreground font-medium">Setup:</span>
+                  <Link
+                    to={`/admin/events/${event.id}/fields`}
+                    className="text-primary hover:underline"
+                  >
+                    Fields
+                  </Link>
+                  <Link
+                    to={`/admin/events/${event.id}/forms`}
+                    className="text-primary hover:underline"
+                  >
+                    Forms
+                  </Link>
+                  <Link
+                    to={`/admin/events/${event.id}/delegations`}
+                    className="text-primary hover:underline"
+                  >
+                    Delegations
+                  </Link>
+                </div>
+                <div className="flex flex-wrap gap-x-3 gap-y-1">
+                  <span className="text-muted-foreground font-medium">People:</span>
+                  <Link
+                    to={`/admin/events/${event.id}/participants`}
+                    className="text-primary hover:underline"
+                  >
+                    Participants
+                  </Link>
+                  <Link
+                    to={`/admin/events/${event.id}/bulk-operations`}
+                    className="text-primary hover:underline"
+                  >
+                    Bulk Ops
+                  </Link>
+                  <Link
+                    to={`/admin/events/${event.id}/bulk-operations/import`}
+                    className="text-primary hover:underline"
+                  >
+                    Import
+                  </Link>
+                  <Link
+                    to={`/admin/events/${event.id}/bulk-operations/export`}
+                    className="text-primary hover:underline"
+                  >
+                    Export
+                  </Link>
+                </div>
+                <div className="flex flex-wrap gap-x-3 gap-y-1">
+                  <span className="text-muted-foreground font-medium">Ops:</span>
+                  <Link
+                    to={`/admin/events/${event.id}/check-in`}
+                    className="text-primary hover:underline"
+                  >
+                    Check-in
+                  </Link>
+                  <Link
+                    to={`/admin/events/${event.id}/access-logs`}
+                    className="text-primary hover:underline"
+                  >
+                    Access Logs
+                  </Link>
+                  <Link
+                    to={`/admin/events/${event.id}/queue`}
+                    className="text-primary hover:underline"
+                  >
+                    Queue
+                  </Link>
+                </div>
+                <div className="flex flex-wrap gap-x-3 gap-y-1">
+                  <span className="text-muted-foreground font-medium">Comms:</span>
+                  <Link
+                    to={`/admin/events/${event.id}/communications`}
+                    className="text-primary hover:underline"
+                  >
+                    Broadcasts
+                  </Link>
+                  <Link
+                    to={`/admin/events/${event.id}/communications/templates`}
+                    className="text-primary hover:underline"
+                  >
+                    Templates
+                  </Link>
+                </div>
+                <div className="flex flex-wrap gap-x-3 gap-y-1">
+                  <span className="text-muted-foreground font-medium">Settings:</span>
+                  <Link
+                    to={`/admin/events/${event.id}/settings/checkpoints`}
+                    className="text-primary hover:underline"
+                  >
+                    Checkpoints
+                  </Link>
+                  <Link
+                    to={`/admin/events/${event.id}/settings/kiosks`}
+                    className="text-primary hover:underline"
+                  >
+                    Kiosks
+                  </Link>
+                </div>
               </div>
             </div>
           ))}

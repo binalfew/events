@@ -111,12 +111,22 @@ Follow the dependency graph. For each task:
 
 1. Implement the task
 2. Run `npm run typecheck` and `npm run test` to verify
-3. Update the phase completion document (see step 3 below)
-4. **Stop and ask the user for permission before moving on to the next task**
+3. Add UI navigation links if applicable (see step 3 below)
+4. Update the phase completion document (see step 4 below)
+5. Show the user how to access the feature in the browser (URL, prerequisites)
+6. **Stop and ask the user for permission before moving on to the next task**
 
 Do NOT start the next task automatically. Always wait for explicit user approval.
 
-### 3. Update Phase Completion Document
+### 3. Add UI Navigation Links
+
+If the completed task includes any user-facing UI routes, you MUST:
+
+1. **Add a link to the feature** from the relevant parent page so users can actually navigate to it. Event-specific features (routes under `admin/events/$eventId/`) must be linked from the event card in `app/routes/admin/events/index.tsx`. Global features must be linked from the appropriate sidebar group in `app/config/navigation.ts`.
+2. **Do NOT create redundant cross-event selector pages** (pages that just list events for you to pick one). Instead, link directly to `admin/events/$eventId/<feature>` from each event card.
+3. **At the end of each task completion**, show the user how to access the feature in the browser. Include the full URL path (e.g., `http://localhost:3000/admin/events/<eventId>/participants`) and list any prerequisites (feature flags, permissions, seed data) needed for the page to work.
+
+### 4. Update Phase Completion Document
 
 After completing each implementation task (e.g., P2-00, P2-01), update the phase completion document at `docs/PHASE-{N}-COMPLETION.md`. If the file does not yet exist, create it. Each entry should include:
 

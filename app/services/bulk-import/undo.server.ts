@@ -23,6 +23,7 @@ export async function captureSnapshot(
       nationality: true,
       registrationCode: true,
       status: true,
+      currentStepId: true,
       extras: true,
       participantTypeId: true,
       workflowId: true,
@@ -114,6 +115,7 @@ export async function restoreFromSnapshot(operationId: string): Promise<{
                 jobTitle: (prev.jobTitle as string) ?? null,
                 nationality: (prev.nationality as string) ?? null,
                 status: prev.status as any,
+                currentStepId: (prev.currentStepId as string) ?? null,
                 extras: prev.extras as any,
               },
             });

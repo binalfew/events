@@ -12,6 +12,7 @@
 3. [P4-02 — Webhook System](#p4-02-webhook-system)
 4. [P4-03 — Check-in & QR Code System](#p4-03-check-in--qr-code-system)
 5. [P4-04 — Communication Hub](#p4-04-communication-hub)
+6. [P4-07 — Batch Workflow Actions](#p4-07-batch-workflow-actions)
 
 ---
 
@@ -516,3 +517,59 @@ Built the bulk operations framework with CSV/XLSX file parsing (auto-delimiter d
 - **24-hour undo window** — `undoDeadline` set on completion. For IMPORT operations, undo deletes created participants. For STATUS_CHANGE/FIELD_UPDATE, undo restores from `previousState` snapshots.
 - **Batch processing in groups of 50** — Matches the broadcast delivery job batch size pattern, with progress updates after each batch.
 - **UTF-8 BOM in export** — Prepends `\uFEFF` for Excel auto-detection of UTF-8 encoding.
+
+---
+
+## P4-07: Batch Workflow Actions
+
+**Status**: Completed
+**Date**: 2026-02-18
+
+### Summary
+
+Built batch workflow actions enabling reviewers and admins to approve, reject, or bypass multiple participants at once. Each action flows through the existing `processWorkflowAction()` to ensure SLA tracking, audit logging, and webhook events fire correctly. Includes eligibility validation, dry-run mode, progress tracking, keyboard shortcuts for selection, and 24-hour undo window with `currentStepId` restoration.
+
+### Files Created
+
+1. **`app/lib/schemas/batch-action.ts`** — Zod schemas (zod/v4) for batch action input (eventId, action, participantIds, remarks, dryRun) and participant list filters (search, status, participantTypeId, page, pageSize).
+
+2. **`app/services/batch-selection.server.ts`** — Selection and eligibility service. `selectByIds()` verifies participants exist, belong to tenant/event, not deleted. `selectByFilter()` delegates to `resolveAudience()`. `validateBatchEligibility()` checks workflow step configuration per action (APPROVE: nextStepId or isFinalStep, REJECT: rejectionTargetId, BYPASS: bypassTargetId).
+
+3. **`app/services/batch-workflow-actions.server.ts`** — Batch action orchestration. `executeBatchAction()` creates a BulkOperation with CONFIRMED status (skips VALIDATING/PREVIEW), processes in batches of 20, calls `processWorkflowAction()` per participant, captures undo snapshot, sets 24h undo deadline. `dryRunBatchAction()` returns eligibility without persisting.
+
+4. **`app/components/batch-actions/batch-action-bar.tsx`** — Sticky bottom bar showing selected count, Approve/Reject/Bypass buttons, "Select all matching" link, and Clear button.
+
+5. **`app/components/batch-actions/batch-confirmation-dialog.tsx`** — Dialog with action name, eligibility summary (eligible/ineligible split), expandable ineligible list with reasons, remarks textarea, and confirm/cancel buttons.
+
+6. **`app/components/batch-actions/batch-progress-dialog.tsx`** — Progress bar with success/failure counters, status badge, and undo button on completion.
+
+7. **`app/routes/admin/events/$eventId/participants.tsx`** — Layout route with breadcrumb + Outlet.
+
+8. **`app/routes/admin/events/$eventId/participants/index.tsx`** — Participant list with checkbox selection, search/status/type filters, pagination, batch action integration (validate-eligibility, batch-action, undo actions), and keyboard shortcuts (Ctrl+A select page, Ctrl+Shift+A select all filtered, Escape clear).
+
+9. **`app/services/__tests__/batch-workflow-actions.server.test.ts`** — 10 test cases covering: full success, partial failures, undo snapshot capture, dry-run without persisting, eligibility rejection for APPROVE without nextStepId, eligibility rejection for REJECT without rejectionTargetId, selectByIds exclusion of soft-deleted/wrong-tenant, selectByFilter delegation to resolveAudience, batch-of-20 processing, and feature flag gate.
+
+### Files Modified
+
+1. **`app/services/bulk-operations.server.ts`** — Added `initialStatus` optional parameter to `createBulkOperation()` input, used as `input.initialStatus ?? "VALIDATING"` in the create call.
+
+2. **`app/services/bulk-import/undo.server.ts`** — Added `currentStepId` to the participant fields selected in `captureSnapshot()` and to the restore data in `restoreFromSnapshot()`.
+
+3. **`docs/PHASE-4-COMPLETION.md`** — Added P4-07 entry.
+
+### Verification Results
+
+| Check               | Result                                   |
+| ------------------- | ---------------------------------------- |
+| `npm run typecheck` | No type errors                           |
+| `npm run test`      | 58 test files, 744 tests passed (10 new) |
+
+### Notable Decisions
+
+- **Batch size of 20** — Smaller than the import batch size (50) because each workflow action involves multiple DB writes + async events (SSE, webhooks). Keeps within the 100-in-5s performance target.
+- **Skip VALIDATING/PREVIEW** — Batch workflow actions start with known participant IDs (no file upload), so the BulkOperation starts in CONFIRMED status and immediately moves to PROCESSING. Added `initialStatus` parameter to `createBulkOperation()` to support this.
+- **Reuses `processWorkflowAction()` directly** — Each participant flows through the full workflow engine (status transition + Approval record + AuditLog + SSE + webhook). No shortcuts or batch-specific paths.
+- **Dry-run mode** — Validates eligibility without creating a BulkOperation record. Returns eligible/ineligible split for the confirmation dialog.
+- **Undo restores `currentStepId`** — Extended the undo service to also capture and restore `currentStepId`, ensuring workflow state rollback is complete.
+- **Native checkbox instead of Radix Checkbox** — No Checkbox component exists in the UI library, so used native `<input type="checkbox">` with appropriate styling for the participant table.
+- **Keyboard shortcuts** — Ctrl+A selects all on current page, Ctrl+Shift+A selects all matching the current filter, Escape clears selection. Uses the existing `useKeyboardShortcuts` hook.

@@ -56,6 +56,7 @@ export async function createBulkOperation(
     description: string;
     fileBuffer?: Buffer;
     fileMimeType?: string;
+    initialStatus?: string;
   },
   ctx: ServiceContext,
 ) {
@@ -66,7 +67,7 @@ export async function createBulkOperation(
       tenantId: ctx.tenantId,
       eventId: input.eventId,
       type: input.type as any,
-      status: "VALIDATING",
+      status: (input.initialStatus ?? "VALIDATING") as any,
       description: input.description,
       createdBy: ctx.userId,
     },
