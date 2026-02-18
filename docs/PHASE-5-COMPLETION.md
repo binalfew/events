@@ -361,3 +361,40 @@ Built the bilateral meeting scheduler with request/confirm/decline/cancel/comple
 | ------------------- | ---------------------------------------- |
 | `npm run typecheck` | Passed                                   |
 | `npm run test`      | All tests passed, 14 new bilateral tests |
+
+---
+
+## P5-08: Companion & Spouse Program
+
+**Status:** Completed
+**Date:** 2026-02-18
+
+### Summary
+
+Built companion registration with auto-generated registration codes, companion type tracking (Spouse/Family/Aide/Security/Interpreter), activity program management with capacity-tracked sign-ups, and companion stats dashboard. 12 test cases.
+
+### Files Created
+
+1. **`app/lib/schemas/companion.ts`** — Zod schemas for `registerCompanion`, `createActivity`, `companionFilters`
+2. **`app/services/companion.server.ts`** — Service layer with `CompanionError`, 9 functions: `registerCompanion`, `listCompanions`, `updateCompanion`, `removeCompanion`, `createActivity`, `listActivities`, `signUpForActivity`, `cancelActivitySignUp`, `getCompanionBadgeData`, `getCompanionStats`
+3. **`app/routes/admin/events/$eventId/companions.tsx`** — Admin route with stats cards (by type), registration form, activity creation form, companions table with type badges and reg codes, activity cards with capacity progress bars and inline sign-up
+4. **`app/services/__tests__/companion.server.test.ts`** — 12 test cases covering registration, listing with type filter, update, removal, activity creation, sign-up with capacity check, duplicate sign-up prevention, cancel sign-up, and stats
+
+### Files Modified
+
+1. **`app/routes/admin/events/index.tsx`** — Added "Companions" link in Protocol section
+
+### Key Design Decisions
+
+- Registration codes auto-generated as `CMP-XXXXXXXX` (alphanumeric, no ambiguous chars)
+- Activity sign-ups use CompanionActivity records linked via `companionId`; master activities have `companionId = null`
+- `currentSignups` counter maintained on master activity record
+- Duplicate sign-up detection via name + date matching
+- Uses `protocol:manage` permission (no separate companion permission needed)
+
+### Verification Results
+
+| Check               | Result                                   |
+| ------------------- | ---------------------------------------- |
+| `npm run typecheck` | Passed                                   |
+| `npm run test`      | All tests passed, 12 new companion tests |

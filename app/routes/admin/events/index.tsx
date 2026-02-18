@@ -211,6 +211,12 @@ export default function EventsListPage() {
                   >
                     Bilaterals
                   </Link>
+                  <Link
+                    to={`/admin/events/${event.id}/companions`}
+                    className="text-primary hover:underline"
+                  >
+                    Companions
+                  </Link>
                 </div>
                 <div className="flex flex-wrap gap-x-3 gap-y-1">
                   <span className="text-muted-foreground font-medium">Comms:</span>
