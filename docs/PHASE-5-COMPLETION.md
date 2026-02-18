@@ -190,3 +190,32 @@ Built the full transportation management feature: service layer with 11 function
 | ------------------- | -------------------------------------------------------- |
 | `npm run typecheck` | Passed                                                   |
 | `npm run test`      | 841 tests passed (64 files), 18 new transportation tests |
+
+---
+
+## P5-03: Catering & Meal Management
+
+**Status:** Completed
+**Date:** 2026-02-18
+
+### Summary
+
+Built catering management with meal plan scheduling, dietary requirement tracking with aggregation, QR-coded meal voucher issuance and redemption, dashboard stats, and caterer export functionality. 12 test cases.
+
+### Files Created
+
+1. **`app/lib/schemas/catering.ts`** — Zod schemas for `createMealPlan`, `createMealSession`, `issueMealVoucher`, `cateringFilters`
+2. **`app/services/catering.server.ts`** — Service layer with 8 functions: `createMealPlan`, `listMealPlans`, `createMealSession`, `getDietaryAggregation`, `issueMealVoucher`, `redeemMealVoucher`, `getMealDashboard`, `exportCateringSheet`
+3. **`app/routes/admin/events/$eventId/catering.tsx`** — Admin route with stats cards, dietary breakdown, meal plan editor with expandable sessions, voucher issuance form
+4. **`app/services/__tests__/catering.server.test.ts`** — 12 test cases
+
+### Files Modified
+
+1. **`app/routes/admin/events/index.tsx`** — Added "Catering" link in Ops section
+
+### Verification Results
+
+| Check               | Result                                             |
+| ------------------- | -------------------------------------------------- |
+| `npm run typecheck` | Passed                                             |
+| `npm run test`      | 853 tests passed (65 files), 12 new catering tests |
