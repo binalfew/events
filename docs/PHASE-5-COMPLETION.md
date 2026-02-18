@@ -285,3 +285,40 @@ Built venue and room management with room booking including time slot conflict d
 | ------------------- | ----------------------------------------------- |
 | `npm run typecheck` | Passed                                          |
 | `npm run test`      | 877 tests passed (67 files), 13 new venue tests |
+
+---
+
+## P5-06: Protocol & Seating Management
+
+**Status:** Completed
+**Date:** 2026-02-18
+
+### Summary
+
+Built protocol seating management with rank-based seating plans, manual and auto-assignment, conflict pair tracking with resolution, seating validation (rank violations + conflict adjacencies), and plan finalization. 14 test cases.
+
+### Files Created
+
+1. **`app/lib/schemas/seating.ts`** — Zod schemas for `createSeatingPlan`, `assignSeat`, `addConflict`, `seatingFilters`
+2. **`app/services/seating.server.ts`** — Service layer with `SeatingError`, 10 functions: `createSeatingPlan`, `listSeatingPlans`, `getSeatingPlan`, `assignSeat`, `unassignSeat`, `autoAssignSeating`, `addConflict`, `resolveConflict`, `validateSeating`, `getSeatingStats`
+3. **`app/routes/admin/events/$eventId/seating.tsx`** — Admin route with stats cards, plan CRUD, seat assignment form, auto-assign, conflict management, validation warnings, plan finalization
+4. **`app/services/__tests__/seating.server.test.ts`** — 14 test cases covering plan CRUD, assignment, unassignment, auto-assign, conflicts, validation, and stats
+
+### Files Modified
+
+1. **`app/routes/admin/events/index.tsx`** — Added "Seating" link in new Protocol section
+
+### Key Design Decisions
+
+- Auto-assign uses sequential seat labels (S001, S002...) with default DELEGATE priority
+- Conflict pairs normalized (alphabetical order) to prevent duplicates via unique constraint
+- Validation checks rank violations among top-tier officials (HEAD_OF_STATE/MINISTER/AMBASSADOR) and conflict adjacencies
+- Dynamic `import("~/lib/db.server")` used in loader/action to avoid server-module-in-client-bundle error
+- Feature flag `FF_PROTOCOL_SEATING` gates all functionality
+
+### Verification Results
+
+| Check               | Result                                            |
+| ------------------- | ------------------------------------------------- |
+| `npm run typecheck` | Passed                                            |
+| `npm run test`      | 891 tests passed (68 files), 14 new seating tests |
