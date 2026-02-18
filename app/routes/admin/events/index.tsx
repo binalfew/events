@@ -202,6 +202,12 @@ export default function EventsListPage() {
                   >
                     Incidents
                   </Link>
+                  <Link
+                    to={`/admin/events/${event.id}/command-center`}
+                    className="text-primary hover:underline"
+                  >
+                    Command Center
+                  </Link>
                 </div>
                 <div className="flex flex-wrap gap-x-3 gap-y-1">
                   <span className="text-muted-foreground font-medium">Protocol:</span>

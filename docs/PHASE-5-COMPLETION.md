@@ -478,3 +478,42 @@ Built a structured incident management system for logging security issues, medic
 | ------------------- | --------------------------------------- |
 | `npm run typecheck` | Passed                                  |
 | `npm run test`      | All tests passed, 15 new incident tests |
+
+---
+
+## P5-11: Live Event Command Center
+
+**Status:** Completed
+**Date:** 2026-02-18
+
+### Summary
+
+Built a real-time operational command center dashboard that aggregates data from all operational modules (registration, check-in, incidents, transport, queue, accommodation). Includes configurable dashboard widgets, threshold-based alert rules with cooldown periods, alert evaluation, and recent alert history. 10 test cases.
+
+### Files Created
+
+1. **`app/lib/schemas/command-center.ts`** — Zod schemas for `createWidget` (8 widget types), `createAlertRule` (7 metrics, 5 conditions)
+2. **`app/services/command-center.server.ts`** — Service layer with `CommandCenterError`, 10 functions: `getCommandCenterData` (6-module aggregation), `createWidget`, `listWidgets`, `deleteWidget`, `createAlertRule`, `listAlertRules`, `toggleAlertRule`, `deleteAlertRule`, `evaluateAlerts`, `getRecentAlerts`
+3. **`app/routes/admin/events/$eventId/command-center.tsx`** — Admin route with 6-panel stats grid (registration, check-in, incidents by severity, transport, queue with avg wait, accommodation), active alerts banner, widget management, alert rule table with toggle/delete, recent alert history
+4. **`app/services/__tests__/command-center.server.test.ts`** — 10 test cases covering dashboard aggregation, widget CRUD, alert rule CRUD, toggle, alert evaluation with threshold matching, cooldown period respect, and recent alerts
+
+### Files Modified
+
+1. **`app/routes/admin/events/index.tsx`** — Added "Command Center" link in Ops section
+
+### Key Design Decisions
+
+- Dashboard aggregates 6 operational modules in parallel via `Promise.all`
+- Alert evaluation uses configurable metrics mapped to dashboard data values
+- Cooldown period prevents repeated alert firing (configurable per rule, default 15 min)
+- `evaluateAlerts` runs on each page load and updates `lastTriggered` timestamp
+- Widget types: STAT_CARD, INCIDENT_LIST, CHECKIN_CHART, TRANSPORT_STATUS, OCCUPANCY, QUEUE_STATUS, ALERT_FEED, TIMELINE
+- Uses `command-center:view` permission (already seeded)
+- No feature flag gating (command center is always available to authorized users)
+
+### Verification Results
+
+| Check               | Result                                        |
+| ------------------- | --------------------------------------------- |
+| `npm run typecheck` | Passed                                        |
+| `npm run test`      | All tests passed, 10 new command center tests |
