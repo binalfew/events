@@ -556,3 +556,44 @@ Built staff and volunteer management with role-based registration (8 roles), shi
 | ------------------- | ------------------------------------ |
 | `npm run typecheck` | Passed                               |
 | `npm run test`      | All tests passed, 13 new staff tests |
+
+---
+
+## P5-13: Document Expiry & Compliance
+
+**Status:** Completed
+**Date:** 2026-02-18
+
+### Summary
+
+Built document compliance management with configurable requirements per participant type, document submission and admin verification workflow (approve/reject), expiry date tracking with 30-day warning alerts, compliance rate dashboard, and GDPR-ready data retention policies with anonymize/delete execution. 14 test cases.
+
+### Files Created
+
+1. **`app/lib/schemas/compliance.ts`** — Zod schemas for `createDocumentRequirement`, `submitDocument`, `verifyDocument`, `createRetentionPolicy`, `complianceFilters`
+2. **`app/services/compliance.server.ts`** — Service layer with `ComplianceError`, 11 functions: `createDocumentRequirement`, `listDocumentRequirements`, `submitDocument`, `verifyDocument`, `getParticipantCompliance`, `getComplianceDashboard`, `getExpiringDocuments`, `createRetentionPolicy`, `listRetentionPolicies`, `executeRetentionPolicy`, `getRetentionReport`
+3. **`app/routes/admin/events/$eventId/compliance.tsx`** — Admin route with compliance rate dashboard (6 stat cards), expiring documents alert banner, requirements table with submission/validity counts, submit document form, verification actions, retention policy management with execute button, retention report
+4. **`app/services/__tests__/compliance.server.test.ts`** — 14 test cases covering requirement creation, document submission (including duplicate guard and not-found guard), verification (with verifiedAt/verifiedBy), participant compliance filtering by type, dashboard stats with compliance rate calculation, expiring documents query, retention policy creation, policy execution (delete with count), inactive policy guard, not-found guard, and retention report
+
+### Files Modified
+
+1. **`app/routes/admin/events/index.tsx`** — Added "Compliance" link in Settings section
+
+### Key Design Decisions
+
+- Document requirements target specific participant types via `participantTypes` string array; empty array means all types
+- `submitDocument` stores metadata (document number, notes) in JSON field; enforces unique constraint per requirement+participant
+- `verifyDocument` sets status to VALID or EXPIRED with timestamp and verifier
+- Compliance rate = valid documents / (total participants x required requirements)
+- `getExpiringDocuments` finds VALID documents with expiry within N days
+- `executeRetentionPolicy` supports DELETE (deleteMany) and ANONYMIZE (redact fileName/storageUrl per record)
+- Retention policies have `@@unique([tenantId, entityType])` to prevent duplicates
+- Feature flag `FF_COMPLIANCE_DASHBOARD` gates all functionality
+- Uses `compliance:manage` permission
+
+### Verification Results
+
+| Check               | Result                                    |
+| ------------------- | ----------------------------------------- |
+| `npm run typecheck` | Passed                                    |
+| `npm run test`      | All tests passed, 14 new compliance tests |

@@ -277,6 +277,12 @@ export default function EventsListPage() {
                   >
                     Blacklist
                   </Link>
+                  <Link
+                    to={`/admin/events/${event.id}/compliance`}
+                    className="text-primary hover:underline"
+                  >
+                    Compliance
+                  </Link>
                 </div>
                 <div className="flex flex-wrap gap-x-3 gap-y-1">
                   <span className="text-muted-foreground font-medium">Actions:</span>
