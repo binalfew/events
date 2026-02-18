@@ -153,3 +153,40 @@ Built the full accommodation management feature: service layer with 10 functions
 | `npx prisma generate` | Succeeded                                               |
 | `npm run typecheck`   | Passed                                                  |
 | `npm run test`        | 823 tests passed (63 files), 18 new accommodation tests |
+
+---
+
+## P5-02: Transportation & Logistics
+
+**Status:** Completed
+**Date:** 2026-02-18
+
+### Summary
+
+Built the full transportation management feature: service layer with 11 functions covering route management, vehicle fleet, transfer scheduling, status lifecycle, and dashboard stats. Includes Zod schemas, admin UI route with route/vehicle/transfer management, and 18 test cases.
+
+### Files Created
+
+1. **`app/lib/schemas/transportation.ts`** — Zod schemas for `createRoute`, `registerVehicle`, `scheduleTransfer`, `transportFilters`
+2. **`app/services/transportation.server.ts`** — Service layer with `TransportError`, 11 functions: `createRoute`, `listRoutes`, `registerVehicle`, `listVehicles`, `scheduleTransfer`, `bulkScheduleTransfers`, `assignVehicle`, `markEnRoute`, `markCompleted`, `markNoShow`, `cancelTransfer`, `getTransportDashboard`, `getParticipantTransfers`
+3. **`app/routes/admin/events/$eventId/transportation.tsx`** — Admin route with loader (parallel data fetching), multi-intent action (8 actions), and UI with stats cards, route/vehicle panels, transfer scheduling form with multi-select passengers, transfers table with status lifecycle actions, and date/status/type filters
+4. **`app/services/__tests__/transportation.server.test.ts`** — 18 test cases covering all service functions and error paths
+
+### Files Modified
+
+1. **`app/routes/admin/events/index.tsx`** — Added "Transport" link in Ops section of event cards
+
+### Key Design Decisions
+
+- Transfer lifecycle: SCHEDULED → EN_ROUTE → COMPLETED (or NO_SHOW/CANCELLED from valid states)
+- `scheduleTransfer` creates transfer + passengers in a single Prisma nested create
+- `bulkScheduleTransfers` derives origin/destination from route stops
+- Vehicle assignment is optional (can schedule transfers without vehicles first)
+- All mutations create audit log entries
+
+### Verification Results
+
+| Check               | Result                                                   |
+| ------------------- | -------------------------------------------------------- |
+| `npm run typecheck` | Passed                                                   |
+| `npm run test`      | 841 tests passed (64 files), 18 new transportation tests |

@@ -172,6 +172,12 @@ export default function EventsListPage() {
                   >
                     Accommodation
                   </Link>
+                  <Link
+                    to={`/admin/events/${event.id}/transportation`}
+                    className="text-primary hover:underline"
+                  >
+                    Transport
+                  </Link>
                 </div>
                 <div className="flex flex-wrap gap-x-3 gap-y-1">
                   <span className="text-muted-foreground font-medium">Comms:</span>
