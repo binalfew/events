@@ -640,3 +640,46 @@ Built post-event survey system with survey lifecycle management (DRAFT → PUBLI
 | ------------------- | ------------------------------------- |
 | `npm run typecheck` | Passed                                |
 | `npm run test`      | All tests passed, 12 new survey tests |
+
+---
+
+## P5-15: Certificate Generation
+
+**Status:** Completed
+**Date:** 2026-02-18
+
+### Summary
+
+Built certificate generation system with customizable HTML/JSON templates, individual and bulk generation with QR verification codes, public certificate verification endpoint, certificate sending (email), revocation with reason logging, and status dashboard. 13 test cases.
+
+### Files Created
+
+1. **`app/lib/schemas/certificate.ts`** — Zod schemas for `createTemplate`, `generateCertificate`, `bulkGenerate`, `certificateFilters`
+2. **`app/services/certificates.server.ts`** — Service layer with `CertificateError`, 10 functions: `createTemplate`, `listTemplates`, `generateCertificate` (with QR code), `bulkGenerateCertificates` (skips existing), `getCertificate`, `listCertificates`, `verifyCertificate` (public), `revokeCertificate`, `sendCertificate`, `getCertificateStats`
+3. **`app/routes/admin/events/$eventId/certificates.tsx`** — Admin route with stats dashboard (6 cards), template management with layout editor, individual generate form, bulk generate with participant type/status filters, certificate table with send/revoke actions, status/template filters, QR code display
+4. **`app/services/__tests__/certificates.server.test.ts`** — 13 test cases covering template creation, individual generation (with QR code, duplicate guard, template-not-found guard), bulk generation (with skip existing), verification (valid/revoked/unknown), revocation (with already-revoked guard), send (with no-email guard), and stats
+
+### Files Modified
+
+1. **`app/routes/admin/events/index.tsx`** — Added "Certificates" link in Comms section
+2. **`app/lib/feature-flags.server.ts`** — Added `CERTIFICATES: "FF_CERTIFICATES"` to FEATURE_FLAG_KEYS
+3. **`prisma/seed.ts`** — Added `FF_CERTIFICATES` feature flag seed entry
+
+### Key Design Decisions
+
+- Certificate lifecycle: DRAFT → GENERATED → SENT → DOWNLOADED (or REVOKED from any non-revoked state)
+- QR verification codes: `CERT-` prefix + 12 alphanumeric chars, stored as `@unique` field
+- `@@unique([templateId, participantId])` prevents duplicate certificates per template+participant
+- `bulkGenerateCertificates` fetches existing certs first, skips already-generated participants
+- `verifyCertificate` is designed for public access (no tenant check needed, uses QR code lookup)
+- Templates support tenant-level (eventId null) or event-specific scope
+- `fileUrl` stores placeholder PDF path; actual PDF rendering can be added later via puppeteer/react-pdf
+- Feature flag `FF_CERTIFICATES` gates all functionality
+- Uses `certificate:manage` permission
+
+### Verification Results
+
+| Check               | Result                                     |
+| ------------------- | ------------------------------------------ |
+| `npm run typecheck` | Passed                                     |
+| `npm run test`      | All tests passed, 13 new certificate tests |

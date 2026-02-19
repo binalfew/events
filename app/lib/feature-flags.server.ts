@@ -67,6 +67,7 @@ export const FEATURE_FLAG_KEYS = {
   STAFF_MANAGEMENT: "FF_STAFF_MANAGEMENT",
   COMPLIANCE_DASHBOARD: "FF_COMPLIANCE_DASHBOARD",
   SURVEYS: "FF_SURVEYS",
+  CERTIFICATES: "FF_CERTIFICATES",
 } as const;
 
 // ─── SDK Functions ────────────────────────────────────────

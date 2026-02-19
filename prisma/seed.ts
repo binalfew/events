@@ -435,6 +435,7 @@ async function main() {
       description: "Document compliance tracking and data retention policies",
     },
     { key: "FF_SURVEYS", description: "Post-event surveys and feedback collection" },
+    { key: "FF_CERTIFICATES", description: "Certificate generation and verification" },
   ];
 
   for (const flag of defaultFlags) {
