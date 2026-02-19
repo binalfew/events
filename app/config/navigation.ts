@@ -73,8 +73,7 @@ export const navigationGroups: NavGroup[] = [
         ],
       },
       {
-        title: "Event Series",
-        tKey: "eventSeries",
+        title: "Series",
         url: "/admin/series",
         icon: Layers,
         roles: ["ADMIN"],
