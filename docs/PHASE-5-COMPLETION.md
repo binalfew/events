@@ -683,3 +683,65 @@ Built certificate generation system with customizable HTML/JSON templates, indiv
 | ------------------- | ------------------------------------------ |
 | `npm run typecheck` | Passed                                     |
 | `npm run test`      | All tests passed, 13 new certificate tests |
+
+---
+
+## P5-16: Event Series & YoY Analytics
+
+**Status:** Completed
+**Date:** 2026-02-19
+
+### Summary
+
+Built the Event Series management UI and Year-over-Year analytics service. Series CRUD and editions were already created in P4-10; this task adds dedicated admin pages, YoY comparison analytics, edition trends, returning participant identification, and carry-forward data generation.
+
+### What Was Implemented
+
+#### Files Created (5)
+
+| File                                                 | Purpose                                                            |
+| ---------------------------------------------------- | ------------------------------------------------------------------ |
+| `app/lib/schemas/event-series.ts`                    | Zod schemas for createSeries, addEdition                           |
+| `app/services/event-series.server.ts`                | 9 functions: CRUD + YoY analytics + returning participants         |
+| `app/routes/admin/series/index.tsx`                  | Series list page with create form, stats, edition timeline         |
+| `app/routes/admin/series/$seriesId.tsx`              | Series detail with edition table, add edition form, YoY comparison |
+| `app/services/__tests__/event-series.server.test.ts` | 9 test cases covering all service functions                        |
+
+#### Files Modified (1)
+
+| File                       | Change                                                           |
+| -------------------------- | ---------------------------------------------------------------- |
+| `app/config/navigation.ts` | Added "Event Series" link in Management section with Layers icon |
+
+### Service Functions
+
+1. `createSeries` — Create series with audit log
+2. `listSeries` — List with editions, counts, event details
+3. `getSeries` — Single series with editions ordered by year
+4. `addEdition` — Link event to series as an edition
+5. `removeEdition` — Unlink edition from series
+6. `getYoYComparison` — Registration metrics, processing time, check-in rate, accommodation utilization, survey satisfaction across editions
+7. `getEditionTrends` — Trend arrays (years, registrations, approvals, check-in rates, etc.)
+8. `identifyReturningParticipants` — Match participants by email across two editions
+9. `generateCarryForwardData` — Extract participant data for pre-filling in next edition
+
+### Key Decisions
+
+- Reused `event-clone:execute` permission (no new feature flag needed since series is part of event management)
+- ScanResult enum uses `VALID` (not `GRANTED`) for access log check-in rate calculation
+- YoY comparison fetches participants, access logs, accommodations, and survey responses per edition
+- Returning participant matching uses case-insensitive email comparison
+- Series routes at `/admin/series` and `/admin/series/:seriesId` (global, not event-specific)
+
+### Access
+
+- **URL**: `http://localhost:3000/admin/series`
+- **Prerequisites**: User needs ADMIN role (event-clone:execute permission)
+- **Navigation**: Sidebar → Management → Event Series
+
+### Verification Results
+
+| Check               | Result                          |
+| ------------------- | ------------------------------- |
+| `npm run typecheck` | Passed (no new errors)          |
+| `npm run test`      | All 9 event-series tests passed |

@@ -8,6 +8,7 @@ import {
   Settings,
   Eye,
   Database,
+  Layers,
 } from "lucide-react";
 
 export type NavChild = {
@@ -70,6 +71,13 @@ export const navigationGroups: NavGroup[] = [
           { title: "All Events", tKey: "allEvents", url: "/admin/events", end: true },
           { title: "Forms", tKey: "forms", url: "/admin/events/forms" },
         ],
+      },
+      {
+        title: "Event Series",
+        tKey: "eventSeries",
+        url: "/admin/series",
+        icon: Layers,
+        roles: ["ADMIN"],
       },
     ],
   },
