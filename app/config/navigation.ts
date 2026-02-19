@@ -9,6 +9,9 @@ import {
   Eye,
   Database,
   Layers,
+  Building2,
+  Users,
+  Shield,
 } from "lucide-react";
 
 export type NavChild = {
@@ -67,15 +70,29 @@ export const navigationGroups: NavGroup[] = [
         url: "/admin/events",
         icon: CalendarDays,
         roles: ["ADMIN"],
-        children: [
-          { title: "All Events", tKey: "allEvents", url: "/admin/events", end: true },
-          { title: "Forms", tKey: "forms", url: "/admin/events/forms" },
-        ],
       },
       {
         title: "Series",
         url: "/admin/series",
         icon: Layers,
+        roles: ["ADMIN"],
+      },
+      {
+        title: "Tenants",
+        url: "/admin/tenants",
+        icon: Building2,
+        roles: ["ADMIN"],
+      },
+      {
+        title: "Users",
+        url: "/admin/users",
+        icon: Users,
+        roles: ["ADMIN"],
+      },
+      {
+        title: "Roles",
+        url: "/admin/roles",
+        icon: Shield,
         roles: ["ADMIN"],
       },
     ],
@@ -92,6 +109,7 @@ export const navigationGroups: NavGroup[] = [
         roles: ["ADMIN"],
         children: [
           { title: "General", tKey: "general", url: "/admin/settings", end: true },
+          { title: "Fields", tKey: "fields", url: "/admin/settings/fields" },
           { title: "Feature Flags", tKey: "featureFlags", url: "/admin/settings/feature-flags" },
           { title: "API Keys", tKey: "apiKeys", url: "/admin/settings/api-keys" },
           { title: "Webhooks", tKey: "webhooks", url: "/admin/settings/webhooks" },

@@ -20,6 +20,20 @@ async function main() {
   });
   console.log(`Seeded tenant: ${tenant.name} (${tenant.id})`);
 
+  // ─── Second Tenant (for testing) ───────────────────────
+  const tenant2 = await prisma.tenant.upsert({
+    where: { name: "Test Organization" },
+    update: {},
+    create: {
+      name: "Test Organization",
+      email: "info@testorg.example.com",
+      phone: "+1-555-123-4567",
+      website: "https://testorg.example.com",
+      subscriptionPlan: "starter",
+    },
+  });
+  console.log(`Seeded tenant: ${tenant2.name} (${tenant2.id})`);
+
   // ─── Admin User ───────────────────────────────────────
   const passwordHash = await hash("password123", 12);
   const admin = await prisma.user.upsert({
@@ -36,6 +50,22 @@ async function main() {
     },
   });
   console.log(`Seeded admin user: ${admin.email} (${admin.id})`);
+
+  // ─── Validator User ─────────────────────────────────
+  const validator = await prisma.user.upsert({
+    where: { email: "validator@example.com" },
+    update: {},
+    create: {
+      email: "validator@example.com",
+      username: "validator",
+      name: "Validator User",
+      tenantId: tenant.id,
+      password: {
+        create: { hash: passwordHash },
+      },
+    },
+  });
+  console.log(`Seeded validator user: ${validator.email} (${validator.id})`);
 
   // ─── Permissions ──────────────────────────────────────
   const permissionDefs = [
@@ -162,12 +192,23 @@ async function main() {
   }
   console.log("Seeded role-permission assignments");
 
-  // ─── User Role (admin gets ADMIN role, global) ────────
-  await prisma.userRole.createMany({
-    data: [{ userId: admin.id, roleId: roles.ADMIN.id, eventId: null }],
-    skipDuplicates: true,
-  });
-  console.log("Seeded admin user-role assignment");
+  // ─── User Roles ──────────────────────────────────────
+  // Use findFirst + create to avoid duplicates (NULL eventId defeats unique constraint)
+  const userRoleAssignments = [
+    { userId: admin.id, roleId: roles.ADMIN.id },
+    { userId: validator.id, roleId: roles.VALIDATOR.id },
+  ];
+  for (const { userId, roleId } of userRoleAssignments) {
+    const existing = await prisma.userRole.findFirst({
+      where: { userId, roleId, eventId: null },
+    });
+    if (!existing) {
+      await prisma.userRole.create({
+        data: { userId, roleId, eventId: null },
+      });
+    }
+  }
+  console.log("Seeded user-role assignments");
 
   // ─── Event ────────────────────────────────────────────
   const event = await prisma.event.upsert({
@@ -359,10 +400,9 @@ async function main() {
   for (const fd of fieldDefs) {
     await prisma.fieldDefinition.upsert({
       where: {
-        tenantId_eventId_participantTypeId_entityType_name: {
+        tenantId_eventId_entityType_name: {
           tenantId: tenant.id,
           eventId: event.id,
-          participantTypeId: participantType.id,
           entityType: "Participant",
           name: fd.name,
         },
@@ -371,7 +411,6 @@ async function main() {
       create: {
         tenantId: tenant.id,
         eventId: event.id,
-        participantTypeId: participantType.id,
         entityType: "Participant",
         name: fd.name,
         label: fd.label,
@@ -383,6 +422,63 @@ async function main() {
     });
   }
   console.log(`Seeded ${fieldDefs.length} field definitions`);
+
+  // ─── Global Field Definitions (shared across all events) ──
+  const globalFieldDefs = [
+    {
+      name: "badge_name",
+      label: "Badge Name",
+      dataType: "TEXT" as const,
+      isRequired: false,
+      sortOrder: 0,
+      config: { placeholder: "Name to display on badge", maxLength: 100 },
+    },
+    {
+      name: "dietary_requirements",
+      label: "Dietary Requirements",
+      dataType: "ENUM" as const,
+      isRequired: false,
+      sortOrder: 1,
+      config: {
+        options: [
+          { value: "none", label: "None" },
+          { value: "vegetarian", label: "Vegetarian" },
+          { value: "vegan", label: "Vegan" },
+          { value: "halal", label: "Halal" },
+          { value: "kosher", label: "Kosher" },
+          { value: "gluten_free", label: "Gluten Free" },
+        ],
+      },
+    },
+  ];
+
+  for (const gfd of globalFieldDefs) {
+    // Prisma upsert can't use partial unique index, so use findFirst + create
+    const existing = await prisma.fieldDefinition.findFirst({
+      where: {
+        tenantId: tenant.id,
+        eventId: null,
+        entityType: "Participant",
+        name: gfd.name,
+      },
+    });
+    if (!existing) {
+      await prisma.fieldDefinition.create({
+        data: {
+          tenantId: tenant.id,
+          eventId: null,
+          entityType: "Participant",
+          name: gfd.name,
+          label: gfd.label,
+          dataType: gfd.dataType,
+          isRequired: gfd.isRequired,
+          sortOrder: gfd.sortOrder,
+          config: gfd.config ?? {},
+        },
+      });
+    }
+  }
+  console.log(`Seeded ${globalFieldDefs.length} global field definitions`);
 
   // ─── Feature Flags ──────────────────────────────────────
   const defaultFlags = [
