@@ -16,16 +16,22 @@ export async function listFields(
   tenantId: string,
   filters: {
     eventId?: string;
-    participantTypeId?: string;
     entityType?: string;
     dataType?: string;
     search?: string;
+    scope?: "global" | "event";
   } = {},
 ) {
   const where: Record<string, unknown> = { tenantId };
 
-  if (filters.eventId) where.eventId = filters.eventId;
-  if (filters.participantTypeId) where.participantTypeId = filters.participantTypeId;
+  if (filters.scope === "global") {
+    where.eventId = null;
+  } else if (filters.scope === "event" && filters.eventId) {
+    where.eventId = filters.eventId;
+  } else if (filters.eventId) {
+    where.eventId = filters.eventId;
+  }
+
   if (filters.entityType) where.entityType = filters.entityType;
   if (filters.dataType) where.dataType = filters.dataType;
   if (filters.search) {
@@ -44,21 +50,13 @@ export async function listFields(
 }
 
 export async function createField(input: CreateFieldInput, ctx: ServiceContext) {
-  // Verify event belongs to tenant
-  const event = await prisma.event.findFirst({
-    where: { id: input.eventId, tenantId: ctx.tenantId },
-  });
-  if (!event) {
-    throw new FieldError("Event not found or does not belong to your organization", 404);
-  }
-
-  // Verify participantType belongs to event (if provided)
-  if (input.participantTypeId) {
-    const pt = await prisma.participantType.findFirst({
-      where: { id: input.participantTypeId, eventId: input.eventId, tenantId: ctx.tenantId },
+  // Verify event belongs to tenant (only when eventId is provided)
+  if (input.eventId) {
+    const event = await prisma.event.findFirst({
+      where: { id: input.eventId, tenantId: ctx.tenantId },
     });
-    if (!pt) {
-      throw new FieldError("Participant type not found or does not belong to this event", 404);
+    if (!event) {
+      throw new FieldError("Event not found or does not belong to your organization", 404);
     }
   }
 
@@ -73,20 +71,22 @@ export async function createField(input: CreateFieldInput, ctx: ServiceContext) 
     );
   }
 
-  // Enforce per-event limit
-  const eventCount = await prisma.fieldDefinition.count({
-    where: { tenantId: ctx.tenantId, eventId: input.eventId },
-  });
-  if (eventCount >= FIELD_LIMITS.maxPerEvent) {
-    throw new FieldError(
-      `Event limit reached: maximum ${FIELD_LIMITS.maxPerEvent} fields per event`,
-      422,
-    );
+  // Enforce per-event limit (only when eventId is provided)
+  if (input.eventId) {
+    const eventCount = await prisma.fieldDefinition.count({
+      where: { tenantId: ctx.tenantId, eventId: input.eventId },
+    });
+    if (eventCount >= FIELD_LIMITS.maxPerEvent) {
+      throw new FieldError(
+        `Event limit reached: maximum ${FIELD_LIMITS.maxPerEvent} fields per event`,
+        422,
+      );
+    }
   }
 
-  // Auto-calculate sortOrder
+  // Auto-calculate sortOrder (scoped to eventId or global)
   const maxSort = await prisma.fieldDefinition.findFirst({
-    where: { tenantId: ctx.tenantId, eventId: input.eventId },
+    where: { tenantId: ctx.tenantId, eventId: input.eventId ?? null },
     orderBy: { sortOrder: "desc" },
     select: { sortOrder: true },
   });
@@ -96,8 +96,7 @@ export async function createField(input: CreateFieldInput, ctx: ServiceContext) 
     const field = await prisma.fieldDefinition.create({
       data: {
         tenantId: ctx.tenantId,
-        eventId: input.eventId,
-        participantTypeId: input.participantTypeId ?? null,
+        eventId: input.eventId ?? null,
         entityType: input.entityType,
         name: input.name,
         label: input.label,
@@ -182,9 +181,6 @@ export async function updateField(
     const field = await prisma.fieldDefinition.update({
       where: updateWhere as { id: string; updatedAt?: Date },
       data: {
-        ...(input.participantTypeId !== undefined && {
-          participantTypeId: input.participantTypeId ?? null,
-        }),
         ...(input.entityType !== undefined && { entityType: input.entityType }),
         ...(input.name !== undefined && { name: input.name }),
         ...(input.label !== undefined && { label: input.label }),
@@ -360,6 +356,44 @@ export async function getFieldDataCount(fieldId: string, tenantId: string): Prom
     field.name,
   );
   return result[0] ? Number(result[0].count) : 0;
+}
+
+/**
+ * Returns the effective field definitions for a given event by merging global
+ * fields (eventId IS NULL) with event-specific fields. Event-specific fields
+ * override global fields with the same name.
+ */
+export async function getEffectiveFields(
+  tenantId: string,
+  eventId: string,
+  entityType: string = "Participant",
+) {
+  const allFields = await prisma.fieldDefinition.findMany({
+    where: {
+      tenantId,
+      entityType,
+      OR: [{ eventId: null }, { eventId }],
+    },
+    orderBy: { sortOrder: "asc" },
+  });
+
+  // Build map: event-specific fields override global by name
+  const fieldMap = new Map<string, (typeof allFields)[number]>();
+  // First pass: add global fields
+  for (const field of allFields) {
+    if (field.eventId === null) {
+      fieldMap.set(field.name, field);
+    }
+  }
+  // Second pass: event-specific fields override
+  for (const field of allFields) {
+    if (field.eventId !== null) {
+      fieldMap.set(field.name, field);
+    }
+  }
+
+  // Return sorted by sortOrder
+  return Array.from(fieldMap.values()).sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
 // Error class for service-layer errors with HTTP status codes

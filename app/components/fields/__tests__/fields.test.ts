@@ -15,7 +15,6 @@ function makeField(
     id: `field-${counter}`,
     tenantId: "tenant-1",
     eventId: "event-1",
-    participantTypeId: null,
     entityType: "Participant",
     description: null,
     sortOrder: 0,

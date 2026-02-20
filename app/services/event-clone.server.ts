@@ -332,6 +332,8 @@ export async function startCloneOperation(options: CloneOptions, ctx: ServiceCon
         }
 
         // ── FieldDefinitions ──
+        // Only clone event-scoped fields; global fields (eventId=null) are shared
+        // automatically and excluded by this query.
         if (options.elements.fieldDefinitions) {
           const sourceFields = await tx.fieldDefinition.findMany({
             where: { eventId: sourceEvent.id, tenantId: ctx.tenantId },
@@ -341,7 +343,6 @@ export async function startCloneOperation(options: CloneOptions, ctx: ServiceCon
               data: {
                 tenantId: ctx.tenantId,
                 eventId: targetEvent.id,
-                participantTypeId: remapper.remap(fd.participantTypeId),
                 entityType: fd.entityType,
                 name: fd.name,
                 label: fd.label,

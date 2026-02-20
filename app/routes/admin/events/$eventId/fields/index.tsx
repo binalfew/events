@@ -34,20 +34,24 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   }
 
   const url = new URL(request.url);
-  const participantTypeId = url.searchParams.get("participantTypeId") || undefined;
   const dataType = url.searchParams.get("dataType") || undefined;
 
-  const fields = await listFields(tenantId, {
-    eventId,
-    participantTypeId,
-    dataType,
-  });
+  // Fetch event-scoped and global fields separately
+  const [eventFields, globalFields] = await Promise.all([
+    listFields(tenantId, { scope: "event", eventId, dataType }),
+    listFields(tenantId, { scope: "global", dataType }),
+  ]);
 
-  const participantTypes = await prisma.participantType.findMany({
-    where: { eventId, tenantId },
-    select: { id: true, name: true, code: true },
-    orderBy: { name: "asc" },
-  });
+  // Filter out global fields whose name is overridden by an event-scoped field
+  const eventFieldNames = new Set(eventFields.map((f) => f.name));
+  const nonOverriddenGlobals = globalFields.filter((f) => !eventFieldNames.has(f.name));
+
+  // Combine: event fields + non-overridden global fields
+  const fields = [...eventFields, ...nonOverriddenGlobals].sort(
+    (a, b) => a.sortOrder - b.sortOrder,
+  );
+
+  const readOnlyIds = nonOverriddenGlobals.map((f) => f.id);
 
   // Get data counts for each field (for delete warnings)
   const dataCounts: Record<string, number> = {};
@@ -55,7 +59,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     dataCounts[field.id] = await getFieldDataCount(field.id, tenantId);
   }
 
-  return { event, fields, participantTypes, dataCounts };
+  return { event, fields, dataCounts, readOnlyIds };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -137,7 +141,7 @@ const FIELD_DATA_TYPES = [
 ] as const;
 
 export default function FieldsListPage() {
-  const { event, fields, participantTypes, dataCounts } = useLoaderData<typeof loader>();
+  const { event, fields, dataCounts, readOnlyIds } = useLoaderData<typeof loader>();
   const [searchParams] = useSearchParams();
 
   return (
@@ -161,26 +165,6 @@ export default function FieldsListPage() {
       <Form method="get" className="flex flex-wrap items-end gap-4">
         <div>
           <label
-            htmlFor="participantTypeId"
-            className="mb-1 block text-xs font-medium text-muted-foreground"
-          >
-            Participant Type
-          </label>
-          <NativeSelect
-            id="participantTypeId"
-            name="participantTypeId"
-            defaultValue={searchParams.get("participantTypeId") ?? ""}
-          >
-            <NativeSelectOption value="">All types</NativeSelectOption>
-            {participantTypes.map((pt) => (
-              <NativeSelectOption key={pt.id} value={pt.id}>
-                {pt.name} ({pt.code})
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
-        </div>
-        <div>
-          <label
             htmlFor="dataType"
             className="mb-1 block text-xs font-medium text-muted-foreground"
           >
@@ -202,7 +186,7 @@ export default function FieldsListPage() {
         <Button type="submit" variant="secondary" size="sm">
           Filter
         </Button>
-        {(searchParams.get("participantTypeId") || searchParams.get("dataType")) && (
+        {searchParams.get("dataType") && (
           <Link
             to={`/admin/events/${event.id}/fields`}
             className="text-sm text-muted-foreground hover:text-foreground"
@@ -212,9 +196,24 @@ export default function FieldsListPage() {
         )}
       </Form>
 
+      {readOnlyIds.length > 0 && (
+        <p className="text-sm text-muted-foreground">
+          Fields marked <span className="font-medium">Global</span> are managed in{" "}
+          <Link to="/admin/settings/fields" className="underline hover:text-foreground">
+            Settings &gt; Fields
+          </Link>
+          . To override a global field for this event, create an event field with the same name.
+        </p>
+      )}
+
       {/* Table */}
       <div className="rounded-lg border bg-card">
-        <FieldTable fields={fields} dataCounts={dataCounts} eventId={event.id} />
+        <FieldTable
+          fields={fields}
+          dataCounts={dataCounts}
+          eventId={event.id}
+          readOnlyIds={new Set(readOnlyIds)}
+        />
       </div>
     </div>
   );

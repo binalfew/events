@@ -21,7 +21,6 @@ function makeField(
     id: `field-${counter}`,
     tenantId: "tenant-1",
     eventId: "event-1",
-    participantTypeId: null,
     entityType: "Participant",
     description: null,
     sortOrder: 0,
@@ -449,8 +448,8 @@ describe("getCachedSchema", () => {
 
   it("returns same schema on repeated calls (cache hit)", () => {
     const fields = [makeField({ name: "title", dataType: "TEXT", isRequired: true })];
-    const schema1 = getCachedSchema("t1", "e1", null, fields);
-    const schema2 = getCachedSchema("t1", "e1", null, fields);
+    const schema1 = getCachedSchema("t1", "e1", fields);
+    const schema2 = getCachedSchema("t1", "e1", fields);
     expect(schema1).toBe(schema2); // Same reference
   });
 
@@ -458,18 +457,18 @@ describe("getCachedSchema", () => {
     const fields1 = [
       makeField({ name: "title", dataType: "TEXT", updatedAt: new Date("2026-01-01") }),
     ];
-    const schema1 = getCachedSchema("t1", "e1", null, fields1);
+    const schema1 = getCachedSchema("t1", "e1", fields1);
 
     const fields2 = [{ ...fields1[0], updatedAt: new Date("2026-02-01") }] as FieldDefinition[];
-    const schema2 = getCachedSchema("t1", "e1", null, fields2);
+    const schema2 = getCachedSchema("t1", "e1", fields2);
 
     expect(schema1).not.toBe(schema2);
   });
 
-  it("uses participantTypeId in cache key", () => {
+  it("uses eventId in cache key", () => {
     const fields = [makeField({ name: "title", dataType: "TEXT" })];
-    const schema1 = getCachedSchema("t1", "e1", "pt1", fields);
-    const schema2 = getCachedSchema("t1", "e1", "pt2", fields);
+    const schema1 = getCachedSchema("t1", "e1", fields);
+    const schema2 = getCachedSchema("t1", "e2", fields);
     // Different cache keys, so different schema instances
     expect(schema1).not.toBe(schema2);
   });
@@ -479,18 +478,18 @@ describe("getCachedSchema", () => {
 
     // Fill cache to capacity
     for (let i = 0; i < 1000; i++) {
-      getCachedSchema("t1", `e${i}`, null, [{ ...field, id: `f-${i}` } as FieldDefinition]);
+      getCachedSchema("t1", `e${i}`, [{ ...field, id: `f-${i}` } as FieldDefinition]);
     }
     expect(schemaCache.size).toBe(1000);
 
     // Adding one more should evict the oldest
-    getCachedSchema("t1", "e-new", null, [{ ...field, id: "f-new" } as FieldDefinition]);
+    getCachedSchema("t1", "e-new", [{ ...field, id: "f-new" } as FieldDefinition]);
     expect(schemaCache.size).toBe(1000);
 
     // The first entry should be evicted
-    expect(schemaCache.has("t1:e0:null")).toBe(false);
+    expect(schemaCache.has("t1:e0")).toBe(false);
     // The new entry should exist
-    expect(schemaCache.has("t1:e-new:null")).toBe(true);
+    expect(schemaCache.has("t1:e-new")).toBe(true);
   });
 });
 

@@ -1,6 +1,6 @@
 import { prisma } from "~/lib/db.server";
 import { logger } from "~/lib/logger.server";
-import { FieldError } from "~/services/fields.server";
+import { FieldError, getEffectiveFields } from "~/services/fields.server";
 import { STANDARD_ORDER_COLUMNS } from "~/lib/schemas/field-query";
 import type { ParticipantSearchInput } from "~/lib/schemas/field-query";
 
@@ -67,10 +67,8 @@ export async function filterWithFields(
 ): Promise<{ data: unknown[]; total: number }> {
   const { tenantId, eventId, conditions, limit, offset, orderBy, orderDir } = params;
 
-  // Load field definitions for validation
-  const fieldDefs = await prisma.fieldDefinition.findMany({
-    where: { tenantId, eventId, entityType: "Participant" },
-  });
+  // Load field definitions for validation (includes global + event-specific)
+  const fieldDefs = await getEffectiveFields(tenantId, eventId, "Participant");
   const fieldMap = new Map(fieldDefs.map((f) => [f.name, f]));
 
   // Build parameterized WHERE clause

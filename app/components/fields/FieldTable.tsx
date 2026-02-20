@@ -17,10 +17,11 @@ import { DeleteFieldDialog } from "~/components/fields/DeleteFieldDialog";
 interface FieldTableProps {
   fields: FieldDefinition[];
   dataCounts: Record<string, number>;
-  eventId: string;
+  eventId?: string;
+  readOnlyIds?: Set<string>;
 }
 
-export function FieldTable({ fields, dataCounts, eventId }: FieldTableProps) {
+export function FieldTable({ fields, dataCounts, eventId, readOnlyIds }: FieldTableProps) {
   const [deleteTarget, setDeleteTarget] = useState<{
     id: string;
     label: string;
@@ -49,84 +50,107 @@ export function FieldTable({ fields, dataCounts, eventId }: FieldTableProps) {
               </TableCell>
             </TableRow>
           ) : (
-            fields.map((field, index) => (
-              <TableRow key={field.id}>
-                <TableCell className="font-medium">{field.label}</TableCell>
-                <TableCell className="text-muted-foreground">{field.name}</TableCell>
-                <TableCell>
-                  <Badge variant="secondary">{formatDataType(field.dataType)}</Badge>
-                </TableCell>
-                <TableCell>
-                  {field.isRequired ? (
-                    <span className="text-green-600" aria-label="Yes">
-                      &#10003;
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground" aria-label="No">
-                      &mdash;
-                    </span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {field.isSearchable ? (
-                    <span className="text-green-600" aria-label="Yes">
-                      &#10003;
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground" aria-label="No">
-                      &mdash;
-                    </span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <span className="text-xs text-muted-foreground">{field.entityType}</span>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    {/* Reorder buttons */}
-                    {index > 0 && (
-                      <Form method="post">
-                        <input type="hidden" name="_action" value="reorder" />
-                        <input type="hidden" name="fieldId" value={field.id} />
-                        <input type="hidden" name="direction" value="up" />
-                        <Button type="submit" variant="ghost" size="icon-xs" title="Move up">
-                          &#8593;
-                        </Button>
-                      </Form>
+            fields.map((field, index) => {
+              const isGlobal = readOnlyIds?.has(field.id);
+              const editUrl = isGlobal
+                ? `/admin/settings/fields/${field.id}`
+                : eventId
+                  ? `/admin/events/${eventId}/fields/${field.id}`
+                  : `/admin/settings/fields/${field.id}`;
+              return (
+                <TableRow key={field.id}>
+                  <TableCell className="font-medium">
+                    <span>{field.label}</span>
+                    {isGlobal && (
+                      <Badge variant="outline" className="ml-2 text-xs">
+                        Global
+                      </Badge>
                     )}
-                    {index < fields.length - 1 && (
-                      <Form method="post">
-                        <input type="hidden" name="_action" value="reorder" />
-                        <input type="hidden" name="fieldId" value={field.id} />
-                        <input type="hidden" name="direction" value="down" />
-                        <Button type="submit" variant="ghost" size="icon-xs" title="Move down">
-                          &#8595;
-                        </Button>
-                      </Form>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{field.name}</TableCell>
+                  <TableCell>
+                    <Badge variant="secondary">{formatDataType(field.dataType)}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    {field.isRequired ? (
+                      <span className="text-green-600" aria-label="Yes">
+                        &#10003;
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground" aria-label="No">
+                        &mdash;
+                      </span>
                     )}
-                    <Link to={`/admin/events/${eventId}/fields/${field.id}`}>
-                      <Button variant="ghost" size="xs">
-                        Edit
-                      </Button>
-                    </Link>
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() =>
-                        setDeleteTarget({
-                          id: field.id,
-                          label: field.label,
-                          name: field.name,
-                        })
-                      }
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))
+                  </TableCell>
+                  <TableCell>
+                    {field.isSearchable ? (
+                      <span className="text-green-600" aria-label="Yes">
+                        &#10003;
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground" aria-label="No">
+                        &mdash;
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs text-muted-foreground">{field.entityType}</span>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {isGlobal ? (
+                      <Link to={editUrl}>
+                        <Button variant="ghost" size="xs">
+                          View
+                        </Button>
+                      </Link>
+                    ) : (
+                      <div className="flex items-center justify-end gap-1">
+                        {/* Reorder buttons */}
+                        {index > 0 && (
+                          <Form method="post">
+                            <input type="hidden" name="_action" value="reorder" />
+                            <input type="hidden" name="fieldId" value={field.id} />
+                            <input type="hidden" name="direction" value="up" />
+                            <Button type="submit" variant="ghost" size="icon-xs" title="Move up">
+                              &#8593;
+                            </Button>
+                          </Form>
+                        )}
+                        {index < fields.length - 1 && (
+                          <Form method="post">
+                            <input type="hidden" name="_action" value="reorder" />
+                            <input type="hidden" name="fieldId" value={field.id} />
+                            <input type="hidden" name="direction" value="down" />
+                            <Button type="submit" variant="ghost" size="icon-xs" title="Move down">
+                              &#8595;
+                            </Button>
+                          </Form>
+                        )}
+                        <Link to={editUrl}>
+                          <Button variant="ghost" size="xs">
+                            Edit
+                          </Button>
+                        </Link>
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() =>
+                            setDeleteTarget({
+                              id: field.id,
+                              label: field.label,
+                              name: field.name,
+                            })
+                          }
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })
           )}
         </TableBody>
       </Table>

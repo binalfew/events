@@ -34,7 +34,10 @@
   "invitations": "الدعوات",
   "settings": "الإعدادات",
   "general": "عام",
+  "fields": "الحقول",
   "featureFlags": "علامات الميزات",
+  "apiKeys": "مفاتيح API",
+  "webhooks": "ويب هوكس",
   "security": "الأمان",
   "integrations": "التكاملات"
 }

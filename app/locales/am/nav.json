@@ -34,7 +34,10 @@
   "invitations": "ግብዜዎች",
   "settings": "ቀደባዎች",
   "general": "አጠቃላይ",
+  "fields": "መስኮች",
   "featureFlags": "የባህሪያት መቀያያዎች",
+  "apiKeys": "ኤፒአይ ቁልፎች",
+  "webhooks": "ዌብሁኮች",
   "security": "ደህንነት",
   "integrations": "ውህዶች"
 }

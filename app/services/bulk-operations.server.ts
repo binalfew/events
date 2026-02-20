@@ -1,6 +1,7 @@
 import { prisma } from "~/lib/db.server";
 import { logger } from "~/lib/logger.server";
 import { isFeatureEnabled, FEATURE_FLAG_KEYS } from "~/lib/feature-flags.server";
+import { getEffectiveFields } from "./fields.server";
 import { parseImportFile } from "~/services/bulk-import/parser.server";
 import {
   suggestColumnMappings,
@@ -115,11 +116,8 @@ export async function validateOperation(
     throw new BulkOperationError("File contains no data rows");
   }
 
-  // Get target fields (fixed + dynamic)
-  const dynamicFields = await prisma.fieldDefinition.findMany({
-    where: { tenantId, eventId: operation.eventId, entityType: "Participant" },
-    select: { name: true, label: true, isRequired: true },
-  });
+  // Get target fields (fixed + dynamic, includes global + event-specific)
+  const dynamicFields = await getEffectiveFields(tenantId, operation.eventId, "Participant");
   const targetFields: FieldInfo[] = [
     ...FIXED_PARTICIPANT_FIELDS,
     ...dynamicFields.map((f) => ({

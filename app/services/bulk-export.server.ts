@@ -1,5 +1,6 @@
 import { prisma } from "~/lib/db.server";
 import { logger } from "~/lib/logger.server";
+import { getEffectiveFields } from "./fields.server";
 
 // ─── Constants ───────────────────────────────────────────
 
@@ -72,12 +73,8 @@ export async function exportParticipants(
   const allFixedFields = Object.keys(fixedFieldMap);
   const selectedFixed = fields.length > 0 ? fields.filter((f) => fixedFieldMap[f]) : allFixedFields;
 
-  // Get dynamic field definitions for this event
-  const fieldDefs = await prisma.fieldDefinition.findMany({
-    where: { tenantId, eventId, entityType: "Participant" },
-    orderBy: { sortOrder: "asc" },
-    select: { name: true, label: true },
-  });
+  // Get dynamic field definitions for this event (includes global + event-specific)
+  const fieldDefs = await getEffectiveFields(tenantId, eventId, "Participant");
 
   const selectedDynamic =
     fields.length > 0 ? fieldDefs.filter((fd) => fields.includes(fd.name)) : fieldDefs;

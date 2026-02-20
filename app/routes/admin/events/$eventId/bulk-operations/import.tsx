@@ -2,6 +2,7 @@ import { data, useLoaderData } from "react-router";
 import { requirePermission } from "~/lib/require-auth.server";
 import { isFeatureEnabled, FEATURE_FLAG_KEYS } from "~/lib/feature-flags.server";
 import { prisma } from "~/lib/db.server";
+import { getEffectiveFields } from "~/services/fields.server";
 import {
   createBulkOperation,
   validateOperation,
@@ -30,12 +31,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
   const eventId = params.eventId;
 
-  // Load dynamic field definitions for target fields
-  const dynamicFields = await prisma.fieldDefinition.findMany({
-    where: { tenantId, eventId, entityType: "Participant" },
-    orderBy: { sortOrder: "asc" },
-    select: { name: true, label: true, isRequired: true },
-  });
+  // Load dynamic field definitions for target fields (includes global + event-specific)
+  const dynamicFields = await getEffectiveFields(tenantId, eventId, "Participant");
 
   const targetFields = [
     ...FIXED_PARTICIPANT_FIELDS,

@@ -34,7 +34,10 @@
   "invitations": "Invitations",
   "settings": "Settings",
   "general": "General",
+  "fields": "Fields",
   "featureFlags": "Feature Flags",
+  "apiKeys": "API Keys",
+  "webhooks": "Webhooks",
   "security": "Security",
   "integrations": "Integrations"
 }

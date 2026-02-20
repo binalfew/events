@@ -122,16 +122,15 @@ export function parseFieldFormData(
 
 /**
  * Get or build a cached Zod schema for a set of field definitions.
- * Cache key is based on tenant + event + participant type.
+ * Cache key is based on tenant + event.
  * LRU eviction when cache exceeds 1000 entries.
  */
 export function getCachedSchema(
   tenantId: string,
   eventId: string,
-  participantTypeId: string | null,
   fieldDefs: FieldDefinition[],
 ): z.ZodObject<Record<string, z.ZodTypeAny>> {
-  const cacheKey = `${tenantId}:${eventId}:${participantTypeId ?? "null"}`;
+  const cacheKey = `${tenantId}:${eventId}`;
   const hash = computeHash(fieldDefs);
 
   const cached = schemaCache.get(cacheKey);

@@ -465,6 +465,7 @@ model Tenant {
   subscriptionPlan String
   featureFlags     Json?
   usageMetrics     Json?
+  extras           Json     @default("{}")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -727,9 +728,8 @@ model ParticipantType {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  participants     Participant[]
-  fieldDefinitions FieldDefinition[]
-  formTemplates    FormTemplate[]
+  participants  Participant[]
+  formTemplates FormTemplate[]
 
   @@unique([tenantId, eventId, code])
   @@index([tenantId, eventId])
@@ -815,8 +815,8 @@ model Participant {
   event             Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
   participantTypeId String
   participantType   ParticipantType  @relation(fields: [participantTypeId], references: [id])
-  workflowId        String
-  workflow          Workflow         @relation(fields: [workflowId], references: [id])
+  workflowId        String?
+  workflow          Workflow?        @relation(fields: [workflowId], references: [id])
   workflowVersionId String?
   workflowVersion   WorkflowVersion? @relation(fields: [workflowVersionId], references: [id])
   currentStepId     String?
@@ -887,32 +887,30 @@ model Approval {
 }
 
 model FieldDefinition {
-  id                String           @id @default(cuid())
-  tenantId          String
-  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  eventId           String
-  event             Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  participantTypeId String?
-  participantType   ParticipantType? @relation(fields: [participantTypeId], references: [id])
-  entityType        String           @default("Participant")
-  name              String
-  label             String
-  description       String?
-  dataType          FieldDataType
-  sortOrder         Int              @default(0)
-  isRequired        Boolean          @default(false)
-  isUnique          Boolean          @default(false)
-  isSearchable      Boolean          @default(false)
-  isFilterable      Boolean          @default(false)
-  defaultValue      String?
-  config            Json             @default("{}")
-  validation        Json             @default("[]")
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  id           String        @id @default(cuid())
+  tenantId     String
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventId      String?
+  event        Event?        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  entityType   String        @default("Participant")
+  name         String
+  label        String
+  description  String?
+  dataType     FieldDataType
+  sortOrder    Int           @default(0)
+  isRequired   Boolean       @default(false)
+  isUnique     Boolean       @default(false)
+  isSearchable Boolean       @default(false)
+  isFilterable Boolean       @default(false)
+  defaultValue String?
+  config       Json          @default("{}")
+  validation   Json          @default("[]")
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
-  @@unique([tenantId, eventId, participantTypeId, entityType, name])
+  @@unique([tenantId, eventId, entityType, name])
   @@index([tenantId, eventId])
-  @@index([eventId, participantTypeId, sortOrder])
+  @@index([eventId, entityType, sortOrder])
 }
 
 // ─── Form Designer Domain ──────────────────────────────
@@ -2183,7 +2181,6 @@ model Companion {
   photoUrl             String?
   registrationCode     String        @unique
   badgeTemplateId      String?
-  extras               Json          @default("{}")
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 

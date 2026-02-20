@@ -19,8 +19,6 @@ import {
 } from "./security.js";
 import { createSSERouter } from "./sse.js";
 import { createSSETestRouter } from "./sse-test.js";
-import { apiKeyAuth } from "./api-auth.js";
-import { apiRateLimit } from "./api-rate-limit.js";
 import { apiRouter } from "./api-router.js";
 
 declare module "react-router" {
@@ -87,7 +85,7 @@ if (process.env.NODE_ENV === "development") {
 }
 
 // ─── REST API (before general rate limiter — has its own tier-based limiter) ──
-app.use("/api/v1", express.json(), apiKeyAuth, apiRateLimit, apiRouter);
+app.use("/api/v1", apiRouter);
 
 // ─── Rate limiting ─────────────────────────────────────────
 // 7. General limiter (all routes)

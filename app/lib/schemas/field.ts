@@ -32,8 +32,7 @@ export const fieldNameSchema = z
   );
 
 export const createFieldSchema = z.object({
-  eventId: z.string().cuid(),
-  participantTypeId: z.string().cuid().optional(),
+  eventId: z.string().cuid().optional(),
   entityType: z.enum(ENTITY_TYPES).default("Participant"),
   name: fieldNameSchema,
   label: z

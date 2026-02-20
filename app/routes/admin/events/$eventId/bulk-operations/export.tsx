@@ -3,6 +3,7 @@ import { requirePermission } from "~/lib/require-auth.server";
 import { isFeatureEnabled, FEATURE_FLAG_KEYS } from "~/lib/feature-flags.server";
 import { prisma } from "~/lib/db.server";
 import { exportParticipants } from "~/services/bulk-export.server";
+import { getEffectiveFields } from "~/services/fields.server";
 import { ExportForm } from "~/components/bulk-operations/export-form";
 import type { Route } from "./+types/export";
 
@@ -22,13 +23,9 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
   const eventId = params.eventId;
 
-  // Load field definitions for field selector
+  // Load field definitions for field selector (includes global + event-specific)
   const [dynamicFields, participantTypes] = await Promise.all([
-    prisma.fieldDefinition.findMany({
-      where: { tenantId, eventId, entityType: "Participant" },
-      orderBy: { sortOrder: "asc" },
-      select: { name: true, label: true },
-    }),
+    getEffectiveFields(tenantId, eventId, "Participant"),
     prisma.participantType.findMany({
       where: { tenantId, eventId },
       orderBy: { name: "asc" },

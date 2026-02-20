@@ -1,8 +1,9 @@
-import { data, useLoaderData, useSearchParams, useFetcher } from "react-router";
-import { useState, useCallback, useMemo } from "react";
+import { data, Link, useLoaderData, useSearchParams, useFetcher } from "react-router";
+import { Plus } from "lucide-react";
+import { useState, useMemo } from "react";
 import { requirePermission } from "~/lib/require-auth.server";
-import { isFeatureEnabled, FEATURE_FLAG_KEYS } from "~/lib/feature-flags.server";
 import { prisma } from "~/lib/db.server";
+import { getEffectiveFields } from "~/services/fields.server";
 import { batchActionSchema, participantListFilterSchema } from "~/lib/schemas/batch-action";
 import { executeBatchAction, dryRunBatchAction } from "~/services/batch-workflow-actions.server";
 import { validateBatchEligibility } from "~/services/batch-selection.server";
@@ -43,15 +44,10 @@ const STATUS_STYLES: Record<string, string> = {
 // ─── Loader ───────────────────────────────────────────────
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const { user } = await requirePermission(request, "bulk-operations", "execute");
+  const { user } = await requirePermission(request, "participant", "read");
   const tenantId = user.tenantId;
   if (!tenantId) {
     throw data({ error: "User is not associated with a tenant" }, { status: 403 });
-  }
-
-  const enabled = await isFeatureEnabled(FEATURE_FLAG_KEYS.BULK_OPERATIONS, { tenantId });
-  if (!enabled) {
-    throw data({ error: "Bulk operations feature is not enabled" }, { status: 404 });
   }
 
   const eventId = params.eventId;
@@ -98,7 +94,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     where.participantTypeId = filters.participantTypeId;
   }
 
-  const [participants, totalCount, participantTypes] = await Promise.all([
+  const [participants, totalCount, participantTypes, fieldDefs] = await Promise.all([
     prisma.participant.findMany({
       where: where as any,
       select: {
@@ -109,6 +105,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
         registrationCode: true,
         status: true,
         organization: true,
+        extras: true,
         participantType: { select: { id: true, name: true } },
         currentStepId: true,
         createdAt: true,
@@ -123,6 +120,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
+    getEffectiveFields(tenantId, eventId, "Participant"),
   ]);
 
   // Count without pagination for "select all filtered"
@@ -132,6 +130,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     event,
     participants,
     participantTypes,
+    fieldDefs,
     totalFilteredCount,
     meta: {
       page: filters.page,
@@ -199,7 +198,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 // ─── Component ────────────────────────────────────────────
 
 export default function ParticipantListPage() {
-  const { event, participants, participantTypes, totalFilteredCount, meta } =
+  const { event, participants, participantTypes, fieldDefs, totalFilteredCount, meta } =
     useLoaderData<typeof loader>();
   const [searchParams, setSearchParams] = useSearchParams();
   const fetcher = useFetcher();
@@ -415,12 +414,20 @@ export default function ParticipantListPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-foreground">Participants</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Manage participants for {event.name}. Select participants to perform batch workflow
-          actions.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Participants</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Manage participants for {event.name}. Select participants to perform batch workflow
+            actions.
+          </p>
+        </div>
+        <Button asChild>
+          <Link to="new">
+            <Plus className="mr-2 h-4 w-4" />
+            Add Participant
+          </Link>
+        </Button>
       </div>
 
       <Separator />
@@ -493,66 +500,92 @@ export default function ParticipantListPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10">
-                  <input
-                    type="checkbox"
-                    checked={allOnPageSelected && pageParticipantIds.length > 0}
-                    onChange={toggleAllOnPage}
-                    className="size-4 rounded border-gray-300"
-                    aria-label="Select all on page"
-                  />
-                </TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Reg. Code</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Organization</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {participants.length === 0 ? (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center">
-                    No participants found.
-                  </TableCell>
+                  <TableHead className="w-10">
+                    <input
+                      type="checkbox"
+                      checked={allOnPageSelected && pageParticipantIds.length > 0}
+                      onChange={toggleAllOnPage}
+                      className="size-4 rounded border-gray-300"
+                      aria-label="Select all on page"
+                    />
+                  </TableHead>
+                  <TableHead className="whitespace-nowrap">Name</TableHead>
+                  <TableHead className="whitespace-nowrap">Email</TableHead>
+                  <TableHead className="whitespace-nowrap">Reg. Code</TableHead>
+                  <TableHead className="whitespace-nowrap">Type</TableHead>
+                  <TableHead className="whitespace-nowrap">Status</TableHead>
+                  <TableHead className="whitespace-nowrap">Organization</TableHead>
+                  {fieldDefs.map((fd: any) => (
+                    <TableHead key={fd.id} className="whitespace-nowrap">
+                      {fd.label}
+                    </TableHead>
+                  ))}
                 </TableRow>
-              ) : (
-                participants.map((p: any) => (
-                  <TableRow key={p.id} data-state={selectedIds.has(p.id) ? "selected" : undefined}>
-                    <TableCell>
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(p.id)}
-                        onChange={() => toggleSelect(p.id)}
-                        className="size-4 rounded border-gray-300"
-                        aria-label={`Select ${p.firstName} ${p.lastName}`}
-                      />
+              </TableHeader>
+              <TableBody>
+                {participants.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7 + fieldDefs.length} className="h-24 text-center">
+                      No participants found.
                     </TableCell>
-                    <TableCell className="font-medium">
-                      {p.firstName} {p.lastName}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{p.email ?? "—"}</TableCell>
-                    <TableCell className="font-mono text-xs">{p.registrationCode}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{p.participantType?.name ?? "—"}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[p.status] ?? ""}`}
-                      >
-                        {p.status}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{p.organization ?? "—"}</TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : (
+                  participants.map((p: any) => (
+                    <TableRow
+                      key={p.id}
+                      data-state={selectedIds.has(p.id) ? "selected" : undefined}
+                    >
+                      <TableCell>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(p.id)}
+                          onChange={() => toggleSelect(p.id)}
+                          className="size-4 rounded border-gray-300"
+                          aria-label={`Select ${p.firstName} ${p.lastName}`}
+                        />
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        <Link to={p.id} className="text-primary hover:underline">
+                          {p.firstName} {p.lastName}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{p.email ?? "—"}</TableCell>
+                      <TableCell className="font-mono text-xs">{p.registrationCode}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{p.participantType?.name ?? "—"}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[p.status] ?? ""}`}
+                        >
+                          {p.status}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {p.organization ?? "—"}
+                      </TableCell>
+                      {fieldDefs.map((fd: any) => {
+                        const extras = (p.extras ?? {}) as Record<string, unknown>;
+                        const val = extras[fd.name];
+                        return (
+                          <TableCell
+                            key={fd.id}
+                            className="text-muted-foreground text-sm whitespace-nowrap"
+                          >
+                            {formatCellValue(fd, val)}
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
 
           {/* Pagination */}
           {meta.totalPages > 1 && (
@@ -635,4 +668,44 @@ export default function ParticipantListPage() {
       {selectedIds.size > 0 && <div className="h-16" />}
     </div>
   );
+}
+
+// ─── Helpers ──────────────────────────────────────────────
+
+function formatCellValue(fieldDef: any, value: unknown): string {
+  if (value === null || value === undefined || value === "") return "—";
+
+  switch (fieldDef.dataType) {
+    case "BOOLEAN":
+      return value ? "Yes" : "No";
+    case "MULTI_ENUM": {
+      if (Array.isArray(value)) {
+        const options = (fieldDef.config as any)?.options as
+          | Array<{ value: string; label: string }>
+          | undefined;
+        if (options) {
+          const labelMap = new Map(options.map((o: any) => [o.value, o.label]));
+          return value.map((v) => labelMap.get(String(v)) ?? v).join(", ");
+        }
+        return value.join(", ");
+      }
+      return String(value);
+    }
+    case "ENUM": {
+      const options = (fieldDef.config as any)?.options as
+        | Array<{ value: string; label: string }>
+        | undefined;
+      if (options) {
+        const match = options.find((o: any) => o.value === String(value));
+        if (match) return match.label;
+      }
+      return String(value);
+    }
+    case "DATE":
+      return new Date(String(value)).toLocaleDateString();
+    case "DATETIME":
+      return new Date(String(value)).toLocaleString();
+    default:
+      return String(value);
+  }
 }

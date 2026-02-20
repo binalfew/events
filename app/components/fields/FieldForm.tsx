@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Form, Link } from "react-router";
-import type { FieldDefinition, ParticipantType } from "~/generated/prisma/client";
+import type { FieldDefinition } from "~/generated/prisma/client";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -30,16 +30,16 @@ const FIELD_DATA_TYPES = [
   "JSON",
 ] as const;
 
-const ENTITY_TYPES = ["Participant", "Event"] as const;
+const ENTITY_TYPES = ["Participant", "Event", "Tenant"] as const;
 
 interface FieldFormProps {
-  eventId: string;
-  participantTypes: Pick<ParticipantType, "id" | "name" | "code">[];
+  eventId?: string;
   field?: FieldDefinition | null;
   errors?: { formErrors?: string[] };
+  cancelUrl?: string;
 }
 
-export function FieldForm({ eventId, participantTypes, field, errors }: FieldFormProps) {
+export function FieldForm({ eventId, field, errors, cancelUrl }: FieldFormProps) {
   const isEdit = !!field;
 
   const [label, setLabel] = useState(field?.label ?? "");
@@ -47,7 +47,6 @@ export function FieldForm({ eventId, participantTypes, field, errors }: FieldFor
   const [nameManuallyEdited, setNameManuallyEdited] = useState(isEdit);
   const [description, setDescription] = useState(field?.description ?? "");
   const [entityType, setEntityType] = useState(field?.entityType ?? "Participant");
-  const [participantTypeId, setParticipantTypeId] = useState(field?.participantTypeId ?? "");
   const [dataType, setDataType] = useState<string>(field?.dataType ?? "TEXT");
   const [isRequired, setIsRequired] = useState(field?.isRequired ?? false);
   const [isUnique, setIsUnique] = useState(field?.isUnique ?? false);
@@ -83,7 +82,7 @@ export function FieldForm({ eventId, participantTypes, field, errors }: FieldFor
 
   return (
     <Form method="post" className="space-y-8">
-      <input type="hidden" name="eventId" value={eventId} />
+      {eventId && <input type="hidden" name="eventId" value={eventId} />}
 
       {errors?.formErrors && errors.formErrors.length > 0 && (
         <div className="rounded-md bg-destructive/10 p-4">
@@ -94,7 +93,25 @@ export function FieldForm({ eventId, participantTypes, field, errors }: FieldFor
       {/* Basic Info */}
       <section className="space-y-4">
         <h3 className="text-lg font-semibold">Basic Information</h3>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div>
+            <Label htmlFor="entityType">Entity Type</Label>
+            <div className="mt-1 [&>[data-slot=native-select-wrapper]]:w-full">
+              <NativeSelect
+                id="entityType"
+                name="entityType"
+                value={entityType}
+                onChange={(e) => setEntityType(e.target.value)}
+                className="w-full"
+              >
+                {ENTITY_TYPES.map((et) => (
+                  <NativeSelectOption key={et} value={et}>
+                    {et}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </div>
+          </div>
           <div>
             <Label htmlFor="label">
               Label <span className="text-destructive">*</span>
@@ -141,42 +158,6 @@ export function FieldForm({ eventId, participantTypes, field, errors }: FieldFor
             rows={2}
           />
         </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <Label htmlFor="entityType">Entity Type</Label>
-            <NativeSelect
-              id="entityType"
-              name="entityType"
-              value={entityType}
-              onChange={(e) => setEntityType(e.target.value)}
-              className="mt-1"
-            >
-              {ENTITY_TYPES.map((et) => (
-                <NativeSelectOption key={et} value={et}>
-                  {et}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </div>
-          <div>
-            <Label htmlFor="participantTypeId">Participant Type Scope</Label>
-            <NativeSelect
-              id="participantTypeId"
-              name="participantTypeId"
-              value={participantTypeId}
-              onChange={(e) => setParticipantTypeId(e.target.value)}
-              className="mt-1"
-            >
-              <NativeSelectOption value="">All participant types</NativeSelectOption>
-              {participantTypes.map((pt) => (
-                <NativeSelectOption key={pt.id} value={pt.id}>
-                  {pt.name} ({pt.code})
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </div>
-        </div>
       </section>
 
       <Separator />
@@ -186,19 +167,21 @@ export function FieldForm({ eventId, participantTypes, field, errors }: FieldFor
         <h3 className="text-lg font-semibold">Field Type</h3>
         <div>
           <Label htmlFor="dataType">Data Type</Label>
-          <NativeSelect
-            id="dataType"
-            name="dataType"
-            value={dataType}
-            onChange={(e) => handleDataTypeChange(e.target.value)}
-            className="mt-1"
-          >
-            {FIELD_DATA_TYPES.map((dt) => (
-              <NativeSelectOption key={dt} value={dt}>
-                {dt.replace(/_/g, " ")}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
+          <div className="mt-1 [&>[data-slot=native-select-wrapper]]:w-full">
+            <NativeSelect
+              id="dataType"
+              name="dataType"
+              value={dataType}
+              onChange={(e) => handleDataTypeChange(e.target.value)}
+              className="w-full"
+            >
+              {FIELD_DATA_TYPES.map((dt) => (
+                <NativeSelectOption key={dt} value={dt}>
+                  {dt.replace(/_/g, " ")}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </div>
         </div>
 
         <TypeConfigPanel dataType={dataType} config={config} onChange={setConfig} />
@@ -267,7 +250,9 @@ export function FieldForm({ eventId, participantTypes, field, errors }: FieldFor
       {/* Actions */}
       <div className="flex items-center gap-3">
         <Button type="submit">{isEdit ? "Save Changes" : "Create Field"}</Button>
-        <Link to={`/admin/events/${eventId}/fields`}>
+        <Link
+          to={cancelUrl ?? (eventId ? `/admin/events/${eventId}/fields` : "/admin/settings/fields")}
+        >
           <Button type="button" variant="outline">
             Cancel
           </Button>

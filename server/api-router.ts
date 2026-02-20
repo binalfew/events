@@ -1,6 +1,8 @@
-import { Router } from "express";
+import express, { Router } from "express";
 import type { Request, Response } from "express";
 import { requireApiPermission } from "~/services/api-permission.server";
+import { apiKeyAuth } from "./api-auth.js";
+import { apiRateLimit } from "./api-rate-limit.js";
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -72,6 +74,7 @@ function errorResponse(res: Response, code: string, message: string, status: num
 // ─── Router ───────────────────────────────────────────────
 
 export const apiRouter = Router();
+apiRouter.use("/events", express.json(), apiKeyAuth, apiRateLimit);
 
 // ─── Events ───────────────────────────────────────────────
 

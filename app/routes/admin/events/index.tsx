@@ -1,12 +1,11 @@
 import { data, Link, useLoaderData } from "react-router";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, Plus } from "lucide-react";
 
 export const handle = { breadcrumb: "Events" };
 import { requirePermission } from "~/lib/require-auth.server";
 import { prisma } from "~/lib/db.server";
+import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
-import { CardGridSkeleton } from "~/components/skeletons";
-import { Skeleton } from "~/components/ui/skeleton";
 import type { Route } from "./+types/index";
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -17,10 +16,10 @@ export async function loader({ request }: Route.LoaderArgs) {
   }
 
   const events = await prisma.event.findMany({
-    where: { tenantId },
+    where: { tenantId, deletedAt: null },
     orderBy: { startDate: "asc" },
     include: {
-      _count: { select: { fieldDefinitions: true, formTemplates: true } },
+      _count: { select: { fieldDefinitions: true, formTemplates: true, participants: true } },
     },
   });
 
@@ -38,11 +37,19 @@ export default function EventsListPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-foreground">Events</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Manage events and their field definitions.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Events</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Manage events and their field definitions.
+          </p>
+        </div>
+        <Button asChild>
+          <Link to="/admin/events/new">
+            <Plus className="mr-2 h-4 w-4" />
+            New Event
+          </Link>
+        </Button>
       </div>
 
       {events.length === 0 ? (
@@ -73,6 +80,9 @@ export default function EventsListPage() {
                 {event.endDate && ` — ${new Date(event.endDate).toLocaleDateString()}`}
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
+                {event._count.participants} participant
+                {event._count.participants !== 1 ? "s" : ""}
+                {" · "}
                 {event._count.fieldDefinitions} field
                 {event._count.fieldDefinitions !== 1 ? "s" : ""}
                 {" · "}
@@ -93,6 +103,12 @@ export default function EventsListPage() {
                     className="text-primary hover:underline"
                   >
                     Forms
+                  </Link>
+                  <Link
+                    to={`/admin/events/${event.id}/participant-types`}
+                    className="text-primary hover:underline"
+                  >
+                    Types
                   </Link>
                   <Link
                     to={`/admin/events/${event.id}/delegations`}
@@ -296,13 +312,25 @@ export default function EventsListPage() {
                     Compliance
                   </Link>
                 </div>
-                <div className="flex flex-wrap gap-x-3 gap-y-1">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <span className="text-muted-foreground font-medium">Actions:</span>
+                  <Link
+                    to={`/admin/events/${event.id}/edit`}
+                    className="text-primary hover:underline"
+                  >
+                    Edit
+                  </Link>
                   <Link
                     to={`/admin/events/${event.id}/clone`}
                     className="text-primary hover:underline"
                   >
                     Clone
+                  </Link>
+                  <Link
+                    to={`/admin/events/${event.id}/delete`}
+                    className="text-destructive hover:underline"
+                  >
+                    Delete
                   </Link>
                 </div>
               </div>

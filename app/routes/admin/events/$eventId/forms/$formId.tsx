@@ -55,7 +55,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
     const [fieldDefinitions, sectionTemplates] = await Promise.all([
       prisma.fieldDefinition.findMany({
-        where: { tenantId, eventId },
+        where: { tenantId, OR: [{ eventId }, { eventId: null }] },
         select: { id: true, name: true, label: true, dataType: true },
         orderBy: { sortOrder: "asc" },
       }),

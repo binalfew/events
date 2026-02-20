@@ -14,7 +14,6 @@ export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const filters = {
     eventId: url.searchParams.get("eventId") ?? undefined,
-    participantTypeId: url.searchParams.get("participantTypeId") ?? undefined,
     entityType: url.searchParams.get("entityType") ?? undefined,
     dataType: url.searchParams.get("dataType") ?? undefined,
     search: url.searchParams.get("search") ?? undefined,

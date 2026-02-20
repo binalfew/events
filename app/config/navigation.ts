@@ -12,6 +12,7 @@ import {
   Building2,
   Users,
   Shield,
+  KeyRound,
 } from "lucide-react";
 
 export type NavChild = {
@@ -93,6 +94,12 @@ export const navigationGroups: NavGroup[] = [
         title: "Roles",
         url: "/admin/roles",
         icon: Shield,
+        roles: ["ADMIN"],
+      },
+      {
+        title: "Permissions",
+        url: "/admin/permissions",
+        icon: KeyRound,
         roles: ["ADMIN"],
       },
     ],

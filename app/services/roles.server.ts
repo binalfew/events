@@ -172,12 +172,6 @@ export async function deleteRole(id: string, ctx: ServiceContext) {
   });
 }
 
-export async function listPermissions() {
-  return prisma.permission.findMany({
-    orderBy: [{ resource: "asc" }, { action: "asc" }],
-  });
-}
-
 export async function assignPermissions(
   roleId: string,
   permissionIds: string[],

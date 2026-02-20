@@ -32,13 +32,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     throw data({ error: "Field not found" }, { status: 404 });
   }
 
-  const participantTypes = await prisma.participantType.findMany({
-    where: { eventId, tenantId },
-    select: { id: true, name: true, code: true },
-    orderBy: { name: "asc" },
-  });
-
-  return { event, field, participantTypes };
+  return { event, field };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -75,7 +69,6 @@ export async function action({ request, params }: Route.ActionArgs) {
     label: formData.get("label") as string,
     description: (formData.get("description") as string) || undefined,
     entityType: entityType as "Participant" | "Event",
-    participantTypeId: (formData.get("participantTypeId") as string) || undefined,
     dataType: dataType as
       | "TEXT"
       | "LONG_TEXT"
@@ -121,7 +114,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 }
 
 export default function EditFieldPage() {
-  const { event, field, participantTypes } = useLoaderData<typeof loader>();
+  const { event, field } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
 
   return (
@@ -130,7 +123,6 @@ export default function EditFieldPage() {
 
       <FieldForm
         eventId={event.id}
-        participantTypes={participantTypes}
         field={field}
         errors={actionData as { formErrors?: string[] } | undefined}
       />

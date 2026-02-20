@@ -86,7 +86,7 @@ Modules declare dependency chains in their headers (`Requires`, `Required By`, `
 
 ## UI Component Guidelines
 
-- **Date Picker**: Use the ShadCN date picker pattern (built on `app/components/ui/calendar.tsx` + `app/components/ui/popover.tsx`). Do NOT use native `<input type="date">` for date selection in forms.
+- **Date & Time Inputs**: Always use the ShadCN date picker pattern (built on `app/components/ui/calendar.tsx` + `app/components/ui/popover.tsx`) for all date and time inputs. NEVER use native `<input type="date">`, `<input type="time">`, or `<input type="datetime-local">` anywhere in the application. This applies to all forms — create, edit, filter, etc.
 - **Select**: Use `NativeSelect` / `NativeSelectOption` from `~/components/ui/native-select` (Radix Select is not in the project).
 - **All UI components** are in `app/components/ui/` — always check what exists before creating new ones.
 

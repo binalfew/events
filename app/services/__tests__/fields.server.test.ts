@@ -160,14 +160,36 @@ describe("fields.server", () => {
       await expect(createField(validInput, ctx)).rejects.toMatchObject({ status: 404 });
     });
 
-    it("throws 404 when participantType not found", async () => {
-      const { createField, FieldError } = await import("../fields.server");
-      mockEventFindFirst.mockResolvedValue({ id: "event-1", tenantId: "tenant-1" });
-      mockPtFindFirst.mockResolvedValue(null);
+    it("creates a global field when eventId is omitted", async () => {
+      const { createField } = await import("../fields.server");
+      mockCount.mockResolvedValue(0);
+      mockFindFirst.mockResolvedValue(null); // no existing fields for sortOrder
+      mockCreate.mockResolvedValue({
+        id: "f1",
+        tenantId: "tenant-1",
+        eventId: null,
+        entityType: "Participant",
+        name: "badge_name",
+        label: "Badge Name",
+        dataType: "TEXT",
+        sortOrder: 0,
+        isRequired: false,
+        isUnique: false,
+        isSearchable: false,
+        isFilterable: false,
+        config: {},
+        validation: [],
+      });
+      mockAuditCreate.mockResolvedValue({});
 
-      const inputWithPt = { ...validInput, participantTypeId: "pt-1" };
-      await expect(createField(inputWithPt, ctx)).rejects.toThrow(FieldError);
-      await expect(createField(inputWithPt, ctx)).rejects.toMatchObject({ status: 404 });
+      const { eventId: _, ...globalInput } = validInput;
+      const result = await createField(
+        { ...globalInput, name: "badge_name", label: "Badge Name" },
+        ctx,
+      );
+      expect(result.eventId).toBeNull();
+      // Should not have called event.findFirst since no eventId
+      expect(mockEventFindFirst).not.toHaveBeenCalled();
     });
 
     it("enforces tenant-wide limit", async () => {
@@ -402,6 +424,113 @@ describe("fields.server", () => {
       await expect(reorderFields({ fieldIds: ["f1", "f2"] }, ctx)).rejects.toMatchObject({
         status: 404,
       });
+    });
+  });
+
+  describe("getEffectiveFields", () => {
+    it("merges global and event-specific fields", async () => {
+      const { getEffectiveFields } = await import("../fields.server");
+      const globalField = {
+        id: "g1",
+        tenantId: "tenant-1",
+        eventId: null,
+        entityType: "Participant",
+        name: "badge_name",
+        label: "Badge Name",
+        dataType: "TEXT",
+        sortOrder: 0,
+      };
+      const eventField = {
+        id: "e1",
+        tenantId: "tenant-1",
+        eventId: "event-1",
+        entityType: "Participant",
+        name: "passport_number",
+        label: "Passport Number",
+        dataType: "TEXT",
+        sortOrder: 1,
+      };
+      mockFindMany.mockResolvedValue([globalField, eventField]);
+
+      const result = await getEffectiveFields("tenant-1", "event-1", "Participant");
+      expect(result).toHaveLength(2);
+      expect(result[0].name).toBe("badge_name");
+      expect(result[1].name).toBe("passport_number");
+    });
+
+    it("event-specific field overrides global field with same name", async () => {
+      const { getEffectiveFields } = await import("../fields.server");
+      const globalField = {
+        id: "g1",
+        tenantId: "tenant-1",
+        eventId: null,
+        entityType: "Participant",
+        name: "dietary_requirements",
+        label: "Dietary Requirements (Global)",
+        dataType: "ENUM",
+        sortOrder: 0,
+      };
+      const eventOverride = {
+        id: "e1",
+        tenantId: "tenant-1",
+        eventId: "event-1",
+        entityType: "Participant",
+        name: "dietary_requirements",
+        label: "Dietary Requirements (Event)",
+        dataType: "ENUM",
+        sortOrder: 1,
+      };
+      mockFindMany.mockResolvedValue([globalField, eventOverride]);
+
+      const result = await getEffectiveFields("tenant-1", "event-1", "Participant");
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe("e1");
+      expect(result[0].label).toBe("Dietary Requirements (Event)");
+    });
+
+    it("returns only global fields when event has no fields", async () => {
+      const { getEffectiveFields } = await import("../fields.server");
+      const globalField = {
+        id: "g1",
+        tenantId: "tenant-1",
+        eventId: null,
+        entityType: "Participant",
+        name: "badge_name",
+        label: "Badge Name",
+        dataType: "TEXT",
+        sortOrder: 0,
+      };
+      mockFindMany.mockResolvedValue([globalField]);
+
+      const result = await getEffectiveFields("tenant-1", "event-1", "Participant");
+      expect(result).toHaveLength(1);
+      expect(result[0].eventId).toBeNull();
+    });
+  });
+
+  describe("listFields with scope", () => {
+    it("lists only global fields when scope is global", async () => {
+      const { listFields } = await import("../fields.server");
+      mockFindMany.mockResolvedValue([]);
+
+      await listFields("tenant-1", { scope: "global" });
+      expect(mockFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ eventId: null }),
+        }),
+      );
+    });
+
+    it("lists only event fields when scope is event", async () => {
+      const { listFields } = await import("../fields.server");
+      mockFindMany.mockResolvedValue([]);
+
+      await listFields("tenant-1", { scope: "event", eventId: "event-1" });
+      expect(mockFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ eventId: "event-1" }),
+        }),
+      );
     });
   });
 });

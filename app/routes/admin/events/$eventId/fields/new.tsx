@@ -5,6 +5,7 @@ export const handle = { breadcrumb: "New Field" };
 import { requirePermission } from "~/lib/require-auth.server";
 import { prisma } from "~/lib/db.server";
 import { createField, FieldError } from "~/services/fields.server";
+
 import { FieldForm } from "~/components/fields/FieldForm";
 import type { Route } from "./+types/new";
 
@@ -25,13 +26,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     throw data({ error: "Event not found" }, { status: 404 });
   }
 
-  const participantTypes = await prisma.participantType.findMany({
-    where: { eventId, tenantId },
-    select: { id: true, name: true, code: true },
-    orderBy: { name: "asc" },
-  });
-
-  return { event, participantTypes };
+  return { event };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -69,7 +64,6 @@ export async function action({ request, params }: Route.ActionArgs) {
     label: formData.get("label") as string,
     description: (formData.get("description") as string) || undefined,
     entityType: entityType as "Participant" | "Event",
-    participantTypeId: (formData.get("participantTypeId") as string) || undefined,
     dataType: dataType as
       | "TEXT"
       | "LONG_TEXT"
@@ -115,18 +109,14 @@ export async function action({ request, params }: Route.ActionArgs) {
 }
 
 export default function NewFieldPage() {
-  const { event, participantTypes } = useLoaderData<typeof loader>();
+  const { event } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
 
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-foreground">Add Field</h2>
 
-      <FieldForm
-        eventId={event.id}
-        participantTypes={participantTypes}
-        errors={actionData as { formErrors?: string[] } | undefined}
-      />
+      <FieldForm eventId={event.id} errors={actionData as { formErrors?: string[] } | undefined} />
     </div>
   );
 }

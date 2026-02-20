@@ -118,9 +118,9 @@ describe("field schemas", () => {
       );
     });
 
-    it("requires eventId", () => {
+    it("allows optional eventId (global fields)", () => {
       const { eventId: _, ...withoutEventId } = validInput;
-      expect(createFieldSchema.safeParse(withoutEventId).success).toBe(false);
+      expect(createFieldSchema.safeParse(withoutEventId).success).toBe(true);
     });
 
     it("requires name", () => {

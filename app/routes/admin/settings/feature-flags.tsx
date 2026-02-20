@@ -4,6 +4,7 @@ export const handle = { breadcrumb: "Feature Flags" };
 
 import { requirePermission } from "~/lib/require-auth.server";
 import { getAllFlags, setFlag } from "~/lib/feature-flags.server";
+import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Switch } from "~/components/ui/switch";
@@ -27,12 +28,7 @@ export async function action({ request }: Route.ActionArgs) {
   const { user } = await requirePermission(request, "feature-flag", "manage");
 
   const formData = await request.formData();
-  const flagKey = formData.get("flagKey") as string;
-  const enabled = formData.get("enabled") === "true";
-
-  if (!flagKey) {
-    return data({ error: "Flag key is required" }, { status: 400 });
-  }
+  const _action = formData.get("_action") as string;
 
   const ctx = {
     userId: user.id,
@@ -42,6 +38,20 @@ export async function action({ request }: Route.ActionArgs) {
   };
 
   try {
+    if (_action === "toggle-all") {
+      const enabled = formData.get("enabled") === "true";
+      const flags = await getAllFlags(ctx);
+      await Promise.all(flags.map((f) => setFlag(f.key, { enabled }, ctx)));
+      return data({ success: true });
+    }
+
+    const flagKey = formData.get("flagKey") as string;
+    const enabled = formData.get("enabled") === "true";
+
+    if (!flagKey) {
+      return data({ error: "Flag key is required" }, { status: 400 });
+    }
+
     await setFlag(flagKey, { enabled }, ctx);
     return data({ success: true });
   } catch {
@@ -51,14 +61,45 @@ export async function action({ request }: Route.ActionArgs) {
 
 export default function FeatureFlagsPage() {
   const { flags } = useLoaderData<typeof loader>();
+  const bulkFetcher = useFetcher();
+  const isBulkSubmitting = bulkFetcher.state !== "idle";
+  const enabledCount = flags.filter((f) => f.enabled).length;
+  const allEnabled = enabledCount === flags.length;
+  const allDisabled = enabledCount === 0;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-foreground">Feature Flags</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Enable or disable features across the platform. Changes take effect immediately.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Feature Flags</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Enable or disable features across the platform. Changes take effect immediately.
+          </p>
+        </div>
+        {flags.length > 0 && (
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isBulkSubmitting || allEnabled}
+              onClick={() =>
+                bulkFetcher.submit({ _action: "toggle-all", enabled: "true" }, { method: "POST" })
+              }
+            >
+              Enable All
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isBulkSubmitting || allDisabled}
+              onClick={() =>
+                bulkFetcher.submit({ _action: "toggle-all", enabled: "false" }, { method: "POST" })
+              }
+            >
+              Disable All
+            </Button>
+          </div>
+        )}
       </div>
 
       <Separator />
