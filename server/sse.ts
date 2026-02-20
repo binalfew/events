@@ -17,7 +17,7 @@ interface SSEConnection {
   res: FlushableResponse;
 }
 
-type GetSessionFn = (request: globalThis.Request) => Promise<{ get(key: string): unknown }>;
+type GetUserIdFn = (request: globalThis.Request) => Promise<string | null>;
 type IsFeatureEnabledFn = (key: string, context?: Record<string, unknown>) => Promise<boolean>;
 type GetUserFn = (userId: string) => Promise<{ tenantId: string | null; roles: string[] } | null>;
 
@@ -41,7 +41,7 @@ function getConnectionsForUser(userId: string): number {
 // ─── SSE Router Factory ──────────────────────────────────
 
 export function createSSERouter(
-  getSessionFn: GetSessionFn,
+  getUserIdFn: GetUserIdFn,
   isFeatureEnabledFn: IsFeatureEnabledFn,
   getUserFn: GetUserFn,
 ): Router {
@@ -49,16 +49,15 @@ export function createSSERouter(
 
   router.get("/api/sse", async (req: Request, _res: Response) => {
     const res = _res as FlushableResponse;
-    // 1. Auth — extract userId from session cookie
+    // 1. Auth — resolve userId from session (validates DB session + fingerprint)
     let userId: string | undefined;
     try {
       const cookie = req.headers.cookie || "";
       const fakeReq = new globalThis.Request("http://localhost", {
         headers: { Cookie: cookie },
       });
-      const session = await getSessionFn(fakeReq);
-      const id = session.get("userId");
-      if (id && typeof id === "string") userId = id;
+      const id = await getUserIdFn(fakeReq);
+      if (id) userId = id;
     } catch {
       // auth failed
     }

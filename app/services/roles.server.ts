@@ -174,7 +174,7 @@ export async function deleteRole(id: string, ctx: ServiceContext) {
 
 export async function assignPermissions(
   roleId: string,
-  permissionIds: string[],
+  assignments: Array<{ permissionId: string; access?: string }>,
   ctx: ServiceContext,
 ) {
   const existing = await prisma.role.findFirst({
@@ -188,11 +188,12 @@ export async function assignPermissions(
     where: { roleId },
   });
 
-  if (permissionIds.length > 0) {
+  if (assignments.length > 0) {
     await prisma.rolePermission.createMany({
-      data: permissionIds.map((permissionId) => ({
+      data: assignments.map((a) => ({
         roleId,
-        permissionId,
+        permissionId: a.permissionId,
+        access: a.access ?? "any",
       })),
       skipDuplicates: true,
     });
@@ -208,7 +209,7 @@ export async function assignPermissions(
       description: `Updated permission assignments for role "${existing.name}"`,
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
-      metadata: { permissionCount: permissionIds.length },
+      metadata: { permissionCount: assignments.length },
     },
   });
 }

@@ -1,6 +1,6 @@
 import { useForm, getFormProps, getInputProps } from "@conform-to/react";
 import { parseWithZod } from "@conform-to/zod/v4";
-import { data, Form, redirect, useActionData } from "react-router";
+import { data, Form, Link, redirect, useActionData } from "react-router";
 import { useTranslation } from "react-i18next";
 import { z } from "zod/v4";
 import { verifyPassword } from "~/lib/auth.server";
@@ -121,22 +121,26 @@ export async function action({ request }: Route.ActionArgs) {
   // Verify password
   const isValid = await verifyPassword(password, user.password.hash);
   if (!isValid) {
-    const newAttempts = user.failedLoginAttempts + 1;
-    const shouldLock = newAttempts >= env.MAX_LOGIN_ATTEMPTS;
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        failedLoginAttempts: newAttempts,
-        lastFailedLoginAt: new Date(),
-        ...(shouldLock && {
-          status: "LOCKED",
-          lockedAt: new Date(),
-          lockReason: "Too many failed login attempts",
-          lockCount: { increment: 1 },
-          autoUnlockAt: new Date(Date.now() + env.LOCKOUT_DURATION_MINUTES * 60 * 1000),
-        }),
-      },
+    // Transactional lockout — atomic increment + lock to prevent race conditions
+    const { newAttempts, shouldLock } = await prisma.$transaction(async (tx) => {
+      const freshUser = await tx.user.findUniqueOrThrow({ where: { id: user.id } });
+      const attempts = freshUser.failedLoginAttempts + 1;
+      const lock = attempts >= env.MAX_LOGIN_ATTEMPTS;
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          failedLoginAttempts: attempts,
+          lastFailedLoginAt: new Date(),
+          ...(lock && {
+            status: "LOCKED",
+            lockedAt: new Date(),
+            lockReason: "Too many failed login attempts",
+            lockCount: { increment: 1 },
+            autoUnlockAt: new Date(Date.now() + env.LOCKOUT_DURATION_MINUTES * 60 * 1000),
+          }),
+        },
+      });
+      return { newAttempts: attempts, shouldLock: lock };
     });
 
     logger.info({ userId: user.id, attempts: newAttempts }, "Login failed: wrong password");
@@ -179,7 +183,7 @@ export async function action({ request }: Route.ActionArgs) {
     },
   });
 
-  return createUserSession(user.id, redirectTo || "/admin");
+  return createUserSession(request, user.id, redirectTo || "/admin");
 }
 
 export default function LoginPage({ actionData }: Route.ComponentProps) {
@@ -256,6 +260,13 @@ export default function LoginPage({ actionData }: Route.ComponentProps) {
                   <Button type="submit" className="w-full">
                     {t("login")}
                   </Button>
+
+                  <div className="text-center text-sm">
+                    Don&apos;t have an account?{" "}
+                    <Link to="/auth/signup" className="underline underline-offset-4">
+                      Sign up
+                    </Link>
+                  </div>
                 </div>
               </Form>
             </CardContent>

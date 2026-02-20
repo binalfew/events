@@ -1,7 +1,7 @@
 import "react-router";
 import { createRequestHandler } from "@react-router/express";
 import express from "express";
-import { getSession } from "~/lib/session.server";
+import { getSession, getUserId } from "~/lib/session.server";
 import {
   nonceMiddleware,
   helmetMiddleware,
@@ -51,7 +51,7 @@ app.use(extractSessionUser(getSession));
 // 6b. SSE endpoint (before rate limiter — long-lived connections)
 app.use(
   createSSERouter(
-    getSession,
+    getUserId,
     async (key, context) => {
       const { isFeatureEnabled } = await import("~/lib/feature-flags.server");
       return isFeatureEnabled(key, context);
@@ -74,7 +74,7 @@ app.use(
 // 6c. SSE test route (dev only — publishes fake events for testing)
 if (process.env.NODE_ENV === "development") {
   app.use(
-    createSSETestRouter(getSession, async (userId) => {
+    createSSETestRouter(getUserId, async (userId) => {
       const { prisma } = await import("~/lib/db.server");
       const user = await prisma.user.findFirst({
         where: { id: userId },

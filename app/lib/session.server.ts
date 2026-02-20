@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { createCookieSessionStorage, redirect } from "react-router";
 import { env } from "~/lib/env.server";
 import { prisma } from "~/lib/db.server";
@@ -19,11 +20,44 @@ export function getSession(request: Request) {
   return sessionStorage.getSession(cookie);
 }
 
+/**
+ * Generate an HMAC-based fingerprint from stable browser headers.
+ * Used to detect session hijacking (different browser/device reusing a stolen cookie).
+ * Only uses User-Agent and Accept-Language — Client Hints (sec-ch-ua-*)
+ * are excluded because they can differ between form POSTs, navigations,
+ * and fetch requests, causing false-positive session invalidation.
+ */
+export function generateFingerprint(request: Request): string {
+  const components = [
+    request.headers.get("user-agent") || "",
+    request.headers.get("accept-language") || "",
+  ];
+  return crypto.createHmac("sha256", env.SESSION_SECRET).update(components.join("|")).digest("hex");
+}
+
+/**
+ * Get the current user's ID from the session.
+ * Now stores sessionId in cookie and validates against the DB Session record,
+ * checking expiration and fingerprint on every request.
+ */
 export async function getUserId(request: Request): Promise<string | null> {
   const session = await getSession(request);
-  const userId = session.get("userId");
-  if (!userId || typeof userId !== "string") return null;
-  return userId;
+  const sessionId = session.get("sessionId");
+  if (!sessionId || typeof sessionId !== "string") return null;
+
+  const dbSession = await prisma.session.findFirst({
+    where: { id: sessionId, expirationDate: { gt: new Date() } },
+    select: { userId: true },
+  });
+
+  if (!dbSession) return null;
+
+  return dbSession.userId;
+}
+
+export async function requireAnonymous(request: Request) {
+  const userId = await getUserId(request);
+  if (userId) throw redirect("/admin");
 }
 
 export async function requireUserId(request: Request, redirectTo?: string): Promise<string> {
@@ -46,7 +80,13 @@ async function fetchUser(request: Request) {
     where: { id: userId },
     include: {
       userRoles: {
-        include: { role: true },
+        include: {
+          role: {
+            include: {
+              rolePermissions: { include: { permission: true } },
+            },
+          },
+        },
       },
     },
   });
@@ -64,9 +104,21 @@ export function requireUser(request: Request) {
   return promise;
 }
 
-export async function createUserSession(userId: string, redirectTo: string) {
+/**
+ * Create a new DB-backed session with fingerprint, store sessionId in cookie.
+ */
+export async function createUserSession(request: Request, userId: string, redirectTo: string) {
+  const fingerprint = generateFingerprint(request);
+  const dbSession = await prisma.session.create({
+    data: {
+      userId,
+      expirationDate: new Date(Date.now() + env.SESSION_MAX_AGE),
+      fingerprint,
+    },
+  });
+
   const session = await sessionStorage.getSession();
-  session.set("userId", userId);
+  session.set("sessionId", dbSession.id);
   return redirect(redirectTo, {
     headers: {
       "Set-Cookie": await sessionStorage.commitSession(session),
@@ -76,6 +128,11 @@ export async function createUserSession(userId: string, redirectTo: string) {
 
 export async function logout(request: Request) {
   const session = await getSession(request);
+  // Clean up DB session if it exists
+  const sessionId = session.get("sessionId");
+  if (sessionId) {
+    await prisma.session.delete({ where: { id: sessionId } }).catch(() => {});
+  }
   return redirect("/auth/login", {
     headers: {
       "Set-Cookie": await sessionStorage.destroySession(session),

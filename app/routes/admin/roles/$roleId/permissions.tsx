@@ -49,7 +49,12 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
   const role = await getRole(params.roleId, tenantId);
   const allPermissions = await listPermissions();
-  const currentPermissionIds = role.rolePermissions.map((rp) => rp.permissionId);
+
+  // Build a map of permissionId → access level from current role assignments
+  const currentAssignments: Record<string, string> = {};
+  for (const rp of role.rolePermissions) {
+    currentAssignments[rp.permissionId] = rp.access;
+  }
 
   // Group permissions by resource
   const byResource: Record<string, Permission[]> = {};
@@ -60,7 +65,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     byResource[perm.resource].push(perm);
   }
 
-  return { role, byResource, currentPermissionIds };
+  return { role, byResource, currentAssignments };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -72,6 +77,13 @@ export async function action({ request, params }: Route.ActionArgs) {
 
   const formData = await request.formData();
   const permissionIds = formData.getAll("permissionIds") as string[];
+  const accessValues = formData.getAll("accessValues") as string[];
+
+  // Build assignments array pairing permissionId with access level
+  const assignments = permissionIds.map((permissionId, i) => ({
+    permissionId,
+    access: accessValues[i] || "any",
+  }));
 
   const ctx = {
     userId: user.id,
@@ -81,7 +93,7 @@ export async function action({ request, params }: Route.ActionArgs) {
   };
 
   try {
-    await assignPermissions(params.roleId, permissionIds, ctx);
+    await assignPermissions(params.roleId, assignments, ctx);
     return data({ success: true });
   } catch (error) {
     if (error instanceof RoleError) {
@@ -92,33 +104,44 @@ export async function action({ request, params }: Route.ActionArgs) {
 }
 
 export default function RolePermissionsPage() {
-  const { role, byResource, currentPermissionIds } = useLoaderData<typeof loader>();
+  const { role, byResource, currentAssignments } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
 
-  const [checked, setChecked] = useState<Set<string>>(() => new Set(currentPermissionIds));
+  // State: permissionId → access level ("any" | "own"), or absent if unchecked
+  const [assignments, setAssignments] = useState<Map<string, string>>(
+    () => new Map(Object.entries(currentAssignments)),
+  );
 
   function toggle(id: string) {
-    setChecked((prev) => {
-      const next = new Set(prev);
+    setAssignments((prev) => {
+      const next = new Map(prev);
       if (next.has(id)) {
         next.delete(id);
       } else {
-        next.add(id);
+        next.set(id, "any");
       }
+      return next;
+    });
+  }
+
+  function setAccess(id: string, access: string) {
+    setAssignments((prev) => {
+      const next = new Map(prev);
+      next.set(id, access);
       return next;
     });
   }
 
   function toggleGroup(resources: string[]) {
     const groupPermIds = resources.flatMap((r) => (byResource[r] ?? []).map((p) => p.id));
-    const allChecked = groupPermIds.every((id) => checked.has(id));
-    setChecked((prev) => {
-      const next = new Set(prev);
+    const allChecked = groupPermIds.every((id) => assignments.has(id));
+    setAssignments((prev) => {
+      const next = new Map(prev);
       for (const id of groupPermIds) {
         if (allChecked) {
           next.delete(id);
-        } else {
-          next.add(id);
+        } else if (!next.has(id)) {
+          next.set(id, "any");
         }
       }
       return next;
@@ -127,12 +150,12 @@ export default function RolePermissionsPage() {
 
   function isGroupAllChecked(resources: string[]) {
     const groupPermIds = resources.flatMap((r) => (byResource[r] ?? []).map((p) => p.id));
-    return groupPermIds.length > 0 && groupPermIds.every((id) => checked.has(id));
+    return groupPermIds.length > 0 && groupPermIds.every((id) => assignments.has(id));
   }
 
   function isGroupPartiallyChecked(resources: string[]) {
     const groupPermIds = resources.flatMap((r) => (byResource[r] ?? []).map((p) => p.id));
-    const checkedCount = groupPermIds.filter((id) => checked.has(id)).length;
+    const checkedCount = groupPermIds.filter((id) => assignments.has(id)).length;
     return checkedCount > 0 && checkedCount < groupPermIds.length;
   }
 
@@ -147,6 +170,8 @@ export default function RolePermissionsPage() {
     groups["Other"] = ungrouped;
   }
 
+  const totalPerms = Object.values(byResource).reduce((sum, perms) => sum + perms.length, 0);
+
   return (
     <div className="space-y-6">
       <div>
@@ -154,8 +179,7 @@ export default function RolePermissionsPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           Configure permissions for the <strong>{role.name}</strong> role.{" "}
           <span className="text-xs">
-            ({checked.size} of{" "}
-            {Object.values(byResource).reduce((sum, perms) => sum + perms.length, 0)} selected)
+            ({assignments.size} of {totalPerms} selected)
           </span>
         </p>
       </div>
@@ -173,9 +197,12 @@ export default function RolePermissionsPage() {
       )}
 
       <Form method="post" className="space-y-4">
-        {/* Hidden inputs for all checked permissions */}
-        {Array.from(checked).map((id) => (
-          <input key={id} type="hidden" name="permissionIds" value={id} />
+        {/* Hidden inputs for all assigned permissions with their access levels */}
+        {Array.from(assignments.entries()).map(([id, access]) => (
+          <span key={id}>
+            <input type="hidden" name="permissionIds" value={id} />
+            <input type="hidden" name="accessValues" value={access} />
+          </span>
         ))}
 
         {Object.entries(groups).map(([groupName, resources]) => {
@@ -214,20 +241,33 @@ export default function RolePermissionsPage() {
                           </td>
                           <td className="py-2">
                             <div className="flex flex-wrap gap-x-4 gap-y-1">
-                              {perms.map((perm) => (
-                                <label
-                                  key={perm.id}
-                                  className="inline-flex items-center gap-1.5 cursor-pointer"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={checked.has(perm.id)}
-                                    onChange={() => toggle(perm.id)}
-                                    className="h-3.5 w-3.5 rounded border-gray-300"
-                                  />
-                                  <span className="text-muted-foreground">{perm.action}</span>
-                                </label>
-                              ))}
+                              {perms.map((perm) => {
+                                const isChecked = assignments.has(perm.id);
+                                const access = assignments.get(perm.id) ?? "any";
+                                return (
+                                  <div key={perm.id} className="inline-flex items-center gap-1.5">
+                                    <label className="inline-flex items-center gap-1 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        onChange={() => toggle(perm.id)}
+                                        className="h-3.5 w-3.5 rounded border-gray-300"
+                                      />
+                                      <span className="text-muted-foreground">{perm.action}</span>
+                                    </label>
+                                    {isChecked && (
+                                      <select
+                                        value={access}
+                                        onChange={(e) => setAccess(perm.id, e.target.value)}
+                                        className="h-5 rounded border border-gray-300 bg-background px-1 text-xs text-muted-foreground"
+                                      >
+                                        <option value="any">any</option>
+                                        <option value="own">own</option>
+                                      </select>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
                           </td>
                         </tr>

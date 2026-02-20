@@ -68,7 +68,7 @@ export const corsMiddleware = cors({
 });
 
 // ─── Session Extraction ────────────────────────────────────
-// Extracts userId from session cookie and stores on res.locals
+// Extracts sessionId from session cookie and stores on res.locals
 // for use by rate-limit key generator. Runs before rate limiters.
 export function extractSessionUser(
   getSessionFn: (request: globalThis.Request) => Promise<{ get(key: string): unknown }>,
@@ -80,9 +80,10 @@ export function extractSessionUser(
         headers: { Cookie: cookie },
       });
       const session = await getSessionFn(fakeReq);
-      const userId = session.get("userId");
-      if (userId && typeof userId === "string") {
-        res.locals.userId = userId;
+      // Session now stores sessionId (DB session ID) instead of userId
+      const sessionId = session.get("sessionId");
+      if (sessionId && typeof sessionId === "string") {
+        res.locals.userId = sessionId; // Used as rate-limit key
       }
     } catch {
       // Silently fail — unauthenticated users fall back to IP-based limiting

@@ -1,5 +1,5 @@
 import { Outlet, useLoaderData, useNavigation } from "react-router";
-import { requireAuth } from "~/lib/require-auth.server";
+import { requireAuth, toClientUser } from "~/lib/require-auth.server";
 import { getSidebarState, getSidebarGroupState } from "~/lib/sidebar.server";
 import { getTheme } from "~/lib/theme.server";
 import { getColorTheme } from "~/lib/color-theme.server";
@@ -62,6 +62,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 
   return {
     user: { id: user.id, name: user.name, email: user.email },
+    clientUser: toClientUser(user),
     roles,
     sidebarOpen: getSidebarState(request),
     sidebarGroups: getSidebarGroupState(request),

@@ -161,7 +161,7 @@ describe("rate-limiting helpers", () => {
       const mockGetSession = vi
         .fn<(request: globalThis.Request) => Promise<{ get(key: string): unknown }>>()
         .mockResolvedValue({
-          get: (key: string) => (key === "userId" ? "session-user-42" : undefined),
+          get: (key: string) => (key === "sessionId" ? "session-user-42" : undefined),
         });
 
       const middleware = extractSessionUser(mockGetSession);

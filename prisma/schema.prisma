@@ -448,6 +448,12 @@ enum CertificateStatus {
   REVOKED
 }
 
+enum RoleScope {
+  GLOBAL // Super admin — bypasses tenant filter
+  TENANT // Tenant admin — manages own tenant
+  EVENT // Event staff — per-event/step access
+}
+
 // ─── Identity & Access Domain ────────────────────────────
 
 model Tenant {
@@ -579,11 +585,13 @@ model Session {
   expirationDate DateTime
   userId         String
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fingerprint    String?
   metadata       Json?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   @@index([userId, expirationDate])
+  @@index([userId, fingerprint])
 }
 
 // ─── Event Management Domain ─────────────────────────────
@@ -657,13 +665,14 @@ model Event {
 // ─── RBAC Domain ────────────────────────────────────────
 
 model Role {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name        String
   description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  scope       RoleScope @default(EVENT)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   rolePermissions RolePermission[]
   userRoles       UserRole[]
@@ -691,6 +700,7 @@ model RolePermission {
   role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
   permissionId String
   permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  access       String     @default("any") // "own" | "any"
   createdAt    DateTime   @default(now())
 
   @@unique([roleId, permissionId])
@@ -706,12 +716,15 @@ model UserRole {
   role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
   eventId   String?
   event     Event?   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  stepId    String?
+  step      Step?    @relation(fields: [stepId], references: [id])
   createdAt DateTime @default(now())
 
   @@unique([userId, roleId, eventId])
   @@index([userId])
   @@index([roleId])
   @@index([eventId])
+  @@index([stepId])
 }
 
 // ─── Participant & Workflow Domain ──────────────────────
@@ -783,6 +796,7 @@ model Step {
   approvals       Approval[]
   assignments     StepAssignment[]
   autoActionRules AutoActionRule[]
+  userRoles       UserRole[]
 
   // Phase 4 reverse relations
   parallelBranches ParallelBranch[]
@@ -2604,4 +2618,21 @@ model DataRetentionPolicy {
 
   @@unique([tenantId, entityType])
   @@index([isActive])
+}
+
+// ─── Verification Domain ────────────────────────────────
+
+model Verification {
+  id        String    @id @default(cuid())
+  type      String // "onboarding" | "reset-password" | "change-email" | "2fa"
+  target    String // email or userId
+  secret    String // TOTP secret
+  algorithm String // TOTP algorithm (SHA-256)
+  digits    Int // OTP length (6)
+  period    Int // validity period in seconds
+  charSet   String    @default("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@unique([target, type])
 }

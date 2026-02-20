@@ -14,7 +14,7 @@ import type { Request, Response } from "express";
 import { eventBus } from "./event-bus.js";
 import type { SSEEventType, SSEChannel } from "../app/types/sse-events.js";
 
-type GetSessionFn = (request: globalThis.Request) => Promise<{ get(key: string): unknown }>;
+type GetUserIdFn = (request: globalThis.Request) => Promise<string | null>;
 type GetTenantFn = (userId: string) => Promise<string | null>;
 
 interface TestEvent {
@@ -72,20 +72,19 @@ const TEST_EVENTS: Record<string, TestEvent> = {
   },
 };
 
-export function createSSETestRouter(getSessionFn: GetSessionFn, getTenantFn: GetTenantFn): Router {
+export function createSSETestRouter(getUserIdFn: GetUserIdFn, getTenantFn: GetTenantFn): Router {
   const router = Router();
 
   router.post("/api/sse-test/:eventName", async (req: Request, res: Response) => {
-    // Auth — same pattern as SSE route
+    // Auth — resolve userId from session (validates DB session + fingerprint)
     let userId: string | undefined;
     try {
       const cookie = req.headers.cookie || "";
       const fakeReq = new globalThis.Request("http://localhost", {
         headers: { Cookie: cookie },
       });
-      const session = await getSessionFn(fakeReq);
-      const id = session.get("userId");
-      if (id && typeof id === "string") userId = id;
+      const id = await getUserIdFn(fakeReq);
+      if (id) userId = id;
     } catch {
       // auth failed
     }

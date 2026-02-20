@@ -143,19 +143,33 @@ async function main() {
 
   // ─── Roles ────────────────────────────────────────────
   const roleDefs = [
-    { name: "ADMIN", description: "Full access to all resources" },
-    { name: "VALIDATOR", description: "Can review and approve participants" },
-    { name: "PRINTER", description: "Can print badges" },
-    { name: "DISPATCHER", description: "Can collect and dispatch badges" },
-    { name: "VIEWER", description: "Read-only access" },
+    { name: "ADMIN", description: "Full access to all resources", scope: "GLOBAL" as const },
+    {
+      name: "TENANT_ADMIN",
+      description: "Full access within own tenant",
+      scope: "TENANT" as const,
+    },
+    {
+      name: "VALIDATOR",
+      description: "Can review and approve participants",
+      scope: "EVENT" as const,
+    },
+    { name: "PRINTER", description: "Can print badges", scope: "EVENT" as const },
+    { name: "DISPATCHER", description: "Can collect and dispatch badges", scope: "EVENT" as const },
+    { name: "VIEWER", description: "Read-only access", scope: "EVENT" as const },
+    {
+      name: "USER",
+      description: "Default role for self-registered users",
+      scope: "EVENT" as const,
+    },
   ];
 
   const roles: Record<string, { id: string }> = {};
   for (const r of roleDefs) {
     const role = await prisma.role.upsert({
       where: { tenantId_name: { tenantId: tenant.id, name: r.name } },
-      update: {},
-      create: { tenantId: tenant.id, ...r },
+      update: { scope: r.scope },
+      create: { tenantId: tenant.id, name: r.name, description: r.description, scope: r.scope },
     });
     roles[r.name] = role;
   }
@@ -165,28 +179,47 @@ async function main() {
   // Build permission lookup by resource:action
   const permMap = new Map(permissions.map((p) => [`${p.resource}:${p.action}`, p.id]));
 
-  const rolePermissionAssignments: Record<string, string[]> = {
-    ADMIN: permissionDefs.map((p) => `${p.resource}:${p.action}`),
+  // Role permission assignments with access scope ("any" = all records, "own" = own records only)
+  const rolePermissionAssignments: Record<string, Array<{ key: string; access: string }>> = {
+    ADMIN: permissionDefs.map((p) => ({ key: `${p.resource}:${p.action}`, access: "any" })),
+    TENANT_ADMIN: permissionDefs.map((p) => ({ key: `${p.resource}:${p.action}`, access: "any" })),
     VALIDATOR: [
-      "participant:read",
-      "participant:update",
-      "participant:approve",
-      "participant:reject",
+      { key: "participant:read", access: "any" },
+      { key: "participant:update", access: "any" },
+      { key: "participant:approve", access: "any" },
+      { key: "participant:reject", access: "any" },
     ],
-    PRINTER: ["participant:read", "participant:print"],
-    DISPATCHER: ["participant:read", "participant:collect"],
-    VIEWER: ["participant:read", "workflow:read", "field:read", "form:read", "event:read"],
+    PRINTER: [
+      { key: "participant:read", access: "any" },
+      { key: "participant:print", access: "any" },
+    ],
+    DISPATCHER: [
+      { key: "participant:read", access: "any" },
+      { key: "participant:collect", access: "any" },
+    ],
+    VIEWER: [
+      { key: "participant:read", access: "own" },
+      { key: "workflow:read", access: "any" },
+      { key: "field:read", access: "any" },
+      { key: "form:read", access: "any" },
+      { key: "event:read", access: "any" },
+    ],
+    USER: [
+      { key: "participant:read", access: "own" },
+      { key: "event:read", access: "any" },
+    ],
   };
 
-  for (const [roleName, permKeys] of Object.entries(rolePermissionAssignments)) {
-    const roleId = roles[roleName].id;
-    for (const key of permKeys) {
+  for (const [roleName, permEntries] of Object.entries(rolePermissionAssignments)) {
+    const roleId = roles[roleName]?.id;
+    if (!roleId) continue;
+    for (const { key, access } of permEntries) {
       const permissionId = permMap.get(key);
       if (!permissionId) continue;
       await prisma.rolePermission.upsert({
         where: { roleId_permissionId: { roleId, permissionId } },
-        update: {},
-        create: { roleId, permissionId },
+        update: { access },
+        create: { roleId, permissionId, access },
       });
     }
   }
