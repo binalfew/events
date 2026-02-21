@@ -34,9 +34,10 @@ export function TenantSwitcher({
   tenant?: TenantInfo | null;
   basePrefix?: string;
 }) {
-  const { isMobile } = useSidebar();
+  const { isMobile, state } = useSidebar();
   const activeTenant = tenant ?? fallbackTenant;
   const isAdmin = basePrefix === "/admin";
+  const collapsed = state === "collapsed";
 
   return (
     <SidebarMenu>
@@ -45,26 +46,32 @@ export function TenantSwitcher({
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
-              className="text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground data-[state=open]:bg-primary-foreground/10 data-[state=open]:text-primary-foreground"
+              className={`text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground data-[state=open]:bg-primary-foreground/10 data-[state=open]:text-primary-foreground ${collapsed ? "!p-0 !gap-0 !w-8 mx-auto justify-center" : ""}`}
             >
-              <div className="text-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg overflow-hidden">
+              <div
+                className={`text-primary-foreground flex items-center justify-center rounded-lg overflow-hidden ${collapsed ? "size-5" : "aspect-square size-8"}`}
+              >
                 {activeTenant.logoUrl ? (
                   <img
                     src={activeTenant.logoUrl}
                     alt={activeTenant.name}
-                    className="size-8 rounded-lg object-contain"
+                    className={`${collapsed ? "size-5" : "size-8"} rounded-lg object-contain`}
                   />
                 ) : (
-                  <ShieldCheck className="size-8" />
+                  <ShieldCheck className={collapsed ? "size-5" : "size-8"} />
                 )}
               </div>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">{activeTenant.name}</span>
-                <span className="truncate text-xs text-primary-foreground/70">
-                  {activeTenant.plan}
-                </span>
-              </div>
-              <ChevronsUpDown className="ml-auto" />
+              {!collapsed && (
+                <>
+                  <div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-semibold">{activeTenant.name}</span>
+                    <span className="truncate text-xs text-primary-foreground/70">
+                      {activeTenant.plan}
+                    </span>
+                  </div>
+                  <ChevronsUpDown className="ml-auto" />
+                </>
+              )}
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
