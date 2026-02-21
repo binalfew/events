@@ -9,9 +9,9 @@ async function main() {
   // ─── Tenant ───────────────────────────────────────────
   const tenant = await prisma.tenant.upsert({
     where: { slug: "admin" },
-    update: { name: "System Administration" },
+    update: { name: "Admin" },
     create: {
-      name: "System Administration",
+      name: "Admin",
       slug: "admin",
       email: "admin@example.com",
       phone: "+1-000-000-0000",
