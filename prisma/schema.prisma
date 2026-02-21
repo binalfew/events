@@ -469,11 +469,9 @@ model Tenant {
   zip              String?
   country          String?
   logoUrl          String?
-  primaryColor     String?
-  secondaryColor   String?
-  accentColor      String?
   billingInfo      Json?
   subscriptionPlan String
+  brandTheme       String?
   featureFlags     Json?
   usageMetrics     Json?
   extras           Json     @default("{}")

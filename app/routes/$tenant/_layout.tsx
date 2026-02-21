@@ -1,9 +1,9 @@
+import { useEffect } from "react";
 import { data, useLoaderData } from "react-router";
 import { requireAuth, toClientUser } from "~/lib/require-auth.server";
 import { resolveTenant } from "~/lib/tenant.server";
 import { getSidebarState, getSidebarGroupState } from "~/lib/sidebar.server";
 import { getTheme } from "~/lib/theme.server";
-import { getColorTheme } from "~/lib/color-theme.server";
 import { isFeatureEnabled, FEATURE_FLAG_KEYS } from "~/lib/feature-flags.server";
 import { env } from "~/lib/env.server";
 import { getUnreadCount, listNotifications } from "~/services/notifications.server";
@@ -91,14 +91,11 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       slug: tenant.slug,
       plan: tenant.subscriptionPlan,
       logoUrl: tenant.logoUrl,
-      primaryColor: tenant.primaryColor,
-      secondaryColor: tenant.secondaryColor,
-      accentColor: tenant.accentColor,
+      brandTheme: tenant.brandTheme,
     },
     sidebarOpen: getSidebarState(request),
     sidebarGroups: getSidebarGroupState(request),
     theme: getTheme(request),
-    colorTheme: getColorTheme(request),
     sseEnabled,
     notificationsEnabled,
     searchEnabled,
@@ -112,81 +109,23 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   };
 }
 
-/**
- * Convert a hex color (#rrggbb) to an oklch() CSS string.
- * Uses the sRGB → linear RGB → OKLab → OKLCH pipeline.
- */
-function hexToOklch(hex: string): string | null {
-  const c = hex.replace("#", "");
-  if (c.length !== 6) return null;
-
-  // sRGB [0-255] → linear RGB [0-1]
-  const toLinear = (v: number) => {
-    const s = v / 255;
-    return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
-  };
-  const lr = toLinear(parseInt(c.substring(0, 2), 16));
-  const lg = toLinear(parseInt(c.substring(2, 4), 16));
-  const lb = toLinear(parseInt(c.substring(4, 6), 16));
-
-  // Linear RGB → OKLab
-  const l_ = Math.cbrt(0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb);
-  const m_ = Math.cbrt(0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb);
-  const s_ = Math.cbrt(0.0883024619 * lr + 0.2817188376 * lg + 0.6299787005 * lb);
-
-  const L = 0.2104542553 * l_ + 0.793617785 * m_ - 0.0040720468 * s_;
-  const a = 1.9779984951 * l_ - 2.428592205 * m_ + 0.4505937099 * s_;
-  const b = 0.0259040371 * l_ + 0.7827717662 * m_ - 0.808675766 * s_;
-
-  // OKLab → OKLCH
-  const C = Math.sqrt(a * a + b * b);
-  const H = C < 0.0001 ? 0 : ((Math.atan2(b, a) * 180) / Math.PI + 360) % 360;
-
-  return `oklch(${L.toFixed(3)} ${C.toFixed(3)} ${H.toFixed(3)})`;
-}
-
-function contrastForeground(hex: string): string {
-  const c = hex.replace("#", "");
-  if (c.length !== 6) return "oklch(0.985 0 0)";
-  const r = parseInt(c.substring(0, 2), 16);
-  const g = parseInt(c.substring(2, 4), 16);
-  const b = parseInt(c.substring(4, 6), 16);
-  // Perceived luminance formula
-  return (r * 299 + g * 587 + b * 114) / 1000 > 150
-    ? "oklch(0.145 0 0)" // dark foreground
-    : "oklch(0.985 0 0)"; // light foreground
-}
-
 export default function TenantLayout() {
   const loaderData = useLoaderData<typeof loader>();
   const { tenant } = loaderData;
 
-  // Build CSS variable overrides for tenant branding
-  // Converts tenant hex colors to oklch() to match the theme system
-  const primary = tenant.primaryColor ? hexToOklch(tenant.primaryColor) : null;
-  const secondary = tenant.secondaryColor ? hexToOklch(tenant.secondaryColor) : null;
-  const accent = tenant.accentColor ? hexToOklch(tenant.accentColor) : null;
-  const primaryFg = tenant.primaryColor ? contrastForeground(tenant.primaryColor) : null;
-  const secondaryFg = tenant.secondaryColor ? contrastForeground(tenant.secondaryColor) : null;
-  const accentFg = tenant.accentColor ? contrastForeground(tenant.accentColor) : null;
-
-  const brandingStyles = [
-    primary && `--primary: ${primary};`,
-    primaryFg && `--primary-foreground: ${primaryFg};`,
-    primary && `--sidebar-primary: ${primary};`,
-    primaryFg && `--sidebar-primary-foreground: ${primaryFg};`,
-    primary && `--ring: ${primary};`,
-    secondary && `--secondary: ${secondary};`,
-    secondaryFg && `--secondary-foreground: ${secondaryFg};`,
-    accent && `--accent: ${accent};`,
-    accent && `--sidebar-accent: ${accent};`,
-    accentFg && `--accent-foreground: ${accentFg};`,
-    accentFg && `--sidebar-accent-foreground: ${accentFg};`,
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  const hasTenantBranding = Boolean(primary || secondary || accent);
+  // Set data-brand attribute on <html> for static CSS theme matching.
+  // Cleaned up when leaving the tenant layout or when brandTheme is empty.
+  useEffect(() => {
+    const el = document.documentElement;
+    if (tenant.brandTheme) {
+      el.setAttribute("data-brand", tenant.brandTheme);
+    } else {
+      el.removeAttribute("data-brand");
+    }
+    return () => {
+      el.removeAttribute("data-brand");
+    };
+  }, [tenant.brandTheme]);
 
   return (
     <DashboardLayout
@@ -202,7 +141,6 @@ export default function TenantLayout() {
       sidebarOpen={loaderData.sidebarOpen}
       sidebarGroups={loaderData.sidebarGroups}
       theme={loaderData.theme}
-      colorTheme={loaderData.colorTheme}
       sseEnabled={loaderData.sseEnabled}
       notificationsEnabled={loaderData.notificationsEnabled}
       searchEnabled={loaderData.searchEnabled}
@@ -213,12 +151,6 @@ export default function TenantLayout() {
       unreadCount={loaderData.unreadCount}
       recentNotifications={loaderData.recentNotifications}
       enabledFeatures={loaderData.enabledFeatures}
-      hasTenantBranding={hasTenantBranding}
-      headContent={
-        hasTenantBranding ? (
-          <style dangerouslySetInnerHTML={{ __html: `:root { ${brandingStyles} }` }} />
-        ) : null
-      }
     />
   );
 }

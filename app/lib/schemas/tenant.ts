@@ -14,11 +14,21 @@ const slugField = z
   )
   .refine((val) => !RESERVED_SLUGS.includes(val), "This slug is reserved and cannot be used");
 
-const hexColorField = z
-  .string()
-  .regex(/^#[0-9a-fA-F]{6}$/, "Must be a valid hex color (e.g. #1e40af)")
-  .optional()
-  .or(z.literal(""));
+/**
+ * Available brand themes — each maps to a [data-brand="..."] block in app.css
+ * with complete light + dark variable overrides.
+ */
+export const BRAND_THEMES = [
+  { value: "", label: "None (default)" },
+  { value: "nature", label: "Nature" },
+  { value: "quantum", label: "Quantum" },
+  { value: "haze", label: "Haze" },
+  { value: "graphite", label: "Graphite" },
+  { value: "tangerine", label: "Tangerine" },
+  { value: "matter", label: "Matter" },
+  { value: "vercel", label: "Vercel" },
+  { value: "claude", label: "Claude" },
+] as const;
 
 export const createTenantSchema = z.object({
   name: z.string().min(1, "Name is required").max(200, "Name must be at most 200 characters"),
@@ -33,9 +43,7 @@ export const createTenantSchema = z.object({
   country: z.string().optional().default(""),
   subscriptionPlan: z.enum(SUBSCRIPTION_PLANS).optional().default("free"),
   logoUrl: z.string().url("Invalid URL").optional().or(z.literal("")),
-  primaryColor: hexColorField,
-  secondaryColor: hexColorField,
-  accentColor: hexColorField,
+  brandTheme: z.string().optional().or(z.literal("")),
 });
 
 export type CreateTenantInput = z.infer<typeof createTenantSchema>;
@@ -53,9 +61,7 @@ export const updateTenantSchema = z.object({
   country: z.string().optional().default(""),
   subscriptionPlan: z.enum(SUBSCRIPTION_PLANS),
   logoUrl: z.string().url("Invalid URL").optional().or(z.literal("")),
-  primaryColor: hexColorField,
-  secondaryColor: hexColorField,
-  accentColor: hexColorField,
+  brandTheme: z.string().optional().or(z.literal("")),
 });
 
 export type UpdateTenantInput = z.infer<typeof updateTenantSchema>;

@@ -1,5 +1,4 @@
 import { data, redirect, useActionData, Form } from "react-router";
-import { useState } from "react";
 import { useForm, getFormProps, getInputProps, getSelectProps } from "@conform-to/react";
 import { parseWithZod } from "@conform-to/zod/v4";
 
@@ -10,8 +9,8 @@ import { createTenant, TenantError } from "~/services/tenants.server";
 import { createTenantSchema } from "~/lib/schemas/tenant";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { Label } from "~/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "~/components/ui/native-select";
+import { BrandingColorSection } from "~/components/branding-color-picker";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { ConformField } from "~/components/ui/conform-field";
 import { useBasePrefix } from "~/hooks/use-base-prefix";
@@ -210,7 +209,7 @@ export default function NewTenantPage() {
               </NativeSelect>
             </ConformField>
 
-            <BrandingColorSection fields={fields} />
+            <BrandingColorSection />
 
             <div className="flex gap-3 pt-4">
               <Button type="submit">Create Tenant</Button>
@@ -223,100 +222,4 @@ export default function NewTenantPage() {
       </Card>
     </div>
   );
-}
-
-// ─── Color Picker Components ──────────────────────────────
-
-function ColorPickerField({
-  field,
-  label,
-  description,
-  defaultColor,
-}: {
-  field: { id: string; name: string; key: string | undefined; errors?: string[] };
-  label: string;
-  description: string;
-  defaultColor: string;
-}) {
-  const [color, setColor] = useState(defaultColor);
-
-  return (
-    <div className="space-y-2">
-      <Label htmlFor={field.id}>{label}</Label>
-      <p className="text-xs text-muted-foreground">{description}</p>
-      <div className="flex items-center gap-3">
-        <input
-          type="color"
-          value={color || defaultColor}
-          onChange={(e) => setColor(e.target.value)}
-          className="h-10 w-12 cursor-pointer rounded border border-input bg-transparent p-0.5"
-          aria-label={`${label} picker`}
-        />
-        <Input
-          id={field.id}
-          name={field.name}
-          key={field.key}
-          type="text"
-          value={color}
-          onChange={(e) => setColor(e.target.value)}
-          placeholder={defaultColor}
-          className="flex-1 font-mono"
-        />
-        {color && (
-          <div
-            className="flex h-10 items-center gap-2 rounded-md border px-3 text-xs"
-            style={{ backgroundColor: color, color: isLightColor(color) ? "#000" : "#fff" }}
-          >
-            Preview
-          </div>
-        )}
-      </div>
-      {field.errors && field.errors.length > 0 && (
-        <p className="text-sm text-destructive">{field.errors[0]}</p>
-      )}
-    </div>
-  );
-}
-
-function BrandingColorSection({ fields }: { fields: Record<string, any> }) {
-  return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-sm font-semibold">Branding Colors</h3>
-        <p className="text-xs text-muted-foreground">
-          These colors personalize the tenant's dashboard. Pick a color using the swatch or type a
-          hex code.
-        </p>
-      </div>
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <ColorPickerField
-          field={fields.primaryColor}
-          label="Primary Color"
-          description="Sidebar background, buttons, and active elements."
-          defaultColor="#1e40af"
-        />
-        <ColorPickerField
-          field={fields.secondaryColor}
-          label="Secondary Color"
-          description="Headers, navigation highlights, and secondary accents."
-          defaultColor="#1e3a5f"
-        />
-        <ColorPickerField
-          field={fields.accentColor}
-          label="Accent Color"
-          description="Badges, notifications, and call-to-action highlights."
-          defaultColor="#f59e0b"
-        />
-      </div>
-    </div>
-  );
-}
-
-function isLightColor(hex: string): boolean {
-  const c = hex.replace("#", "");
-  if (c.length !== 6) return false;
-  const r = parseInt(c.substring(0, 2), 16);
-  const g = parseInt(c.substring(2, 4), 16);
-  const b = parseInt(c.substring(4, 6), 16);
-  return (r * 299 + g * 587 + b * 114) / 1000 > 150;
 }

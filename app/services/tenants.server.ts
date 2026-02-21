@@ -73,9 +73,7 @@ interface CreateTenantInput {
   country?: string;
   subscriptionPlan?: string;
   logoUrl?: string;
-  primaryColor?: string;
-  secondaryColor?: string;
-  accentColor?: string;
+  brandTheme?: string;
 }
 
 export async function createTenant(input: CreateTenantInput, ctx: ServiceContext) {
@@ -95,9 +93,7 @@ export async function createTenant(input: CreateTenantInput, ctx: ServiceContext
         country: input.country || null,
         subscriptionPlan: input.subscriptionPlan ?? "free",
         logoUrl: input.logoUrl || null,
-        primaryColor: input.primaryColor || null,
-        secondaryColor: input.secondaryColor || null,
-        accentColor: input.accentColor || null,
+        brandTheme: input.brandTheme || null,
       },
     });
   } catch (error) {
@@ -178,9 +174,7 @@ interface UpdateTenantInput {
   country?: string;
   subscriptionPlan: string;
   logoUrl?: string;
-  primaryColor?: string;
-  secondaryColor?: string;
-  accentColor?: string;
+  brandTheme?: string;
 }
 
 export async function updateTenant(id: string, input: UpdateTenantInput, ctx: ServiceContext) {
@@ -206,9 +200,7 @@ export async function updateTenant(id: string, input: UpdateTenantInput, ctx: Se
         country: input.country || null,
         subscriptionPlan: input.subscriptionPlan,
         logoUrl: input.logoUrl || null,
-        primaryColor: input.primaryColor || null,
-        secondaryColor: input.secondaryColor || null,
-        accentColor: input.accentColor || null,
+        brandTheme: input.brandTheme || null,
       },
     });
   } catch (error) {

@@ -17,9 +17,6 @@ async function main() {
       phone: "+1-000-000-0000",
       subscriptionPlan: "enterprise",
       featureFlags: { customObjects: true, advancedWorkflow: true },
-      primaryColor: "#1e40af",
-      secondaryColor: "#1e3a5f",
-      accentColor: "#f59e0b",
     },
   });
   console.log(`Seeded tenant: ${tenant.name} [${tenant.slug}] (${tenant.id})`);

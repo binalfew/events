@@ -33,9 +33,7 @@ import { NotificationBell } from "~/components/notification-bell";
 import { OfflineIndicator } from "~/components/offline-indicator";
 import { LanguageSwitcher } from "~/components/layout/language-switcher";
 import { ThemeSwitch } from "~/routes/resources/theme-switch";
-import { ColorThemeSelector } from "~/routes/resources/color-theme";
 import type { Theme } from "~/lib/theme.server";
-import type { ColorTheme } from "~/lib/color-theme";
 
 interface NotificationItem {
   id: string;
@@ -50,7 +48,6 @@ type TopNavbarProps = {
   user: { id: string; name: string | null; email: string };
   basePrefix?: string;
   theme?: Theme | null;
-  colorTheme?: ColorTheme;
   notificationsEnabled?: boolean;
   unreadCount?: number;
   notifications?: NotificationItem[];
@@ -98,7 +95,6 @@ export function TopNavbar({
   user,
   basePrefix = "/admin",
   theme,
-  colorTheme,
   notificationsEnabled = false,
   unreadCount = 0,
   notifications = [],
@@ -348,13 +344,6 @@ export function TopNavbar({
 
         {/* Theme switcher */}
         <ThemeSwitch userPreference={theme} />
-
-        {/* Color theme selector — hidden when tenant has custom branding */}
-        {colorTheme !== undefined && (
-          <div className="hidden sm:flex">
-            <ColorThemeSelector currentTheme={colorTheme} />
-          </div>
-        )}
 
         {/* Offline indicator */}
         {offlineEnabled && <OfflineIndicator />}

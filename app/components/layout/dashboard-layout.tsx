@@ -7,7 +7,6 @@ import { SSEProvider } from "~/components/sse-provider";
 import { InstallPrompt } from "~/components/pwa/install-prompt";
 import { SwUpdatePrompt } from "~/components/pwa/sw-update-prompt";
 import type { Theme } from "~/lib/theme.server";
-import type { ColorTheme } from "~/lib/color-theme";
 
 type TenantInfo = {
   name: string;
@@ -33,7 +32,6 @@ export type DashboardLayoutProps = {
   sidebarOpen: boolean;
   sidebarGroups: Record<string, boolean>;
   theme?: Theme | null;
-  colorTheme?: ColorTheme;
   sseEnabled: boolean;
   notificationsEnabled: boolean;
   searchEnabled: boolean;
@@ -44,10 +42,6 @@ export type DashboardLayoutProps = {
   unreadCount: number;
   recentNotifications: NotificationItem[];
   enabledFeatures?: Record<string, boolean>;
-  /** When true, tenant has custom brand colors — hides the color theme picker */
-  hasTenantBranding?: boolean;
-  /** Optional extra content injected into <head> (e.g. tenant branding <style> tag) */
-  headContent?: React.ReactNode;
 };
 
 export function DashboardLayout({
@@ -58,7 +52,6 @@ export function DashboardLayout({
   sidebarOpen,
   sidebarGroups,
   theme,
-  colorTheme,
   sseEnabled,
   notificationsEnabled,
   searchEnabled,
@@ -69,15 +62,12 @@ export function DashboardLayout({
   unreadCount,
   recentNotifications,
   enabledFeatures,
-  hasTenantBranding,
-  headContent,
 }: DashboardLayoutProps) {
   const navigation = useNavigation();
   const isNavigating = navigation.state === "loading";
 
   return (
     <SidebarProvider defaultOpen={sidebarOpen}>
-      {headContent}
       <AppSidebar
         roles={roles}
         groupState={sidebarGroups}
@@ -95,7 +85,6 @@ export function DashboardLayout({
           user={user}
           basePrefix={basePrefix}
           theme={theme}
-          colorTheme={hasTenantBranding ? undefined : colorTheme}
           notificationsEnabled={notificationsEnabled}
           searchEnabled={searchEnabled}
           shortcutsEnabled={shortcutsEnabled}

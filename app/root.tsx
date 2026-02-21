@@ -13,13 +13,10 @@ import type { Route } from "./+types/root";
 import { initSentryClient, captureException as captureClientException } from "~/lib/sentry.client";
 import { useNonce } from "~/lib/nonce-provider";
 import { getTheme } from "~/lib/theme.server";
-import { getColorTheme } from "~/lib/color-theme.server";
 import { useOptimisticThemeMode } from "~/routes/resources/theme-switch";
-import { useOptimisticColorTheme } from "~/routes/resources/color-theme";
 import { initI18n, getLanguageDir } from "~/lib/i18n";
 import { isFeatureEnabled, FEATURE_FLAG_KEYS } from "~/lib/feature-flags.server";
 import type { Theme } from "~/lib/theme.server";
-import type { ColorTheme } from "~/lib/color-theme";
 import "./app.css";
 
 export const links: Route.LinksFunction = () => [
@@ -47,7 +44,6 @@ export async function loader({ request }: Route.LoaderArgs) {
   return {
     sentryDsn: process.env.SENTRY_DSN || "",
     theme: getTheme(request),
-    colorTheme: getColorTheme(request),
     language: getLanguageFromCookie(request),
     pwaEnabled,
   };
@@ -60,12 +56,6 @@ function useThemeClass(): string {
     return optimisticMode === "system" ? "" : optimisticMode;
   }
   return data?.theme ?? "";
-}
-
-function useColorThemeData(): ColorTheme {
-  const data = useRouteLoaderData("root") as { colorTheme: ColorTheme } | undefined;
-  const optimistic = useOptimisticColorTheme();
-  return optimistic ?? data?.colorTheme ?? "default";
 }
 
 function useLanguage(): string {
@@ -81,7 +71,6 @@ function usePwaEnabled(): boolean {
 export function Layout({ children }: { children: React.ReactNode }) {
   const nonce = useNonce();
   const themeClass = useThemeClass();
-  const colorTheme = useColorThemeData();
   const language = useLanguage();
   const dir = getLanguageDir(language);
   const pwaEnabled = usePwaEnabled();
@@ -94,7 +83,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
       lang={language}
       dir={dir}
       className={themeClass}
-      data-theme={colorTheme !== "default" ? colorTheme : undefined}
       data-pwa={pwaEnabled ? "true" : undefined}
     >
       <head>
