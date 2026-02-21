@@ -12,36 +12,20 @@ import frCommon from "~/locales/fr/common.json";
 import frNav from "~/locales/fr/nav.json";
 import frAuth from "~/locales/fr/auth.json";
 
-// Amharic
-import amCommon from "~/locales/am/common.json";
-import amNav from "~/locales/am/nav.json";
-import amAuth from "~/locales/am/auth.json";
-
-// Arabic
-import arCommon from "~/locales/ar/common.json";
-import arNav from "~/locales/ar/nav.json";
-import arAuth from "~/locales/ar/auth.json";
-
 export const supportedLanguages = [
   { code: "en", name: "English", dir: "ltr" as const },
   { code: "fr", name: "Fran\u00e7ais", dir: "ltr" as const },
-  { code: "am", name: "\u12A0\u121B\u122D\u129B", dir: "ltr" as const },
-  { code: "ar", name: "\u0627\u0644\u0639\u0631\u0628\u064A\u0629", dir: "rtl" as const },
 ] as const;
 
 export type SupportedLanguage = (typeof supportedLanguages)[number]["code"];
 
-export const RTL_LANGUAGES = new Set(["ar"]);
-
 export function getLanguageDir(lang: string): "ltr" | "rtl" {
-  return RTL_LANGUAGES.has(lang) ? "rtl" : "ltr";
+  return "ltr";
 }
 
 const resources = {
   en: { common: enCommon, nav: enNav, auth: enAuth },
   fr: { common: frCommon, nav: frNav, auth: frAuth },
-  am: { common: amCommon, nav: amNav, auth: amAuth },
-  ar: { common: arCommon, nav: arNav, auth: arAuth },
 };
 
 let initialized = false;
