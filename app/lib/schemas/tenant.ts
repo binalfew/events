@@ -28,6 +28,11 @@ export const BRAND_THEMES = [
   { value: "matter", label: "Matter" },
   { value: "vercel", label: "Vercel" },
   { value: "claude", label: "Claude" },
+  { value: "catppuccin", label: "Catppuccin" },
+  { value: "slate", label: "Slate" },
+  { value: "cosmic", label: "Cosmic" },
+  { value: "elegant", label: "Elegant" },
+  { value: "mono", label: "Mono" },
 ] as const;
 
 export const createTenantSchema = z.object({

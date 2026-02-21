@@ -16,6 +16,11 @@ const BRAND_THEME_PREVIEWS: Record<
   matter: { bg: "#ffffff", fg: "#1a2340", primary: "#c08040", accent: "#4a8a8a" },
   vercel: { bg: "#fcfcfc", fg: "#000000", primary: "#000000", accent: "#e0e0e0" },
   claude: { bg: "#f5f0e8", fg: "#504830", primary: "#c07a3a", accent: "#e0dcd0" },
+  catppuccin: { bg: "#e8e8f0", fg: "#5c5880", primary: "#8839ef", accent: "#209fb5" },
+  slate: { bg: "#f8f8fc", fg: "#334155", primary: "#4f46e5", accent: "#e0e4f0" },
+  cosmic: { bg: "#f0ecf8", fg: "#3b2d6b", primary: "#6d28d9", accent: "#e0e4f8" },
+  elegant: { bg: "#f8f2e8", fg: "#2d2d2d", primary: "#8b3a2a", accent: "#e8e0c0" },
+  mono: { bg: "#ffffff", fg: "#1a1a1a", primary: "#808080", accent: "#f0f0f0" },
 };
 
 // ─── Brand Theme Picker ─────────────────────────────────────
