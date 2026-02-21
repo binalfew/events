@@ -37,6 +37,7 @@
   "invitations": "Invitations",
   "settings": "Settings",
   "general": "General",
+  "organization": "Organization",
   "fields": "Fields",
   "featureFlags": "Feature Flags",
   "apiKeys": "API Keys",
