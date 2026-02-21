@@ -43,6 +43,7 @@ export type DashboardLayoutProps = {
   offlineEnabled: boolean;
   unreadCount: number;
   recentNotifications: NotificationItem[];
+  enabledFeatures?: Record<string, boolean>;
   /** When true, tenant has custom brand colors — hides the color theme picker */
   hasTenantBranding?: boolean;
   /** Optional extra content injected into <head> (e.g. tenant branding <style> tag) */
@@ -67,6 +68,7 @@ export function DashboardLayout({
   offlineEnabled,
   unreadCount,
   recentNotifications,
+  enabledFeatures,
   hasTenantBranding,
   headContent,
 }: DashboardLayoutProps) {
@@ -81,6 +83,7 @@ export function DashboardLayout({
         groupState={sidebarGroups}
         basePrefix={basePrefix}
         tenant={tenant}
+        enabledFeatures={enabledFeatures}
       />
       <SidebarInset>
         {isNavigating && (

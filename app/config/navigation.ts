@@ -6,8 +6,6 @@ import {
   CalendarDays,
   BarChart3,
   Settings,
-  Eye,
-  Database,
   Layers,
   Building2,
   Users,
@@ -21,6 +19,7 @@ export type NavChild = {
   url: string;
   end?: boolean;
   roles?: string[];
+  featureFlag?: string;
 };
 
 export type NavItem = {
@@ -30,6 +29,7 @@ export type NavItem = {
   icon: LucideIcon;
   end?: boolean;
   roles?: string[];
+  featureFlag?: string;
   children?: NavChild[];
 };
 
@@ -62,21 +62,21 @@ export function buildNavigationGroups(basePrefix: string): NavGroup[] {
           tKey: "notifications",
           url: `${basePrefix}/notifications`,
           icon: Bell,
+          featureFlag: "notifications",
         },
         {
-          title: "My Assignments",
+          title: "Assignments",
           tKey: "myAssignments",
           url: `${basePrefix}/assignments`,
           icon: ClipboardList,
         },
-        { title: "Saved Views", tKey: "savedViews", url: `${basePrefix}/views`, icon: Eye },
         {
-          title: "Custom Objects",
-          tKey: "customObjects",
-          url: `${basePrefix}/custom-objects`,
-          icon: Database,
+          title: "Analytics",
+          tKey: "analytics",
+          url: `${basePrefix}/analytics`,
+          icon: BarChart3,
+          featureFlag: "analytics",
         },
-        { title: "Analytics", tKey: "analytics", url: `${basePrefix}/analytics`, icon: BarChart3 },
       ],
     },
     {
@@ -153,6 +153,18 @@ export function buildNavigationGroups(basePrefix: string): NavGroup[] {
               url: `${basePrefix}/settings/webhooks`,
               roles: ["ADMIN"],
             },
+            {
+              title: "Saved Views",
+              tKey: "savedViews",
+              url: `${basePrefix}/views`,
+              featureFlag: "savedViews",
+            },
+            {
+              title: "Custom Objects",
+              tKey: "customObjects",
+              url: `${basePrefix}/custom-objects`,
+              featureFlag: "customObjects",
+            },
           ],
         },
       ],
@@ -160,16 +172,23 @@ export function buildNavigationGroups(basePrefix: string): NavGroup[] {
   ];
 }
 
-export function getVisibleGroups(roles: string[], basePrefix = "/admin"): NavGroup[] {
+export function getVisibleGroups(
+  roles: string[],
+  basePrefix = "/admin",
+  enabledFeatures?: Record<string, boolean>,
+): NavGroup[] {
   return buildNavigationGroups(basePrefix)
     .map((group) => ({
       ...group,
       items: group.items
         .filter((item) => !item.roles || item.roles.some((r) => roles.includes(r)))
+        .filter((item) => !item.featureFlag || enabledFeatures?.[item.featureFlag])
         .map((item) => ({
           ...item,
           children: item.children?.filter(
-            (child) => !child.roles || child.roles.some((r) => roles.includes(r)),
+            (child) =>
+              (!child.roles || child.roles.some((r) => roles.includes(r))) &&
+              (!child.featureFlag || enabledFeatures?.[child.featureFlag]),
           ),
         })),
     }))

@@ -19,6 +19,7 @@ export class TenantError extends Error {
 
 export async function listTenants() {
   return prisma.tenant.findMany({
+    where: { slug: { not: "admin" } },
     orderBy: { name: "asc" },
     include: {
       _count: { select: { users: true, events: true } },

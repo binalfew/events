@@ -10,25 +10,22 @@ import { useBasePrefix } from "~/hooks/use-base-prefix";
 import type { Route } from "./+types/delete";
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const { user, roles } = await requirePermission(request, "settings", "manage");
+  const { user, isSuperAdmin } = await requirePermission(request, "settings", "manage");
   const tenantId = user.tenantId;
   if (!tenantId) {
     throw data({ error: "User is not associated with a tenant" }, { status: 403 });
   }
 
-  const isSuperAdmin = roles.includes("ADMIN");
   const targetUser = await getUserWithCounts(params.userId, isSuperAdmin ? undefined : tenantId);
   return { targetUser, currentUserId: user.id };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
-  const { user, roles } = await requirePermission(request, "settings", "manage");
+  const { user, isSuperAdmin } = await requirePermission(request, "settings", "manage");
   const tenantId = user.tenantId;
   if (!tenantId) {
     throw data({ error: "User is not associated with a tenant" }, { status: 403 });
   }
-
-  const isSuperAdmin = roles.includes("ADMIN");
   const ctx = {
     userId: user.id,
     tenantId,

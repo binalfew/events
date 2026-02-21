@@ -24,8 +24,7 @@ import { useBasePrefix } from "~/hooks/use-base-prefix";
 import type { Route } from "./+types/new";
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const { roles } = await requirePermission(request, "settings", "manage");
-  const isSuperAdmin = roles.includes("ADMIN");
+  const { isSuperAdmin } = await requirePermission(request, "settings", "manage");
 
   let tenants: Array<{ id: string; name: string; slug: string }> = [];
   if (isSuperAdmin) {
@@ -36,7 +35,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
-  const { user, roles } = await requirePermission(request, "settings", "manage");
+  const { user, isSuperAdmin } = await requirePermission(request, "settings", "manage");
   const tenantId = user.tenantId;
   if (!tenantId) {
     throw data({ error: "User is not associated with a tenant" }, { status: 403 });
@@ -50,7 +49,6 @@ export async function action({ request, params }: Route.ActionArgs) {
   }
 
   // Only super admins can assign users to other tenants
-  const isSuperAdmin = roles.includes("ADMIN");
   const targetTenantId =
     isSuperAdmin && submission.value.tenantId ? submission.value.tenantId : tenantId;
 

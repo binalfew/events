@@ -38,6 +38,15 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const i18nEnabled = await isFeatureEnabled(FEATURE_FLAG_KEYS.I18N, flagContext);
   const pwaEnabled = await isFeatureEnabled(FEATURE_FLAG_KEYS.PWA, flagContext);
   const offlineEnabled = await isFeatureEnabled(FEATURE_FLAG_KEYS.OFFLINE_MODE, flagContext);
+  const customObjectsEnabled = await isFeatureEnabled(
+    FEATURE_FLAG_KEYS.CUSTOM_OBJECTS,
+    flagContext,
+  );
+  const analyticsEnabled = await isFeatureEnabled(
+    FEATURE_FLAG_KEYS.ANALYTICS_DASHBOARD,
+    flagContext,
+  );
+  const savedViewsEnabled = await isFeatureEnabled(FEATURE_FLAG_KEYS.SAVED_VIEWS, flagContext);
 
   let unreadCount = 0;
   let recentNotifications: Array<{
@@ -64,6 +73,13 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       createdAt: n.createdAt.toISOString(),
     }));
   }
+
+  const enabledFeatures: Record<string, boolean> = {
+    notifications: notificationsEnabled,
+    savedViews: savedViewsEnabled,
+    customObjects: customObjectsEnabled,
+    analytics: analyticsEnabled,
+  };
 
   return {
     user: { id: user.id, name: user.name, email: user.email },
@@ -92,6 +108,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     offlineEnabled,
     unreadCount,
     recentNotifications,
+    enabledFeatures,
   };
 }
 
@@ -195,6 +212,7 @@ export default function TenantLayout() {
       offlineEnabled={loaderData.offlineEnabled}
       unreadCount={loaderData.unreadCount}
       recentNotifications={loaderData.recentNotifications}
+      enabledFeatures={loaderData.enabledFeatures}
       hasTenantBranding={hasTenantBranding}
       headContent={
         hasTenantBranding ? (

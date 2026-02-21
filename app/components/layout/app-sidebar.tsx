@@ -16,6 +16,7 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   groupState: Record<string, boolean>;
   basePrefix?: string;
   tenant?: TenantInfo | null;
+  enabledFeatures?: Record<string, boolean>;
 };
 
 export function AppSidebar({
@@ -23,9 +24,10 @@ export function AppSidebar({
   groupState,
   basePrefix = "/admin",
   tenant,
+  enabledFeatures,
   ...props
 }: AppSidebarProps) {
-  const groups = getVisibleGroups(roles, basePrefix);
+  const groups = getVisibleGroups(roles, basePrefix, enabledFeatures);
 
   return (
     <Sidebar collapsible="icon" {...props}>

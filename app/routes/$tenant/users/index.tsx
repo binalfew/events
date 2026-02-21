@@ -11,13 +11,11 @@ import { EmptyState } from "~/components/ui/empty-state";
 import type { Route } from "./+types/index";
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const { user, roles } = await requirePermission(request, "settings", "manage");
+  const { user, isSuperAdmin } = await requirePermission(request, "settings", "manage");
   const tenantId = user.tenantId;
   if (!tenantId) {
     throw data({ error: "User is not associated with a tenant" }, { status: 403 });
   }
-
-  const isSuperAdmin = roles.includes("ADMIN");
   const users = await listUsers(isSuperAdmin ? undefined : tenantId);
   return { users, isSuperAdmin };
 }

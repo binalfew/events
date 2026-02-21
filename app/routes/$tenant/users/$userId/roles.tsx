@@ -11,13 +11,12 @@ import { useBasePrefix } from "~/hooks/use-base-prefix";
 import type { Route } from "./+types/roles";
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const { user, roles } = await requirePermission(request, "settings", "manage");
+  const { user, isSuperAdmin } = await requirePermission(request, "settings", "manage");
   const tenantId = user.tenantId;
   if (!tenantId) {
     throw data({ error: "User is not associated with a tenant" }, { status: 403 });
   }
 
-  const isSuperAdmin = roles.includes("ADMIN");
   const targetUser = await getUser(params.userId, isSuperAdmin ? undefined : tenantId);
   // For roles list, use the target user's tenant so we show the correct roles
   const targetTenantId = targetUser.tenantId ?? tenantId;
@@ -28,13 +27,12 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
-  const { user, roles } = await requirePermission(request, "settings", "manage");
+  const { user, isSuperAdmin } = await requirePermission(request, "settings", "manage");
   const tenantId = user.tenantId;
   if (!tenantId) {
     throw data({ error: "User is not associated with a tenant" }, { status: 403 });
   }
 
-  const isSuperAdmin = roles.includes("ADMIN");
   const formData = await request.formData();
   const roleIds = formData.getAll("roleIds") as string[];
 

@@ -113,29 +113,30 @@ export async function requireAuth(request: Request) {
   const authUser = await getAuthUser(request);
   // Backward compat: `roles` is a string[] of role names, `user` carries full auth data
   const roles = [...new Set(authUser.roles.map((r) => r.name))];
-  return { user: authUser, roles };
+  const isSuperAdmin = authUser.roles.some((r) => r.scope === "GLOBAL");
+  return { user: authUser, roles, isSuperAdmin };
 }
 
 /**
  * Require a specific role by name.
  */
 export async function requireRole(request: Request, roleName: string) {
-  const { user, roles } = await requireAuth(request);
+  const { user, roles, isSuperAdmin } = await requireAuth(request);
   if (!roles.includes(roleName)) {
     throw data({ error: "Forbidden" }, { status: 403 });
   }
-  return { user, roles };
+  return { user, roles, isSuperAdmin };
 }
 
 /**
  * Require any of the given role names.
  */
 export async function requireAnyRole(request: Request, roleNames: string[]) {
-  const { user, roles } = await requireAuth(request);
+  const { user, roles, isSuperAdmin } = await requireAuth(request);
   if (!roleNames.some((name) => roles.includes(name))) {
     throw data({ error: "Forbidden" }, { status: 403 });
   }
-  return { user, roles };
+  return { user, roles, isSuperAdmin };
 }
 
 /**
@@ -148,22 +149,22 @@ export async function requirePermission(
   action: string,
   opts?: { eventId?: string; ownerId?: string },
 ) {
-  const { user, roles } = await requireAuth(request);
+  const { user, roles, isSuperAdmin } = await requireAuth(request);
   if (!checkPermission(user, resource, action, opts)) {
     throw data({ error: "Forbidden" }, { status: 403 });
   }
-  return { user, roles };
+  return { user, roles, isSuperAdmin };
 }
 
 /**
  * Require GLOBAL admin scope.
  */
 export async function requireGlobalAdmin(request: Request) {
-  const { user, roles } = await requireAuth(request);
-  if (!user.roles.some((r) => r.scope === "GLOBAL")) {
+  const { user, roles, isSuperAdmin } = await requireAuth(request);
+  if (!isSuperAdmin) {
     throw data({ error: "Forbidden" }, { status: 403 });
   }
-  return { user, roles };
+  return { user, roles, isSuperAdmin };
 }
 
 /**

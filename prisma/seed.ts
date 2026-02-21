@@ -24,24 +24,6 @@ async function main() {
   });
   console.log(`Seeded tenant: ${tenant.name} [${tenant.slug}] (${tenant.id})`);
 
-  // ─── Second Tenant (for testing) ───────────────────────
-  const tenant2 = await prisma.tenant.upsert({
-    where: { slug: "test-org" },
-    update: { name: "Test Organization" },
-    create: {
-      name: "Test Organization",
-      slug: "test-org",
-      email: "admin@testorg.example.com",
-      phone: "+1-555-123-4567",
-      website: "https://testorg.example.com",
-      subscriptionPlan: "starter",
-      primaryColor: "#059669",
-      secondaryColor: "#064e3b",
-      accentColor: "#8b5cf6",
-    },
-  });
-  console.log(`Seeded tenant: ${tenant2.name} [${tenant2.slug}] (${tenant2.id})`);
-
   // ─── Admin User ───────────────────────────────────────
   const passwordHash = await hash("password123", 12);
   const admin = await prisma.user.upsert({
