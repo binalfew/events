@@ -2,10 +2,16 @@ import { generateTOTP, verifyTOTP } from "@epic-web/totp";
 import { createCookieSessionStorage, redirect } from "react-router";
 import { prisma } from "~/lib/db.server";
 import { env } from "~/lib/env.server";
+import { sessionStorage, getSession, generateFingerprint } from "~/lib/session.server";
+import {
+  twoFAVerificationType,
+  unverifiedSessionIdKey,
+  verifiedTimeKey,
+} from "~/lib/2fa-constants";
 
 // ─── Verify Session Storage ─────────────────────────────
 
-const verifySessionStorage = createCookieSessionStorage({
+export const verifySessionStorage = createCookieSessionStorage({
   cookie: {
     name: "__verification",
     httpOnly: true,
@@ -81,10 +87,12 @@ export async function isCodeValid({
   code,
   type,
   target,
+  deleteOnSuccess = true,
 }: {
   code: string;
   type: string;
   target: string;
+  deleteOnSuccess?: boolean;
 }) {
   const verification = await prisma.verification.findUnique({
     where: { target_type: { target, type } },
@@ -103,9 +111,91 @@ export async function isCodeValid({
 
   if (!result) return false;
 
-  // Delete after successful verification
-  await prisma.verification.delete({ where: { id: verification.id } });
+  if (deleteOnSuccess) {
+    await prisma.verification.delete({ where: { id: verification.id } });
+  }
   return true;
+}
+
+// ─── 2FA Helpers ─────────────────────────────────────────
+
+/**
+ * Check if a user needs to complete 2FA verification.
+ * Returns true if:
+ * - There's an unverified session in the verify cookie, OR
+ * - User has 2FA enabled and last verification was > 2 hours ago
+ */
+export async function shouldRequestTwoFA({
+  request,
+  userId,
+}: {
+  request: Request;
+  userId: string;
+}) {
+  const verifySession = await getVerifySession(request);
+  const unverifiedSessionId = verifySession.get(unverifiedSessionIdKey);
+  if (unverifiedSessionId) return true;
+
+  const verification = await prisma.verification.findUnique({
+    select: { id: true },
+    where: {
+      target_type: {
+        target: userId,
+        type: twoFAVerificationType,
+      },
+    },
+  });
+
+  if (!verification) return false;
+
+  const cookieSession = await getSession(request);
+  const verifiedTime = new Date(cookieSession.get(verifiedTimeKey) ?? 0);
+  const twoHoursMs = 2 * 60 * 60 * 1000;
+
+  return Date.now() - verifiedTime.getTime() > twoHoursMs;
+}
+
+/**
+ * After successful 2FA verification during login:
+ * - Sets verifiedTimeKey in main session
+ * - Moves unverified session ID to authenticated session
+ * - Destroys verify session
+ * - Redirects to intended destination
+ */
+export async function handleTwoFAVerification({
+  request,
+  redirectTo,
+}: {
+  request: Request;
+  redirectTo: string;
+}) {
+  const cookieSession = await sessionStorage.getSession(request.headers.get("Cookie"));
+  const verifySession = await getVerifySession(request);
+
+  const unverifiedSessionId = verifySession.get(unverifiedSessionIdKey);
+  if (!unverifiedSessionId) {
+    throw redirect("/auth/login");
+  }
+
+  // Verify the DB session still exists
+  const dbSession = await prisma.session.findUnique({
+    where: { id: unverifiedSessionId },
+    select: { expirationDate: true },
+  });
+
+  if (!dbSession) {
+    throw redirect("/auth/login");
+  }
+
+  // Mark 2FA as verified
+  cookieSession.set(verifiedTimeKey, Date.now());
+  cookieSession.set("sessionId", unverifiedSessionId);
+
+  const headers = new Headers();
+  headers.append("Set-Cookie", await sessionStorage.commitSession(cookieSession));
+  headers.append("Set-Cookie", await verifySessionStorage.destroySession(verifySession));
+
+  return redirect(redirectTo || "/", { headers });
 }
 
 // ─── Session Helpers ─────────────────────────────────────

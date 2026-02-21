@@ -140,6 +140,8 @@ enum AuditAction {
   RATE_LIMIT
   FILE_UPLOAD
   FILE_UPLOAD_BLOCKED
+  TWO_FACTOR_ENABLE
+  TWO_FACTOR_DISABLE
 }
 
 enum ApiKeyStatus {

@@ -4,10 +4,17 @@ import { data, Form, Link, redirect, useActionData } from "react-router";
 import { useTranslation } from "react-i18next";
 import { z } from "zod/v4";
 import { verifyPassword } from "~/lib/auth.server";
+import { unverifiedSessionIdKey } from "~/lib/2fa-constants";
 import { prisma } from "~/lib/db.server";
 import { env } from "~/lib/env.server";
 import { logger } from "~/lib/logger.server";
-import { getUserId, getDefaultRedirect, createUserSession } from "~/lib/session.server";
+import {
+  getUserId,
+  getDefaultRedirect,
+  createUserSession,
+  generateFingerprint,
+} from "~/lib/session.server";
+import { shouldRequestTwoFA, verifySessionStorage } from "~/lib/verification.server";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
@@ -166,12 +173,54 @@ export async function action({ request }: Route.ActionArgs) {
     return data(submission.reply({ formErrors: ["Invalid email or password"] }), { status: 400 });
   }
 
-  // Success — reset failed attempts and log in
+  // Success — reset failed attempts
   await prisma.user.update({
     where: { id: user.id },
     data: { failedLoginAttempts: 0, lastFailedLoginAt: null },
   });
 
+  const defaultRedirect = user.tenant?.slug ? `/${user.tenant.slug}` : "/admin";
+  const finalRedirect = redirectTo || defaultRedirect;
+
+  // Check if 2FA is required
+  if (await shouldRequestTwoFA({ request, userId: user.id })) {
+    // Create a DB session but don't set the cookie yet — store in verify session
+    const fingerprint = generateFingerprint(request);
+    const dbSession = await prisma.session.create({
+      data: {
+        userId: user.id,
+        expirationDate: new Date(Date.now() + env.SESSION_MAX_AGE),
+        fingerprint,
+      },
+    });
+
+    const verifySession = await verifySessionStorage.getSession();
+    verifySession.set(unverifiedSessionIdKey, dbSession.id);
+    verifySession.set("redirectTo", finalRedirect);
+
+    logger.info({ userId: user.id }, "Login successful — awaiting 2FA verification");
+    await prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        tenantId: user.tenantId,
+        action: "LOGIN",
+        entityType: "User",
+        entityId: user.id,
+        description: "Login successful — awaiting 2FA verification",
+        ipAddress: request.headers.get("x-forwarded-for") ?? undefined,
+        userAgent: request.headers.get("user-agent") ?? undefined,
+        metadata: { twoFactorRequired: true },
+      },
+    });
+
+    return redirect("/auth/2fa-verify", {
+      headers: {
+        "Set-Cookie": await verifySessionStorage.commitSession(verifySession),
+      },
+    });
+  }
+
+  // No 2FA — create authenticated session directly
   logger.info({ userId: user.id }, "Login successful");
   await prisma.auditLog.create({
     data: {
@@ -186,8 +235,7 @@ export async function action({ request }: Route.ActionArgs) {
     },
   });
 
-  const defaultRedirect = user.tenant?.slug ? `/${user.tenant.slug}` : "/admin";
-  return createUserSession(request, user.id, redirectTo || defaultRedirect);
+  return createUserSession(request, user.id, finalRedirect);
 }
 
 export default function LoginPage({ actionData }: Route.ComponentProps) {

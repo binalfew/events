@@ -384,9 +384,11 @@ export function TopNavbar({
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem disabled>
-              <User />
-              {t("profile")}
+            <DropdownMenuItem asChild>
+              <Link to={`${basePrefix}/profile`}>
+                <User />
+                {t("profile")}
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <Form method="post" action="/auth/logout">
