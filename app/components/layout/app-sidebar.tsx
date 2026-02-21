@@ -31,7 +31,7 @@ export function AppSidebar({
 
   return (
     <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader>
+      <SidebarHeader className="h-12 justify-center bg-primary p-0 text-primary-foreground">
         <TenantSwitcher tenant={tenant} basePrefix={basePrefix} />
       </SidebarHeader>
       <SidebarContent>

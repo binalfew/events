@@ -275,21 +275,26 @@ export function TopNavbar({
   const shortcutInfoList = useMemo(() => getShortcutInfo(shortcuts), [shortcuts]);
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-2 border-b">
+    <header className="flex h-12 shrink-0 items-center gap-2 border-b bg-primary text-primary-foreground">
       <div className="flex flex-1 items-center gap-2 px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
+        <SidebarTrigger className="-ml-1 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground" />
+        <Separator
+          orientation="vertical"
+          className="mr-2 data-[orientation=vertical]:h-4 bg-primary-foreground/30"
+        />
         <Breadcrumb className="hidden md:flex">
-          <BreadcrumbList>
+          <BreadcrumbList className="text-primary-foreground/70">
             {breadcrumbs.map((crumb, index) => {
               const isLast = index === breadcrumbs.length - 1;
               return (
                 <BreadcrumbItem key={crumb.to ?? crumb.label}>
                   {index > 0 && <BreadcrumbSeparator />}
                   {isLast ? (
-                    <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                    <BreadcrumbPage className="text-primary-foreground">
+                      {crumb.label}
+                    </BreadcrumbPage>
                   ) : (
-                    <BreadcrumbLink asChild>
+                    <BreadcrumbLink asChild className="hover:text-primary-foreground">
                       <Link to={crumb.to!}>{crumb.label}</Link>
                     </BreadcrumbLink>
                   )}
@@ -300,14 +305,14 @@ export function TopNavbar({
         </Breadcrumb>
       </div>
 
-      <div className="flex items-center gap-1 px-2 sm:gap-2 sm:px-4">
+      <div className="flex items-center gap-1 px-2 sm:gap-2 sm:px-4 [&_button]:text-primary-foreground [&_button:hover]:bg-primary-foreground/10 [&_button:hover]:text-primary-foreground">
         {/* Search trigger — icon on mobile, full bar on desktop */}
         {searchEnabled ? (
           <>
             <Button
               variant="ghost"
               size="icon"
-              className="size-8 md:hidden"
+              className="size-8 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground md:hidden"
               onClick={() => setSearchOpen(true)}
               aria-label="Search"
             >
@@ -316,20 +321,20 @@ export function TopNavbar({
             <button
               type="button"
               onClick={() => setSearchOpen(true)}
-              className="hidden cursor-pointer items-center gap-2 rounded-md border bg-muted/50 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted md:flex"
+              className="hidden cursor-pointer items-center gap-2 rounded-md border border-primary-foreground/20 bg-primary-foreground/10 px-3 py-1.5 text-sm text-primary-foreground/70 transition-colors hover:bg-primary-foreground/20 md:flex"
             >
               <Search className="size-4" />
               <span>{t("search")}</span>
-              <kbd className="pointer-events-none ml-2 inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+              <kbd className="pointer-events-none ml-2 inline-flex h-5 select-none items-center gap-1 rounded border border-primary-foreground/20 bg-primary-foreground/10 px-1.5 font-mono text-[10px] font-medium text-primary-foreground/70">
                 <span className="text-xs">&#8984;</span>K
               </kbd>
             </button>
           </>
         ) : (
-          <div className="hidden items-center gap-2 rounded-md border bg-muted/50 px-3 py-1.5 text-sm text-muted-foreground md:flex">
+          <div className="hidden items-center gap-2 rounded-md border border-primary-foreground/20 bg-primary-foreground/10 px-3 py-1.5 text-sm text-primary-foreground/70 md:flex">
             <Search className="size-4" />
             <span>Search...</span>
-            <kbd className="pointer-events-none ml-2 inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+            <kbd className="pointer-events-none ml-2 inline-flex h-5 select-none items-center gap-1 rounded border border-primary-foreground/20 bg-primary-foreground/10 px-1.5 font-mono text-[10px] font-medium text-primary-foreground/70">
               <span className="text-xs">&#8984;</span>K
             </kbd>
           </div>
@@ -359,9 +364,15 @@ export function TopNavbar({
         {/* User menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="size-8 rounded-full">
-              <Avatar className="size-8">
-                <AvatarFallback>{getUserInitials(user.name, user.email)}</AvatarFallback>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 rounded-full hover:bg-primary-foreground/10"
+            >
+              <Avatar className="size-8 border border-primary-foreground/30">
+                <AvatarFallback className="bg-primary-foreground/10 text-primary-foreground text-xs">
+                  {getUserInitials(user.name, user.email)}
+                </AvatarFallback>
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
