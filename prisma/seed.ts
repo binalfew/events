@@ -26,12 +26,12 @@ async function main() {
 
   // ─── Second Tenant (for testing) ───────────────────────
   const tenant2 = await prisma.tenant.upsert({
-    where: { name: "Test Organization" },
-    update: { slug: "test-org" },
+    where: { slug: "test-org" },
+    update: { name: "Test Organization" },
     create: {
       name: "Test Organization",
       slug: "test-org",
-      email: "info@testorg.example.com",
+      email: "admin@testorg.example.com",
       phone: "+1-555-123-4567",
       website: "https://testorg.example.com",
       subscriptionPlan: "starter",

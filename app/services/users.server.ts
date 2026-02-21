@@ -4,6 +4,7 @@ import { hashPassword } from "~/lib/auth.server";
 interface ServiceContext {
   userId: string;
   tenantId: string;
+  isSuperAdmin?: boolean;
   ipAddress?: string;
   userAgent?: string;
 }
@@ -18,20 +19,21 @@ export class UserError extends Error {
   }
 }
 
-export async function listUsers(tenantId: string) {
+export async function listUsers(tenantId?: string) {
   return prisma.user.findMany({
-    where: { tenantId, deletedAt: null },
+    where: { ...(tenantId ? { tenantId } : {}), deletedAt: null },
     orderBy: { name: "asc" },
     include: {
+      tenant: { select: { name: true, slug: true } },
       userRoles: { where: { eventId: null }, include: { role: true } },
       _count: { select: { sessions: true } },
     },
   });
 }
 
-export async function getUser(id: string, tenantId: string) {
+export async function getUser(id: string, tenantId?: string) {
   const user = await prisma.user.findFirst({
-    where: { id, tenantId, deletedAt: null },
+    where: { id, ...(tenantId ? { tenantId } : {}), deletedAt: null },
     include: {
       userRoles: { where: { eventId: null }, include: { role: true } },
     },
@@ -42,9 +44,9 @@ export async function getUser(id: string, tenantId: string) {
   return user;
 }
 
-export async function getUserWithCounts(id: string, tenantId: string) {
+export async function getUserWithCounts(id: string, tenantId?: string) {
   const user = await prisma.user.findFirst({
-    where: { id, tenantId, deletedAt: null },
+    where: { id, ...(tenantId ? { tenantId } : {}), deletedAt: null },
     include: {
       userRoles: { where: { eventId: null }, include: { role: true } },
       _count: { select: { sessions: true, userRoles: true } },
@@ -116,7 +118,7 @@ interface UpdateUserInput {
 
 export async function updateUser(id: string, input: UpdateUserInput, ctx: ServiceContext) {
   const existing = await prisma.user.findFirst({
-    where: { id, tenantId: ctx.tenantId, deletedAt: null },
+    where: { id, ...(ctx.isSuperAdmin ? {} : { tenantId: ctx.tenantId }), deletedAt: null },
   });
   if (!existing) {
     throw new UserError("User not found", 404);
@@ -162,7 +164,7 @@ export async function updateUser(id: string, input: UpdateUserInput, ctx: Servic
 
 export async function deleteUser(id: string, ctx: ServiceContext) {
   const existing = await prisma.user.findFirst({
-    where: { id, tenantId: ctx.tenantId, deletedAt: null },
+    where: { id, ...(ctx.isSuperAdmin ? {} : { tenantId: ctx.tenantId }), deletedAt: null },
     include: { _count: { select: { sessions: true, userRoles: true } } },
   });
   if (!existing) {
@@ -195,7 +197,7 @@ export async function deleteUser(id: string, ctx: ServiceContext) {
 
 export async function changePassword(id: string, password: string, ctx: ServiceContext) {
   const existing = await prisma.user.findFirst({
-    where: { id, tenantId: ctx.tenantId, deletedAt: null },
+    where: { id, ...(ctx.isSuperAdmin ? {} : { tenantId: ctx.tenantId }), deletedAt: null },
   });
   if (!existing) {
     throw new UserError("User not found", 404);
@@ -226,7 +228,7 @@ export async function changePassword(id: string, password: string, ctx: ServiceC
 
 export async function assignRoles(userId: string, roleIds: string[], ctx: ServiceContext) {
   const existing = await prisma.user.findFirst({
-    where: { id: userId, tenantId: ctx.tenantId, deletedAt: null },
+    where: { id: userId, ...(ctx.isSuperAdmin ? {} : { tenantId: ctx.tenantId }), deletedAt: null },
   });
   if (!existing) {
     throw new UserError("User not found", 404);

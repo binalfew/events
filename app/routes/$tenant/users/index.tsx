@@ -11,14 +11,15 @@ import { EmptyState } from "~/components/ui/empty-state";
 import type { Route } from "./+types/index";
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const { user } = await requirePermission(request, "settings", "manage");
+  const { user, roles } = await requirePermission(request, "settings", "manage");
   const tenantId = user.tenantId;
   if (!tenantId) {
     throw data({ error: "User is not associated with a tenant" }, { status: 403 });
   }
 
-  const users = await listUsers(tenantId);
-  return { users };
+  const isSuperAdmin = roles.includes("ADMIN");
+  const users = await listUsers(isSuperAdmin ? undefined : tenantId);
+  return { users, isSuperAdmin };
 }
 
 const statusColors: Record<string, string> = {
@@ -29,7 +30,7 @@ const statusColors: Record<string, string> = {
 };
 
 export default function UsersListPage() {
-  const { users } = useLoaderData<typeof loader>();
+  const { users, isSuperAdmin } = useLoaderData<typeof loader>();
   const base = useBasePrefix();
 
   return (
@@ -63,6 +64,9 @@ export default function UsersListPage() {
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Name</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Email</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Username</th>
+                {isSuperAdmin && (
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Tenant</th>
+                )}
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Roles</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Actions</th>
@@ -76,6 +80,9 @@ export default function UsersListPage() {
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{u.email}</td>
                   <td className="px-4 py-3 text-muted-foreground">{u.username}</td>
+                  {isSuperAdmin && (
+                    <td className="px-4 py-3 text-muted-foreground">{u.tenant?.name ?? "—"}</td>
+                  )}
                   <td className="px-4 py-3">
                     <span
                       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[u.status] ?? "bg-gray-100 text-gray-800"}`}

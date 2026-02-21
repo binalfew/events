@@ -20,6 +20,7 @@ export type NavChild = {
   tKey?: string;
   url: string;
   end?: boolean;
+  roles?: string[];
 };
 
 export type NavItem = {
@@ -87,13 +88,13 @@ export function buildNavigationGroups(basePrefix: string): NavGroup[] {
           tKey: "events",
           url: `${basePrefix}/events`,
           icon: CalendarDays,
-          roles: ["ADMIN"],
+          roles: ["ADMIN", "TENANT_ADMIN"],
         },
         {
           title: "Series",
           url: `${basePrefix}/series`,
           icon: Layers,
-          roles: ["ADMIN"],
+          roles: ["ADMIN", "TENANT_ADMIN"],
         },
         {
           title: "Tenants",
@@ -105,7 +106,7 @@ export function buildNavigationGroups(basePrefix: string): NavGroup[] {
           title: "Users",
           url: `${basePrefix}/users`,
           icon: Users,
-          roles: ["ADMIN"],
+          roles: ["ADMIN", "TENANT_ADMIN"],
         },
         {
           title: "Roles",
@@ -130,7 +131,7 @@ export function buildNavigationGroups(basePrefix: string): NavGroup[] {
           tKey: "settings",
           url: `${basePrefix}/settings`,
           icon: Settings,
-          roles: ["ADMIN"],
+          roles: ["ADMIN", "TENANT_ADMIN"],
           children: [
             { title: "General", tKey: "general", url: `${basePrefix}/settings`, end: true },
             { title: "Fields", tKey: "fields", url: `${basePrefix}/settings/fields` },
@@ -138,9 +139,20 @@ export function buildNavigationGroups(basePrefix: string): NavGroup[] {
               title: "Feature Flags",
               tKey: "featureFlags",
               url: `${basePrefix}/settings/feature-flags`,
+              roles: ["ADMIN"],
             },
-            { title: "API Keys", tKey: "apiKeys", url: `${basePrefix}/settings/api-keys` },
-            { title: "Webhooks", tKey: "webhooks", url: `${basePrefix}/settings/webhooks` },
+            {
+              title: "API Keys",
+              tKey: "apiKeys",
+              url: `${basePrefix}/settings/api-keys`,
+              roles: ["ADMIN"],
+            },
+            {
+              title: "Webhooks",
+              tKey: "webhooks",
+              url: `${basePrefix}/settings/webhooks`,
+              roles: ["ADMIN"],
+            },
           ],
         },
       ],
@@ -152,7 +164,14 @@ export function getVisibleGroups(roles: string[], basePrefix = "/admin"): NavGro
   return buildNavigationGroups(basePrefix)
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => !item.roles || item.roles.some((r) => roles.includes(r))),
+      items: group.items
+        .filter((item) => !item.roles || item.roles.some((r) => roles.includes(r)))
+        .map((item) => ({
+          ...item,
+          children: item.children?.filter(
+            (child) => !child.roles || child.roles.some((r) => roles.includes(r)),
+          ),
+        })),
     }))
     .filter((group) => group.items.length > 0);
 }

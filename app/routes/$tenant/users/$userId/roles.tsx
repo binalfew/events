@@ -11,32 +11,37 @@ import { useBasePrefix } from "~/hooks/use-base-prefix";
 import type { Route } from "./+types/roles";
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const { user } = await requirePermission(request, "settings", "manage");
+  const { user, roles } = await requirePermission(request, "settings", "manage");
   const tenantId = user.tenantId;
   if (!tenantId) {
     throw data({ error: "User is not associated with a tenant" }, { status: 403 });
   }
 
-  const targetUser = await getUser(params.userId, tenantId);
-  const allRoles = await listRoles(tenantId);
+  const isSuperAdmin = roles.includes("ADMIN");
+  const targetUser = await getUser(params.userId, isSuperAdmin ? undefined : tenantId);
+  // For roles list, use the target user's tenant so we show the correct roles
+  const targetTenantId = targetUser.tenantId ?? tenantId;
+  const allRoles = await listRoles(targetTenantId);
   const currentRoleIds = targetUser.userRoles.map((ur) => ur.roleId);
 
   return { targetUser, allRoles, currentRoleIds };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
-  const { user } = await requirePermission(request, "settings", "manage");
+  const { user, roles } = await requirePermission(request, "settings", "manage");
   const tenantId = user.tenantId;
   if (!tenantId) {
     throw data({ error: "User is not associated with a tenant" }, { status: 403 });
   }
 
+  const isSuperAdmin = roles.includes("ADMIN");
   const formData = await request.formData();
   const roleIds = formData.getAll("roleIds") as string[];
 
   const ctx = {
     userId: user.id,
     tenantId,
+    isSuperAdmin,
     ipAddress: request.headers.get("x-forwarded-for") ?? undefined,
     userAgent: request.headers.get("user-agent") ?? undefined,
   };

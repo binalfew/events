@@ -106,6 +106,50 @@ export async function createTenant(input: CreateTenantInput, ctx: ServiceContext
     throw error;
   }
 
+  // Seed default roles for the new tenant
+  const defaultRoles = [
+    {
+      name: "TENANT_ADMIN",
+      description: "Full access within own tenant",
+      scope: "TENANT" as const,
+    },
+    {
+      name: "VALIDATOR",
+      description: "Can review and approve participants",
+      scope: "EVENT" as const,
+    },
+    { name: "PRINTER", description: "Can print badges", scope: "EVENT" as const },
+    { name: "DISPATCHER", description: "Can collect and dispatch badges", scope: "EVENT" as const },
+    { name: "VIEWER", description: "Read-only access", scope: "EVENT" as const },
+    {
+      name: "USER",
+      description: "Default role for self-registered users",
+      scope: "EVENT" as const,
+    },
+  ];
+
+  for (const r of defaultRoles) {
+    await prisma.role.create({
+      data: { tenantId: tenant.id, name: r.name, description: r.description, scope: r.scope },
+    });
+  }
+
+  // Grant all permissions to the TENANT_ADMIN role
+  const tenantAdminRole = await prisma.role.findFirst({
+    where: { tenantId: tenant.id, name: "TENANT_ADMIN" },
+  });
+  if (tenantAdminRole) {
+    const allPermissions = await prisma.permission.findMany();
+    await prisma.rolePermission.createMany({
+      data: allPermissions.map((p) => ({
+        roleId: tenantAdminRole.id,
+        permissionId: p.id,
+        access: "any",
+      })),
+      skipDuplicates: true,
+    });
+  }
+
   await prisma.auditLog.create({
     data: {
       userId: ctx.userId,
