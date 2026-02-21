@@ -36,6 +36,16 @@ export async function getTenant(id: string) {
   return tenant;
 }
 
+export async function getTenantBySlug(slug: string) {
+  const tenant = await prisma.tenant.findFirst({
+    where: { slug },
+  });
+  if (!tenant) {
+    throw new TenantError("Tenant not found", 404);
+  }
+  return tenant;
+}
+
 export async function getTenantWithCounts(id: string) {
   const tenant = await prisma.tenant.findFirst({
     where: { id },
@@ -51,6 +61,7 @@ export async function getTenantWithCounts(id: string) {
 
 interface CreateTenantInput {
   name: string;
+  slug: string;
   email: string;
   phone: string;
   website?: string;
@@ -60,6 +71,10 @@ interface CreateTenantInput {
   zip?: string;
   country?: string;
   subscriptionPlan?: string;
+  logoUrl?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  accentColor?: string;
 }
 
 export async function createTenant(input: CreateTenantInput, ctx: ServiceContext) {
@@ -68,6 +83,7 @@ export async function createTenant(input: CreateTenantInput, ctx: ServiceContext
     tenant = await prisma.tenant.create({
       data: {
         name: input.name,
+        slug: input.slug,
         email: input.email,
         phone: input.phone,
         website: input.website || null,
@@ -77,6 +93,10 @@ export async function createTenant(input: CreateTenantInput, ctx: ServiceContext
         zip: input.zip || null,
         country: input.country || null,
         subscriptionPlan: input.subscriptionPlan ?? "free",
+        logoUrl: input.logoUrl || null,
+        primaryColor: input.primaryColor || null,
+        secondaryColor: input.secondaryColor || null,
+        accentColor: input.accentColor || null,
       },
     });
   } catch (error) {
@@ -102,6 +122,7 @@ export async function createTenant(input: CreateTenantInput, ctx: ServiceContext
 
 interface UpdateTenantInput {
   name: string;
+  slug: string;
   email: string;
   phone: string;
   website?: string;
@@ -111,6 +132,10 @@ interface UpdateTenantInput {
   zip?: string;
   country?: string;
   subscriptionPlan: string;
+  logoUrl?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  accentColor?: string;
 }
 
 export async function updateTenant(id: string, input: UpdateTenantInput, ctx: ServiceContext) {
@@ -125,6 +150,7 @@ export async function updateTenant(id: string, input: UpdateTenantInput, ctx: Se
       where: { id },
       data: {
         name: input.name,
+        slug: input.slug,
         email: input.email,
         phone: input.phone,
         website: input.website || null,
@@ -134,6 +160,10 @@ export async function updateTenant(id: string, input: UpdateTenantInput, ctx: Se
         zip: input.zip || null,
         country: input.country || null,
         subscriptionPlan: input.subscriptionPlan,
+        logoUrl: input.logoUrl || null,
+        primaryColor: input.primaryColor || null,
+        secondaryColor: input.secondaryColor || null,
+        accentColor: input.accentColor || null,
       },
     });
   } catch (error) {

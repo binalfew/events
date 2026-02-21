@@ -62,10 +62,12 @@ interface CreateUserInput {
   name?: string;
   status?: string;
   password: string;
+  tenantId?: string;
 }
 
 export async function createUser(input: CreateUserInput, ctx: ServiceContext) {
   const passwordHash = await hashPassword(input.password);
+  const targetTenantId = input.tenantId || ctx.tenantId;
 
   let user;
   try {
@@ -75,7 +77,7 @@ export async function createUser(input: CreateUserInput, ctx: ServiceContext) {
         username: input.username,
         name: input.name || null,
         status: (input.status as any) ?? "ACTIVE",
-        tenantId: ctx.tenantId,
+        tenantId: targetTenantId,
         password: {
           create: { hash: passwordHash },
         },

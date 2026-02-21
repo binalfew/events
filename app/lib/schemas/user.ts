@@ -46,6 +46,7 @@ export const createUserSchema = z.object({
   name: z.string().optional().default(""),
   status: z.enum(USER_STATUSES).optional().default("ACTIVE"),
   password: z.string().min(8, "Password must be at least 8 characters"),
+  tenantId: z.string().optional(),
 });
 
 export type CreateUserInput = z.infer<typeof createUserSchema>;

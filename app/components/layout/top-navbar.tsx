@@ -48,6 +48,7 @@ interface NotificationItem {
 
 type TopNavbarProps = {
   user: { id: string; name: string | null; email: string };
+  basePrefix?: string;
   theme?: Theme | null;
   colorTheme?: ColorTheme;
   notificationsEnabled?: boolean;
@@ -95,6 +96,7 @@ function getUserInitials(name: string | null, email: string): string {
 
 export function TopNavbar({
   user,
+  basePrefix = "/admin",
   theme,
   colorTheme,
   notificationsEnabled = false,
@@ -146,7 +148,7 @@ export function TopNavbar({
         description: "Go to Dashboard",
         group: "navigation",
         key: ["g", "d"],
-        handler: () => navigate("/admin"),
+        handler: () => navigate(basePrefix),
       },
       {
         id: "nav-events",
@@ -154,7 +156,7 @@ export function TopNavbar({
         description: "Go to Events",
         group: "navigation",
         key: ["g", "e"],
-        handler: () => navigate("/admin/events"),
+        handler: () => navigate(`${basePrefix}/events`),
       },
       {
         id: "nav-settings",
@@ -162,7 +164,7 @@ export function TopNavbar({
         description: "Go to Settings",
         group: "navigation",
         key: ["g", "s"],
-        handler: () => navigate("/admin/settings"),
+        handler: () => navigate(`${basePrefix}/settings`),
       },
       {
         id: "nav-notifications",
@@ -170,7 +172,7 @@ export function TopNavbar({
         description: "Go to Notifications",
         group: "navigation",
         key: ["g", "n"],
-        handler: () => navigate("/admin/notifications"),
+        handler: () => navigate(`${basePrefix}/notifications`),
       },
       {
         id: "nav-participants",
@@ -178,7 +180,7 @@ export function TopNavbar({
         description: "Go to Participants",
         group: "navigation",
         key: ["g", "p"],
-        handler: () => navigate("/admin/participants"),
+        handler: () => navigate(`${basePrefix}/participants`),
       },
     );
 
@@ -267,7 +269,7 @@ export function TopNavbar({
     );
 
     return defs;
-  }, [searchEnabled, navigate]);
+  }, [searchEnabled, navigate, basePrefix]);
 
   // Register shortcuts — ⌘K always active if search is enabled, others need shortcutsEnabled
   useKeyboardShortcuts(shortcuts, {
@@ -347,10 +349,12 @@ export function TopNavbar({
         {/* Theme switcher */}
         <ThemeSwitch userPreference={theme} />
 
-        {/* Color theme selector — hidden on small screens */}
-        <div className="hidden sm:flex">
-          <ColorThemeSelector currentTheme={colorTheme} />
-        </div>
+        {/* Color theme selector — hidden when tenant has custom branding */}
+        {colorTheme !== undefined && (
+          <div className="hidden sm:flex">
+            <ColorThemeSelector currentTheme={colorTheme} />
+          </div>
+        )}
 
         {/* Offline indicator */}
         {offlineEnabled && <OfflineIndicator />}
@@ -360,6 +364,7 @@ export function TopNavbar({
           unreadCount={unreadCount}
           notifications={notifications}
           enabled={notificationsEnabled}
+          basePrefix={basePrefix}
         />
 
         {/* User menu */}
@@ -396,7 +401,9 @@ export function TopNavbar({
         </DropdownMenu>
       </div>
 
-      {searchEnabled && <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} />}
+      {searchEnabled && (
+        <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} basePrefix={basePrefix} />
+      )}
       <ShortcutHelp
         open={shortcutHelpOpen}
         onOpenChange={setShortcutHelpOpen}

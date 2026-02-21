@@ -459,6 +459,7 @@ enum RoleScope {
 model Tenant {
   id               String   @id @default(cuid())
   name             String   @unique
+  slug             String   @unique
   email            String   @unique
   phone            String
   website          String?
@@ -467,6 +468,10 @@ model Tenant {
   state            String?
   zip              String?
   country          String?
+  logoUrl          String?
+  primaryColor     String?
+  secondaryColor   String?
+  accentColor      String?
   billingInfo      Json?
   subscriptionPlan String
   featureFlags     Json?

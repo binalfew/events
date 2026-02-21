@@ -7,7 +7,7 @@ import { verifyPassword } from "~/lib/auth.server";
 import { prisma } from "~/lib/db.server";
 import { env } from "~/lib/env.server";
 import { logger } from "~/lib/logger.server";
-import { getUserId, createUserSession } from "~/lib/session.server";
+import { getUserId, getDefaultRedirect, createUserSession } from "~/lib/session.server";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
@@ -22,7 +22,10 @@ const loginSchema = z.object({
 
 export async function loader({ request }: Route.LoaderArgs) {
   const userId = await getUserId(request);
-  if (userId) throw redirect("/admin");
+  if (userId) {
+    const redirectUrl = await getDefaultRedirect(userId);
+    throw redirect(redirectUrl);
+  }
   return {};
 }
 
@@ -38,7 +41,7 @@ export async function action({ request }: Route.ActionArgs) {
 
   const user = await prisma.user.findFirst({
     where: { email },
-    include: { password: true },
+    include: { password: true, tenant: { select: { slug: true } } },
   });
 
   if (!user || !user.password) {
@@ -183,7 +186,8 @@ export async function action({ request }: Route.ActionArgs) {
     },
   });
 
-  return createUserSession(request, user.id, redirectTo || "/admin");
+  const defaultRedirect = user.tenant?.slug ? `/${user.tenant.slug}` : "/admin";
+  return createUserSession(request, user.id, redirectTo || defaultRedirect);
 }
 
 export default function LoginPage({ actionData }: Route.ComponentProps) {

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Form, Link } from "react-router";
+import { useBasePrefix } from "~/hooks/use-base-prefix";
 import type { FieldDefinition } from "~/generated/prisma/client";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -40,6 +41,7 @@ interface FieldFormProps {
 }
 
 export function FieldForm({ eventId, field, errors, cancelUrl }: FieldFormProps) {
+  const basePrefix = useBasePrefix();
   const isEdit = !!field;
 
   const [label, setLabel] = useState(field?.label ?? "");
@@ -251,7 +253,10 @@ export function FieldForm({ eventId, field, errors, cancelUrl }: FieldFormProps)
       <div className="flex items-center gap-3">
         <Button type="submit">{isEdit ? "Save Changes" : "Create Field"}</Button>
         <Link
-          to={cancelUrl ?? (eventId ? `/admin/events/${eventId}/fields` : "/admin/settings/fields")}
+          to={
+            cancelUrl ??
+            (eventId ? `${basePrefix}/events/${eventId}/fields` : `${basePrefix}/settings/fields`)
+          }
         >
           <Button type="button" variant="outline">
             Cancel

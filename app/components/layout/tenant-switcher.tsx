@@ -1,4 +1,4 @@
-import { ChevronsUpDown, Plus, ShieldCheck } from "lucide-react";
+import { ChevronsUpDown, ShieldCheck } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,17 +14,29 @@ import {
   useSidebar,
 } from "~/components/ui/sidebar";
 
-type Tenant = {
+type TenantInfo = {
   name: string;
+  slug: string;
   plan: string;
+  logoUrl?: string | null;
 };
 
-// TODO: Replace with real tenant data from loader
-const tenants: Tenant[] = [{ name: "Accreditation", plan: "Platform" }];
+const fallbackTenant: TenantInfo = {
+  name: "Accreditation",
+  slug: "admin",
+  plan: "Platform",
+};
 
-export function TenantSwitcher() {
+export function TenantSwitcher({
+  tenant,
+  basePrefix = "/admin",
+}: {
+  tenant?: TenantInfo | null;
+  basePrefix?: string;
+}) {
   const { isMobile } = useSidebar();
-  const activeTenant = tenants[0];
+  const activeTenant = tenant ?? fallbackTenant;
+  const isAdmin = basePrefix === "/admin";
 
   return (
     <SidebarMenu>
@@ -51,22 +63,23 @@ export function TenantSwitcher() {
             side={isMobile ? "bottom" : "right"}
             sideOffset={4}
           >
-            <DropdownMenuLabel className="text-xs text-muted-foreground">Tenants</DropdownMenuLabel>
-            {tenants.map((tenant) => (
-              <DropdownMenuItem key={tenant.name} className="gap-2 p-2">
-                <div className="flex size-6 items-center justify-center rounded-sm border">
-                  <ShieldCheck className="size-4 shrink-0" />
-                </div>
-                {tenant.name}
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="gap-2 p-2" disabled>
-              <div className="flex size-6 items-center justify-center rounded-md border bg-background">
-                <Plus className="size-4" />
+            <DropdownMenuLabel className="text-xs text-muted-foreground">
+              {isAdmin ? "Super Admin" : "Tenant"}
+            </DropdownMenuLabel>
+            <DropdownMenuItem className="gap-2 p-2">
+              <div className="flex size-6 items-center justify-center rounded-sm border">
+                <ShieldCheck className="size-4 shrink-0" />
               </div>
-              <div className="font-medium text-muted-foreground">Add tenant</div>
+              {activeTenant.name}
             </DropdownMenuItem>
+            {!isAdmin && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="gap-2 p-2" asChild>
+                  <a href={`/${activeTenant.slug}`}>Go to tenant home</a>
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>

@@ -28,6 +28,7 @@ interface NotificationBellProps {
   unreadCount: number;
   notifications: NotificationItem[];
   enabled: boolean;
+  basePrefix?: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────
@@ -61,7 +62,12 @@ function formatRelativeTime(dateStr: string): string {
 
 // ─── Component ───────────────────────────────────────────
 
-export function NotificationBell({ unreadCount, notifications, enabled }: NotificationBellProps) {
+export function NotificationBell({
+  unreadCount,
+  notifications,
+  enabled,
+  basePrefix = "/admin",
+}: NotificationBellProps) {
   const fetcher = useFetcher();
 
   if (!enabled) {
@@ -186,7 +192,7 @@ export function NotificationBell({ unreadCount, notifications, enabled }: Notifi
         {/* Footer */}
         <div className="border-t px-4 py-2">
           <Link
-            to="/admin/notifications"
+            to={`${basePrefix}/notifications`}
             className="block text-center text-xs font-medium text-primary hover:underline"
           >
             View all notifications

@@ -8,31 +8,39 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   // ─── Tenant ───────────────────────────────────────────
   const tenant = await prisma.tenant.upsert({
-    where: { name: "Default Organization" },
-    update: {},
+    where: { slug: "admin" },
+    update: { name: "System Administration" },
     create: {
-      name: "Default Organization",
+      name: "System Administration",
+      slug: "admin",
       email: "admin@example.com",
       phone: "+1-000-000-0000",
       subscriptionPlan: "enterprise",
       featureFlags: { customObjects: true, advancedWorkflow: true },
+      primaryColor: "#1e40af",
+      secondaryColor: "#1e3a5f",
+      accentColor: "#f59e0b",
     },
   });
-  console.log(`Seeded tenant: ${tenant.name} (${tenant.id})`);
+  console.log(`Seeded tenant: ${tenant.name} [${tenant.slug}] (${tenant.id})`);
 
   // ─── Second Tenant (for testing) ───────────────────────
   const tenant2 = await prisma.tenant.upsert({
     where: { name: "Test Organization" },
-    update: {},
+    update: { slug: "test-org" },
     create: {
       name: "Test Organization",
+      slug: "test-org",
       email: "info@testorg.example.com",
       phone: "+1-555-123-4567",
       website: "https://testorg.example.com",
       subscriptionPlan: "starter",
+      primaryColor: "#059669",
+      secondaryColor: "#064e3b",
+      accentColor: "#8b5cf6",
     },
   });
-  console.log(`Seeded tenant: ${tenant2.name} (${tenant2.id})`);
+  console.log(`Seeded tenant: ${tenant2.name} [${tenant2.slug}] (${tenant2.id})`);
 
   // ─── Admin User ───────────────────────────────────────
   const passwordHash = await hash("password123", 12);

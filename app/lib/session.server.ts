@@ -55,9 +55,27 @@ export async function getUserId(request: Request): Promise<string | null> {
   return dbSession.userId;
 }
 
+/**
+ * Determine the default post-login redirect for a user.
+ * Tenant users → /<slug>, global admins → /admin.
+ */
+export async function getDefaultRedirect(userId: string): Promise<string> {
+  const user = await prisma.user.findFirst({
+    where: { id: userId },
+    select: { tenant: { select: { slug: true } } },
+  });
+  if (user?.tenant?.slug) {
+    return `/${user.tenant.slug}`;
+  }
+  return "/admin";
+}
+
 export async function requireAnonymous(request: Request) {
   const userId = await getUserId(request);
-  if (userId) throw redirect("/admin");
+  if (userId) {
+    const redirectUrl = await getDefaultRedirect(userId);
+    throw redirect(redirectUrl);
+  }
 }
 
 export async function requireUserId(request: Request, redirectTo?: string): Promise<string> {

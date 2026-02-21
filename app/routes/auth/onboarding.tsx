@@ -5,7 +5,7 @@ import { z } from "zod/v4";
 import { hashPassword } from "~/lib/auth.server";
 import { prisma } from "~/lib/db.server";
 import { logger } from "~/lib/logger.server";
-import { requireAnonymous, createUserSession } from "~/lib/session.server";
+import { requireAnonymous, getDefaultRedirect, createUserSession } from "~/lib/session.server";
 import { SignupUsernameSchema, SignupNameSchema, SignupPasswordSchema } from "~/lib/schemas/user";
 import { requireOnboardingEmail, getVerifySession } from "~/lib/verification.server";
 import { Button } from "~/components/ui/button";
@@ -120,8 +120,9 @@ export async function action({ request }: Route.ActionArgs) {
     },
   });
 
-  // Create user session (verify cookie expires on its own in 10 min)
-  return createUserSession(request, user.id, "/admin");
+  // Create user session — redirect to tenant home or /admin
+  const redirectUrl = await getDefaultRedirect(user.id);
+  return createUserSession(request, user.id, redirectUrl);
 }
 
 export default function OnboardingPage({ loaderData, actionData }: Route.ComponentProps) {

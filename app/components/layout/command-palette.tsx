@@ -19,6 +19,7 @@ import type { SearchResults } from "~/services/search.server";
 interface CommandPaletteProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  basePrefix?: string;
 }
 
 interface SearchResultItem {
@@ -36,29 +37,31 @@ const RECENT_SEARCHES_KEY = "global-search-recent";
 const MAX_RECENT = 5;
 const DEBOUNCE_MS = 300;
 
-const QUICK_ACTIONS: SearchResultItem[] = [
-  {
-    id: "action-events",
-    type: "action",
-    label: "Go to Events",
-    href: "/admin/events",
-    icon: <CalendarDays className="size-4" />,
-  },
-  {
-    id: "action-participants",
-    type: "action",
-    label: "Go to Participants",
-    href: "/admin/participants",
-    icon: <Users className="size-4" />,
-  },
-  {
-    id: "action-settings",
-    type: "action",
-    label: "Go to Settings",
-    href: "/admin/settings",
-    icon: <Settings className="size-4" />,
-  },
-];
+function buildQuickActions(basePrefix: string): SearchResultItem[] {
+  return [
+    {
+      id: "action-events",
+      type: "action",
+      label: "Go to Events",
+      href: `${basePrefix}/events`,
+      icon: <CalendarDays className="size-4" />,
+    },
+    {
+      id: "action-participants",
+      type: "action",
+      label: "Go to Participants",
+      href: `${basePrefix}/participants`,
+      icon: <Users className="size-4" />,
+    },
+    {
+      id: "action-settings",
+      type: "action",
+      label: "Go to Settings",
+      href: `${basePrefix}/settings`,
+      icon: <Settings className="size-4" />,
+    },
+  ];
+}
 
 // ─── Helpers ─────────────────────────────────────────────
 
@@ -81,7 +84,7 @@ function addRecentSearch(query: string) {
   }
 }
 
-function mapResults(data: SearchResults): SearchResultItem[] {
+function mapResults(data: SearchResults, basePrefix: string): SearchResultItem[] {
   const items: SearchResultItem[] = [];
 
   for (const p of data.participants) {
@@ -90,7 +93,7 @@ function mapResults(data: SearchResults): SearchResultItem[] {
       type: "participant",
       label: `${p.firstName} ${p.lastName}`,
       description: `${p.registrationCode} · ${p.eventName}`,
-      href: `/admin/events/${encodeURIComponent(p.id)}`,
+      href: `${basePrefix}/events/${encodeURIComponent(p.id)}`,
       icon: <Users className="size-4" />,
     });
   }
@@ -101,7 +104,7 @@ function mapResults(data: SearchResults): SearchResultItem[] {
       type: "event",
       label: e.name,
       description: e.status,
-      href: `/admin/events/${e.id}`,
+      href: `${basePrefix}/events/${e.id}`,
       icon: <CalendarDays className="size-4" />,
     });
   }
@@ -112,7 +115,7 @@ function mapResults(data: SearchResults): SearchResultItem[] {
       type: "form",
       label: f.name,
       description: f.eventName,
-      href: `/admin/events/forms`,
+      href: `${basePrefix}/events/forms`,
       icon: <FileText className="size-4" />,
     });
   }
@@ -122,7 +125,7 @@ function mapResults(data: SearchResults): SearchResultItem[] {
 
 // ─── Component ───────────────────────────────────────────
 
-export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
+export function CommandPalette({ open, onOpenChange, basePrefix = "/admin" }: CommandPaletteProps) {
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -149,37 +152,40 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   }, [open]);
 
   // Fetch search results with debounce
-  const fetchResults = useCallback((q: string) => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (abortRef.current) abortRef.current.abort();
+  const fetchResults = useCallback(
+    (q: string) => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (abortRef.current) abortRef.current.abort();
 
-    if (q.length < 2) {
-      setResults([]);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-
-    debounceRef.current = setTimeout(async () => {
-      const controller = new AbortController();
-      abortRef.current = controller;
-
-      try {
-        const res = await fetch(`/api/v1/search?q=${encodeURIComponent(q)}`, {
-          signal: controller.signal,
-        });
-        if (!res.ok) throw new Error("Search failed");
-        const json = await res.json();
-        setResults(mapResults(json.data));
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
+      if (q.length < 2) {
         setResults([]);
-      } finally {
         setLoading(false);
+        return;
       }
-    }, DEBOUNCE_MS);
-  }, []);
+
+      setLoading(true);
+
+      debounceRef.current = setTimeout(async () => {
+        const controller = new AbortController();
+        abortRef.current = controller;
+
+        try {
+          const res = await fetch(`/api/v1/search?q=${encodeURIComponent(q)}`, {
+            signal: controller.signal,
+          });
+          if (!res.ok) throw new Error("Search failed");
+          const json = await res.json();
+          setResults(mapResults(json.data, basePrefix));
+        } catch (err) {
+          if (err instanceof DOMException && err.name === "AbortError") return;
+          setResults([]);
+        } finally {
+          setLoading(false);
+        }
+      }, DEBOUNCE_MS);
+    },
+    [basePrefix],
+  );
 
   // Clean up on unmount
   useEffect(() => {
@@ -211,7 +217,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
   // Build the displayable items list
   const showResults = query.length >= 2;
-  const displayItems = showResults ? results : QUICK_ACTIONS;
+  const quickActions = buildQuickActions(basePrefix);
+  const displayItems = showResults ? results : quickActions;
 
   // Scroll selected item into view
   useEffect(() => {
@@ -292,7 +299,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
                 Quick Actions
               </div>
-              {QUICK_ACTIONS.map((action, index) => (
+              {quickActions.map((action, index) => (
                 <button
                   key={action.id}
                   type="button"
