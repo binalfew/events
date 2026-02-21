@@ -47,8 +47,8 @@ export function TenantSwitcher({
               size="lg"
               className="text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground data-[state=open]:bg-primary-foreground/10 data-[state=open]:text-primary-foreground"
             >
-              <div className="bg-primary-foreground/20 text-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                <ShieldCheck className="size-4" />
+              <div className="text-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
+                <ShieldCheck className="size-8" />
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">{activeTenant.name}</span>
