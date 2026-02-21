@@ -47,8 +47,16 @@ export function TenantSwitcher({
               size="lg"
               className="text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground data-[state=open]:bg-primary-foreground/10 data-[state=open]:text-primary-foreground"
             >
-              <div className="text-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                <ShieldCheck className="size-8" />
+              <div className="text-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg overflow-hidden">
+                {activeTenant.logoUrl ? (
+                  <img
+                    src={activeTenant.logoUrl}
+                    alt={activeTenant.name}
+                    className="size-8 rounded-lg object-contain"
+                  />
+                ) : (
+                  <ShieldCheck className="size-8" />
+                )}
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">{activeTenant.name}</span>
@@ -69,8 +77,16 @@ export function TenantSwitcher({
               {isAdmin ? "Super Admin" : "Tenant"}
             </DropdownMenuLabel>
             <DropdownMenuItem className="gap-2 p-2">
-              <div className="flex size-6 items-center justify-center rounded-sm border">
-                <ShieldCheck className="size-4 shrink-0" />
+              <div className="flex size-6 items-center justify-center rounded-sm border overflow-hidden">
+                {activeTenant.logoUrl ? (
+                  <img
+                    src={activeTenant.logoUrl}
+                    alt={activeTenant.name}
+                    className="size-6 rounded-sm object-contain"
+                  />
+                ) : (
+                  <ShieldCheck className="size-4 shrink-0" />
+                )}
               </div>
               {activeTenant.name}
             </DropdownMenuItem>

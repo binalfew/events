@@ -11,6 +11,7 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "~/components/ui/native-select";
 import { BrandingColorSection } from "~/components/branding-color-picker";
+import { LogoUpload } from "~/components/logo-upload";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { ConformField } from "~/components/ui/conform-field";
 import { useBasePrefix } from "~/hooks/use-base-prefix";
@@ -208,6 +209,8 @@ export default function NewTenantPage() {
                 <NativeSelectOption value="enterprise">Enterprise</NativeSelectOption>
               </NativeSelect>
             </ConformField>
+
+            <LogoUpload />
 
             <BrandingColorSection />
 

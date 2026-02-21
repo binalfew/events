@@ -42,7 +42,7 @@ export const createTenantSchema = z.object({
   zip: z.string().optional().default(""),
   country: z.string().optional().default(""),
   subscriptionPlan: z.enum(SUBSCRIPTION_PLANS).optional().default("free"),
-  logoUrl: z.string().url("Invalid URL").optional().or(z.literal("")),
+  logoUrl: z.string().optional().or(z.literal("")),
   brandTheme: z.string().optional().or(z.literal("")),
 });
 
@@ -60,7 +60,7 @@ export const updateTenantSchema = z.object({
   zip: z.string().optional().default(""),
   country: z.string().optional().default(""),
   subscriptionPlan: z.enum(SUBSCRIPTION_PLANS),
-  logoUrl: z.string().url("Invalid URL").optional().or(z.literal("")),
+  logoUrl: z.string().optional().or(z.literal("")),
   brandTheme: z.string().optional().or(z.literal("")),
 });
 
