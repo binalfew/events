@@ -1,11 +1,16 @@
-import { data, redirect, useActionData, Form } from "react-router";
+import { data, redirect, useActionData, useLoaderData, Form } from "react-router";
 import { useForm, getFormProps, getInputProps, getSelectProps } from "@conform-to/react";
 import { parseWithZod } from "@conform-to/zod/v4";
 
 export const handle = { breadcrumb: "New Tenant" };
 
 import { requirePermission } from "~/lib/require-auth.server";
-import { createTenant, TenantError } from "~/services/tenants.server";
+import {
+  createTenant,
+  parseTenantExtras,
+  getTenantFieldDefs,
+  TenantError,
+} from "~/services/tenants.server";
 import { createTenantSchema } from "~/lib/schemas/tenant";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -14,8 +19,17 @@ import { BrandingColorSection } from "~/components/branding-color-picker";
 import { LogoUpload } from "~/components/logo-upload";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { ConformField } from "~/components/ui/conform-field";
+import { FieldRenderer } from "~/components/fields/FieldRenderer";
 import { useBasePrefix } from "~/hooks/use-base-prefix";
 import type { Route } from "./+types/new";
+
+export async function loader({ request }: Route.LoaderArgs) {
+  const { user } = await requirePermission(request, "settings", "manage");
+
+  const fieldDefs = await getTenantFieldDefs(user.tenantId!);
+
+  return { fieldDefs };
+}
 
 export async function action({ request, params }: Route.ActionArgs) {
   const { user } = await requirePermission(request, "settings", "manage");
@@ -31,6 +45,8 @@ export async function action({ request, params }: Route.ActionArgs) {
     return data({ result: submission.reply() }, { status: 400 });
   }
 
+  const extras = await parseTenantExtras(formData, tenantId);
+
   const ctx = {
     userId: user.id,
     tenantId,
@@ -39,7 +55,7 @@ export async function action({ request, params }: Route.ActionArgs) {
   };
 
   try {
-    await createTenant(submission.value, ctx);
+    await createTenant({ ...submission.value, extras }, ctx);
     return redirect(`/${params.tenant}/tenants`);
   } catch (error) {
     if (error instanceof TenantError) {
@@ -53,6 +69,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 }
 
 export default function NewTenantPage() {
+  const { fieldDefs } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const basePrefix = useBasePrefix();
 
@@ -193,6 +210,12 @@ export default function NewTenantPage() {
                 />
               </ConformField>
             </div>
+
+            {fieldDefs.map((fd) => {
+              const meta = (form as any).getFieldset()[fd.name];
+              if (!meta) return null;
+              return <FieldRenderer key={fd.id} fieldDef={fd} meta={meta} />;
+            })}
 
             <ConformField
               fieldId={fields.subscriptionPlan.id}

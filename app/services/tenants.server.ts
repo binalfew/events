@@ -1,4 +1,6 @@
 import { prisma } from "~/lib/db.server";
+import { parseFieldFormData } from "~/lib/fields.server";
+import { buildFieldSchema } from "~/lib/fields";
 
 interface ServiceContext {
   userId: string;
@@ -15,6 +17,50 @@ export class TenantError extends Error {
     super(message);
     this.name = "TenantError";
   }
+}
+
+/**
+ * Load Tenant field definitions, merging global (admin tenant) fields
+ * with tenant-specific fields. Tenant-specific fields override global by name.
+ */
+export async function getTenantFieldDefs(tenantId: string) {
+  const adminTenant = await prisma.tenant.findUnique({
+    where: { slug: "admin" },
+    select: { id: true },
+  });
+
+  const tenantIds = [tenantId];
+  if (adminTenant && adminTenant.id !== tenantId) {
+    tenantIds.push(adminTenant.id);
+  }
+
+  const allFields = await prisma.fieldDefinition.findMany({
+    where: { tenantId: { in: tenantIds }, entityType: "Tenant", eventId: null },
+    orderBy: { sortOrder: "asc" },
+  });
+
+  const fieldMap = new Map<string, (typeof allFields)[number]>();
+  for (const f of allFields) {
+    if (f.tenantId === adminTenant?.id) fieldMap.set(f.name, f);
+  }
+  for (const f of allFields) {
+    if (f.tenantId !== adminTenant?.id) fieldMap.set(f.name, f);
+  }
+
+  return Array.from(fieldMap.values()).sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+export async function parseTenantExtras(formData: FormData, tenantId: string) {
+  const fieldDefs = await getTenantFieldDefs(tenantId);
+  if (fieldDefs.length === 0) return {};
+
+  const extras = parseFieldFormData(formData, fieldDefs);
+  const dynamicSchema = buildFieldSchema(fieldDefs);
+  const result = dynamicSchema.safeParse(extras);
+  if (!result.success) {
+    throw new TenantError("Invalid custom field values", 400);
+  }
+  return result.data as Record<string, unknown>;
 }
 
 export async function listTenants() {
@@ -74,6 +120,7 @@ interface CreateTenantInput {
   subscriptionPlan?: string;
   logoUrl?: string;
   brandTheme?: string;
+  extras?: Record<string, unknown>;
 }
 
 export async function createTenant(input: CreateTenantInput, ctx: ServiceContext) {
@@ -94,6 +141,7 @@ export async function createTenant(input: CreateTenantInput, ctx: ServiceContext
         subscriptionPlan: input.subscriptionPlan ?? "free",
         logoUrl: input.logoUrl || null,
         brandTheme: input.brandTheme || null,
+        ...(input.extras !== undefined ? { extras: input.extras as any } : {}),
       },
     });
   } catch (error) {
@@ -175,6 +223,7 @@ interface UpdateTenantInput {
   subscriptionPlan: string;
   logoUrl?: string;
   brandTheme?: string;
+  extras?: Record<string, unknown>;
 }
 
 export async function updateTenant(id: string, input: UpdateTenantInput, ctx: ServiceContext) {
@@ -201,6 +250,7 @@ export async function updateTenant(id: string, input: UpdateTenantInput, ctx: Se
         subscriptionPlan: input.subscriptionPlan,
         logoUrl: input.logoUrl || null,
         brandTheme: input.brandTheme || null,
+        ...(input.extras !== undefined ? { extras: input.extras as any } : {}),
       },
     });
   } catch (error) {

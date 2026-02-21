@@ -175,6 +175,21 @@ export async function deleteUser(id: string, ctx: ServiceContext) {
     throw new UserError("You cannot delete your own account", 409);
   }
 
+  // Prevent deletion of system admin accounts (users with GLOBAL-scope roles)
+  const globalRole = await prisma.userRole.findFirst({
+    where: {
+      userId: id,
+      role: { scope: "GLOBAL" },
+    },
+    select: { role: { select: { name: true } } },
+  });
+  if (globalRole) {
+    throw new UserError(
+      `Cannot delete a system administrator. Remove the "${globalRole.role.name}" role first.`,
+      403,
+    );
+  }
+
   await prisma.user.update({
     where: { id },
     data: { deletedAt: new Date() },

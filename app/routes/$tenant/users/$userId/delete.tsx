@@ -3,6 +3,7 @@ import { data, redirect, useLoaderData, useActionData, Form, Link } from "react-
 export const handle = { breadcrumb: "Delete User" };
 
 import { requirePermission } from "~/lib/require-auth.server";
+import { prisma } from "~/lib/db.server";
 import { getUserWithCounts, deleteUser, UserError } from "~/services/users.server";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -17,7 +18,14 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   }
 
   const targetUser = await getUserWithCounts(params.userId, isSuperAdmin ? undefined : tenantId);
-  return { targetUser, currentUserId: user.id };
+
+  // Check if target user has a GLOBAL-scope role (system admin)
+  const globalRole = await prisma.userRole.findFirst({
+    where: { userId: params.userId, role: { scope: "GLOBAL" } },
+    select: { id: true },
+  });
+
+  return { targetUser, currentUserId: user.id, isSystemAdmin: Boolean(globalRole) };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -46,11 +54,12 @@ export async function action({ request, params }: Route.ActionArgs) {
 }
 
 export default function DeleteUserPage() {
-  const { targetUser, currentUserId } = useLoaderData<typeof loader>();
+  const { targetUser, currentUserId, isSystemAdmin } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const basePrefix = useBasePrefix();
 
   const isSelf = targetUser.id === currentUserId;
+  const canDelete = !isSelf && !isSystemAdmin;
 
   return (
     <div className="space-y-6">
@@ -101,14 +110,21 @@ export default function DeleteUserPage() {
             </div>
           )}
 
-          {!isSelf && (
+          {isSystemAdmin && !isSelf && (
+            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+              This user is a system administrator and cannot be deleted. Remove their global admin
+              role first before attempting deletion.
+            </div>
+          )}
+
+          {canDelete && (
             <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
               This action will soft-delete the user. They will no longer be able to log in.
             </div>
           )}
 
           <div className="flex gap-3 pt-2">
-            {!isSelf ? (
+            {canDelete ? (
               <Form method="post">
                 <Button type="submit" variant="destructive">
                   Delete User

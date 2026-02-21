@@ -1,65 +1,81 @@
 import { data, redirect, useActionData, useLoaderData, Form } from "react-router";
-import { useForm, getFormProps, getInputProps, getSelectProps } from "@conform-to/react";
+import { useForm, getFormProps, getInputProps } from "@conform-to/react";
 import { parseWithZod } from "@conform-to/zod/v4";
+import { z } from "zod/v4";
 
-export const handle = { breadcrumb: "Edit Tenant" };
+export const handle = { breadcrumb: "Organization" };
 
 import { requirePermission } from "~/lib/require-auth.server";
+import { resolveTenant } from "~/lib/tenant.server";
 import {
-  getTenant,
   updateTenant,
   parseTenantExtras,
   getTenantFieldDefs,
   TenantError,
 } from "~/services/tenants.server";
-import { updateTenantSchema } from "~/lib/schemas/tenant";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { NativeSelect, NativeSelectOption } from "~/components/ui/native-select";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
+import { ConformField } from "~/components/ui/conform-field";
 import { BrandingColorSection } from "~/components/branding-color-picker";
 import { LogoUpload } from "~/components/logo-upload";
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-import { ConformField } from "~/components/ui/conform-field";
 import { FieldRenderer } from "~/components/fields/FieldRenderer";
-import { useBasePrefix } from "~/hooks/use-base-prefix";
-import type { Route } from "./+types/edit";
+import type { Route } from "./+types/organization";
+
+const organizationSchema = z.object({
+  name: z.string().min(1, "Name is required").max(200),
+  email: z.email("Valid email is required"),
+  phone: z.string().min(1, "Phone is required"),
+  website: z.string().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  zip: z.string().optional(),
+  country: z.string().optional(),
+  logoUrl: z.string().optional(),
+  brandTheme: z.string().optional(),
+});
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const { user } = await requirePermission(request, "settings", "manage");
-
-  const tenant = await getTenant(params.tenantId);
-
-  const fieldDefs = await getTenantFieldDefs(user.tenantId ?? tenant.id);
+  await requirePermission(request, "settings", "manage");
+  const tenant = await resolveTenant(params.tenant);
+  const fieldDefs = await getTenantFieldDefs(tenant.id);
 
   return { tenant, fieldDefs };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
   const { user } = await requirePermission(request, "settings", "manage");
-  const tenantId = user.tenantId;
-  if (!tenantId) {
-    throw data({ error: "User is not associated with a tenant" }, { status: 403 });
-  }
+  const tenant = await resolveTenant(params.tenant);
 
   const formData = await request.formData();
-  const submission = parseWithZod(formData, { schema: updateTenantSchema });
+  const submission = parseWithZod(formData, { schema: organizationSchema });
 
   if (submission.status !== "success") {
     return data({ result: submission.reply() }, { status: 400 });
   }
 
-  const extras = await parseTenantExtras(formData, tenantId);
+  const extras = await parseTenantExtras(formData, tenant.id);
 
   const ctx = {
     userId: user.id,
-    tenantId,
+    tenantId: tenant.id,
     ipAddress: request.headers.get("x-forwarded-for") ?? undefined,
     userAgent: request.headers.get("user-agent") ?? undefined,
   };
 
   try {
-    await updateTenant(params.tenantId, { ...submission.value, extras }, ctx);
-    return redirect(`/${params.tenant}/tenants`);
+    await updateTenant(
+      tenant.id,
+      {
+        ...submission.value,
+        slug: tenant.slug,
+        subscriptionPlan: tenant.subscriptionPlan,
+        extras,
+      },
+      ctx,
+    );
+    return redirect(`/${params.tenant}/settings/organization`);
   } catch (error) {
     if (error instanceof TenantError) {
       return data(
@@ -71,12 +87,10 @@ export async function action({ request, params }: Route.ActionArgs) {
   }
 }
 
-export default function EditTenantPage() {
+export default function OrganizationSettingsPage() {
   const { tenant, fieldDefs } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
-  const basePrefix = useBasePrefix();
 
-  // Build dynamic defaults from extras
   const extrasObj = (tenant.extras ?? {}) as Record<string, unknown>;
   const dynamicDefaults: Record<string, unknown> = {};
   for (const fd of fieldDefs) {
@@ -87,7 +101,6 @@ export default function EditTenantPage() {
     lastResult: actionData?.result,
     defaultValue: {
       name: tenant.name,
-      slug: tenant.slug,
       email: tenant.email,
       phone: tenant.phone,
       website: tenant.website ?? "",
@@ -96,11 +109,10 @@ export default function EditTenantPage() {
       state: tenant.state ?? "",
       zip: tenant.zip ?? "",
       country: tenant.country ?? "",
-      subscriptionPlan: tenant.subscriptionPlan,
       ...dynamicDefaults,
     },
     onValidate({ formData }) {
-      return parseWithZod(formData, { schema: updateTenantSchema });
+      return parseWithZod(formData, { schema: organizationSchema });
     },
     shouldValidate: "onBlur",
     shouldRevalidate: "onInput",
@@ -109,13 +121,18 @@ export default function EditTenantPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-foreground">Edit Tenant</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Update details for {tenant.name}.</p>
+        <h2 className="text-2xl font-bold text-foreground">Organization</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Manage your organization's details and branding.
+        </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Tenant Details</CardTitle>
+          <CardTitle>Organization Details</CardTitle>
+          <CardDescription>
+            Update your organization's contact information and branding.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Form method="post" {...getFormProps(form)} className="space-y-4">
@@ -129,31 +146,11 @@ export default function EditTenantPage() {
 
             <ConformField
               fieldId={fields.name.id}
-              label="Name"
+              label="Organization Name"
               required
               errors={fields.name.errors}
             >
-              <Input
-                {...getInputProps(fields.name, { type: "text" })}
-                key={fields.name.key}
-                placeholder="e.g. Acme Corporation"
-              />
-            </ConformField>
-
-            <ConformField
-              fieldId={fields.slug.id}
-              label="URL Slug"
-              required
-              errors={fields.slug.errors}
-            >
-              <Input
-                {...getInputProps(fields.slug, { type: "text" })}
-                key={fields.slug.key}
-                placeholder="e.g. acme-corp"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Used in URLs: /<em>slug</em>/events. Lowercase letters, numbers, and hyphens only.
-              </p>
+              <Input {...getInputProps(fields.name, { type: "text" })} key={fields.name.key} />
             </ConformField>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -163,11 +160,7 @@ export default function EditTenantPage() {
                 required
                 errors={fields.email.errors}
               >
-                <Input
-                  {...getInputProps(fields.email, { type: "email" })}
-                  key={fields.email.key}
-                  placeholder="admin@example.com"
-                />
+                <Input {...getInputProps(fields.email, { type: "email" })} key={fields.email.key} />
               </ConformField>
 
               <ConformField
@@ -176,11 +169,7 @@ export default function EditTenantPage() {
                 required
                 errors={fields.phone.errors}
               >
-                <Input
-                  {...getInputProps(fields.phone, { type: "tel" })}
-                  key={fields.phone.key}
-                  placeholder="+1-000-000-0000"
-                />
+                <Input {...getInputProps(fields.phone, { type: "tel" })} key={fields.phone.key} />
               </ConformField>
             </div>
 
@@ -204,7 +193,6 @@ export default function EditTenantPage() {
               <Input
                 {...getInputProps(fields.address, { type: "text" })}
                 key={fields.address.key}
-                placeholder="123 Main St"
               />
             </ConformField>
 
@@ -239,31 +227,12 @@ export default function EditTenantPage() {
               return <FieldRenderer key={fd.id} fieldDef={fd} meta={meta} />;
             })}
 
-            <ConformField
-              fieldId={fields.subscriptionPlan.id}
-              label="Subscription Plan"
-              errors={fields.subscriptionPlan.errors}
-            >
-              <NativeSelect
-                {...getSelectProps(fields.subscriptionPlan)}
-                key={fields.subscriptionPlan.key}
-              >
-                <NativeSelectOption value="free">Free</NativeSelectOption>
-                <NativeSelectOption value="starter">Starter</NativeSelectOption>
-                <NativeSelectOption value="professional">Professional</NativeSelectOption>
-                <NativeSelectOption value="enterprise">Enterprise</NativeSelectOption>
-              </NativeSelect>
-            </ConformField>
-
             <LogoUpload initialLogoUrl={tenant.logoUrl} />
 
             <BrandingColorSection initialBrandTheme={tenant.brandTheme ?? ""} />
 
             <div className="flex gap-3 pt-4">
               <Button type="submit">Save Changes</Button>
-              <Button type="button" variant="outline" asChild>
-                <a href={`${basePrefix}/tenants`}>Cancel</a>
-              </Button>
             </div>
           </Form>
         </CardContent>

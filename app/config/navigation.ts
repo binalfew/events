@@ -139,6 +139,11 @@ export function buildNavigationGroups(basePrefix: string): NavGroup[] {
           roles: ["ADMIN", "TENANT_ADMIN"],
           children: [
             { title: "General", tKey: "general", url: `${basePrefix}/settings`, end: true },
+            {
+              title: "Organization",
+              tKey: "organization",
+              url: `${basePrefix}/settings/organization`,
+            },
             { title: "Fields", tKey: "fields", url: `${basePrefix}/settings/fields` },
             {
               title: "Feature Flags",
