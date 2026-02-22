@@ -55,7 +55,7 @@ export function TenantSwitcher({
                   <img
                     src={activeTenant.logoUrl}
                     alt={activeTenant.name}
-                    className={`${collapsed ? "size-5" : "size-8"} rounded-lg object-contain`}
+                    className={`${collapsed ? "size-5" : "size-8"} rounded-lg object-contain brightness-0 invert`}
                   />
                 ) : (
                   <ShieldCheck className={collapsed ? "size-5" : "size-8"} />

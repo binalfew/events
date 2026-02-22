@@ -4,6 +4,62 @@ import type { RoleScope } from "~/generated/prisma/client.js";
 
 // ─── Types ───────────────────────────────────────────────
 
+export type PermissionResource =
+  | "participant"
+  | "workflow"
+  | "field"
+  | "form"
+  | "event"
+  | "section-template"
+  | "settings"
+  | "feature-flag"
+  | "delegation"
+  | "views"
+  | "custom-objects"
+  | "analytics"
+  | "api-keys"
+  | "webhooks"
+  | "check-in"
+  | "kiosk"
+  | "bulk-operations"
+  | "duplicates"
+  | "blacklist"
+  | "waitlist"
+  | "communication"
+  | "event-clone"
+  | "accommodation"
+  | "transport"
+  | "catering"
+  | "parking"
+  | "venue"
+  | "protocol"
+  | "bilateral"
+  | "incident"
+  | "staff"
+  | "compliance"
+  | "survey"
+  | "certificate"
+  | "command-center"
+  | "file";
+
+export type PermissionAction =
+  | "create"
+  | "read"
+  | "update"
+  | "delete"
+  | "approve"
+  | "reject"
+  | "print"
+  | "collect"
+  | "manage"
+  | "view"
+  | "execute"
+  | "review"
+  | "broadcast"
+  | "scan"
+  | "report"
+  | "upload";
+
 export interface AuthRole {
   id: string;
   name: string;
@@ -13,8 +69,8 @@ export interface AuthRole {
 }
 
 export interface AuthPermission {
-  resource: string;
-  action: string;
+  resource: PermissionResource;
+  action: PermissionAction;
   access: string; // "own" | "any"
   roleScope: RoleScope;
   eventId: string | null;
@@ -46,8 +102,8 @@ async function loadAuthUser(request: Request): Promise<AuthUser> {
 
   const permissions: AuthPermission[] = user.userRoles.flatMap((ur) =>
     ur.role.rolePermissions.map((rp) => ({
-      resource: rp.permission.resource,
-      action: rp.permission.action,
+      resource: rp.permission.resource as PermissionResource,
+      action: rp.permission.action as PermissionAction,
       access: rp.access,
       roleScope: ur.role.scope,
       eventId: ur.eventId,
@@ -76,8 +132,8 @@ function getAuthUser(request: Request): Promise<AuthUser> {
 
 function checkPermission(
   user: AuthUser,
-  resource: string,
-  action: string,
+  resource: PermissionResource,
+  action: PermissionAction,
   opts?: { eventId?: string; ownerId?: string },
 ): boolean {
   return user.permissions.some((p) => {
@@ -145,8 +201,8 @@ export async function requireAnyRole(request: Request, roleNames: string[]) {
  */
 export async function requirePermission(
   request: Request,
-  resource: string,
-  action: string,
+  resource: PermissionResource,
+  action: PermissionAction,
   opts?: { eventId?: string; ownerId?: string },
 ) {
   const { user, roles, isSuperAdmin } = await requireAuth(request);
@@ -173,8 +229,8 @@ export async function requireGlobalAdmin(request: Request) {
 export async function requireEventAccess(
   request: Request,
   eventId: string,
-  resource: string,
-  action: string,
+  resource: PermissionResource,
+  action: PermissionAction,
 ) {
   return requirePermission(request, resource, action, { eventId });
 }
@@ -184,8 +240,8 @@ export async function requireEventAccess(
  */
 export async function hasPermission(
   userId: string,
-  resource: string,
-  action: string,
+  resource: PermissionResource,
+  action: PermissionAction,
 ): Promise<boolean> {
   // This is used by some callers that only have userId (not a Request).
   // We do a direct DB check as a fallback.
